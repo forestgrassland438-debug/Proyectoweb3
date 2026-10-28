@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mercado · Grassland Forest</title>
 <meta name="description" content="Mercado P2P de Grassland Forest — compra y vende objetos con oro y plata.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -718,6 +718,7 @@
     .offer-actions button{ flex:1; }
   }
 </style>
+<link rel="stylesheet" href="./market-experience.css?v=20261028-v3">
 </head>
 <body>
 
@@ -776,6 +777,10 @@
     <main>
       <!-- MERCADO -->
       <section id="tab-market">
+        <div class="market-intro"><div><small>Grassland Forest · Player market</small><h1 id="market-intro-title">El bosque también comercia.</h1>
+          <p id="market-intro-copy">Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.</p></div>
+          <div class="market-intro-meta"><span id="market-fee-note">Comisión de venta: 5 %</span><button id="market-refresh" type="button">↻ Actualizar mercado</button></div></div>
+        <p id="market-network" class="market-network" role="status" aria-live="polite"></p>
         <div class="toolbar">
           <div class="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -962,8 +967,8 @@
   <div class="toast-stack" id="toast-stack"></div>
 
 <!-- (2026-10-28) Gráficos interactivos y el panel de estadísticas de precio (los mismos que en la tienda del juego). -->
-<script src="./gf-graficos.js?v=22.5.5233e592e1b7"></script>
-<script src="./gf-precio-panel.js?v=22.5.768f244d2efc"></script>
+<script src="./gf-graficos.js?v=20261028.542879aed93b"></script>
+<script src="./gf-precio-panel.js?v=20261028.e2410b6218cd"></script>
 <script>
 (function(){
   "use strict";
@@ -1183,6 +1188,11 @@
 
   // Aplica el idioma a todo el DOM estático y re-renderiza lo dinámico
   function applyLang(){
+    const english = LANG === 'en';
+    document.getElementById('market-intro-title').textContent = english ? 'The forest trades, too.' : 'El bosque también comercia.';
+    document.getElementById('market-intro-copy').textContent = english ? 'Find resources, compare prices and equip your next adventure. Every trade keeps its history.' : 'Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.';
+    document.getElementById('market-refresh').textContent = english ? '↻ Refresh market' : '↻ Actualizar mercado';
+    document.getElementById('market-fee-note').textContent = english ? 'Sales fee: 5%' : 'Comisión de venta: 5 %';
     document.documentElement.lang = LANG;
     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
     document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
@@ -1218,14 +1228,18 @@
   // API HELPERS
   // ══════════════════════════════════════════════════════════════════════
   async function rawFetch(path, opts){
-    const res = await fetch(CONFIG.API_BASE + path, Object.assign({
-      credentials: 'include',
-      headers: Object.assign({
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }, (opts && opts.headers) || {}, state.csrfToken ? {'X-CSRF-Token': state.csrfToken} : {})
-    }, opts || {}));
-    return res;
+    const controller = new AbortController();
+    const taskOptions = opts || {};
+    const timeout = setTimeout(() => controller.abort(), 90000);
+    try {
+      return await fetch(CONFIG.API_BASE + path, { ...taskOptions, credentials: 'include', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(taskOptions.headers || {}),
+          ...(state.csrfToken ? { 'X-CSRF-Token': state.csrfToken } : {}) } });
+    } catch (e) {
+      const status = document.getElementById('market-network');
+      if (status) { status.dataset.error = 'true'; status.textContent = LANG === 'en' ? 'Connection interrupted. Your last loaded data is still shown.' : 'Conexión interrumpida. Se conservan los últimos datos cargados.'; }
+      return new Response(JSON.stringify({ error: 'connection_error' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+    } finally { clearTimeout(timeout); }
   }
   async function tryRefreshSession(){
     try{
@@ -1399,6 +1413,7 @@
   // ══════════════════════════════════════════════════════════════════════
   function toast(msg, isError){
     const stack = document.getElementById('toast-stack');
+    document.querySelectorAll('.toast').forEach((old, i) => { if (i >= 3) old.remove(); });
     const el = document.createElement('div');
     el.className = 'toast' + (isError ? ' err' : '');
     el.textContent = (isError ? '⚠️ ' : '✅ ') + msg;
@@ -1421,8 +1436,8 @@
     if(!ok){ showGate(); return; }
 
     await fetchCsrfToken();
-    await loadEverything();
-    showApp();
+    try { await loadEverything(); showApp(); }
+    catch (e) { showGate(); document.getElementById('gate-msg').textContent = LANG === 'en' ? 'The market could not be loaded. Check your connection and try again.' : 'No se pudo cargar el mercado. Comprueba la conexión y vuelve a entrar.'; return; }
 
     // Liquidaciones que quedaron a medias en otra sesión (red caída, pestaña
     // cerrada a mitad…). Se reintentan en segundo plano, sin molestar.
@@ -1446,33 +1461,46 @@
   // CARGA DE DATOS
   // ══════════════════════════════════════════════════════════════════════
   async function loadEverything(){
-    await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings(), loadHistory()]);
+    const loaded = await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings(), loadHistory()]);
+    if (loaded.slice(0, 3).includes(false)) throw new Error('market_unavailable');
     applyLang(); // ahora que hay datos, re-renderiza todo con el idioma actual
   }
   async function loadCatalog(){
     const res = await api('/api/marketplace/catalog');
-    if(!res.ok) return;
+    if(!res.ok) return false;
     const data = await res.json();
     state.catalog = data.catalog || {};
     state.categories = [{id:'todos', label:'Todos'}].concat(data.categories || []);
+    return true;
   }
   async function loadAccount(){
     const res = await api('/api/marketplace/account');
-    if(!res.ok) return;
+    if(!res.ok) return false;
     const data = await res.json();
     state.address = data.address; state.playerName = data.playerName;
     state.oro = data.oro; state.plata = data.plata;
     state.inventory = data.inventory || [];
+    return true;
   }
+  let listingRevision = 0;
   async function loadListings(){
+    const revision = ++listingRevision;
     const params = new URLSearchParams();
     if(state.activeCategory && state.activeCategory !== 'todos') params.set('category', state.activeCategory);
     if(state.search) params.set('search', state.search);
     if(state.sort) params.set('sort', state.sort);
     const res = await api('/api/marketplace/listings?' + params.toString());
-    if(!res.ok) return;
+    if(!res.ok) {
+      const status = document.getElementById('market-network'); status.dataset.error = 'true';
+      status.textContent = LANG === 'en' ? 'The market could not be refreshed. Your last loaded data is still shown.' : 'No se pudo actualizar el mercado. Se conservan los últimos datos cargados.';
+      return false;
+    }
     const data = await res.json();
+    if (revision !== listingRevision) return;
     state.listings = data.listings || [];
+    document.getElementById('market-network').dataset.error = 'false';
+    document.getElementById('market-network').textContent = '';
+    return true;
   }
   async function loadMyListings(){
     const res = await api('/api/marketplace/my-listings');
@@ -1739,7 +1767,7 @@
 
   document.getElementById('sell-confirm').addEventListener('click', async () => {
     const item = state.sellCtx;
-    if(!item) return;
+    if(!item || document.getElementById('sell-confirm').disabled) return;
     const qty = Math.floor(Number(document.getElementById('sell-qty').value));
     const price = Number(document.getElementById('sell-price').value);
     const errEl = document.getElementById('sell-error');
@@ -1790,7 +1818,7 @@
     document.getElementById('buy-modal').classList.add('show');
   }
   function updateBuyTotal(){
-    const l = state.buyCtx; if(!l) return;
+    const l = state.buyCtx; if(!l || document.getElementById('buy-confirm').disabled) return;
     const qty = Number(document.getElementById('buy-qty').value) || 0;
     document.getElementById('buy-total').innerHTML = `<span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(qty*l.pricePerUnit)}`;
   }
@@ -1800,7 +1828,7 @@
   document.getElementById('buy-cancel').addEventListener('click', () => document.getElementById('buy-modal').classList.remove('show'));
 
   document.getElementById('buy-confirm').addEventListener('click', async () => {
-    const l = state.buyCtx; if(!l) return;
+    const l = state.buyCtx; if(!l || document.getElementById('buy-confirm').disabled) return;
     const qty = Math.floor(Number(document.getElementById('buy-qty').value));
     const errEl = document.getElementById('buy-error');
     errEl.classList.remove('show');
@@ -2358,7 +2386,28 @@
     }catch(e){ toast(t('e_conn'), true); }
   }
 
-  boot();
+  let refreshingMarket = false;
+  document.getElementById('market-refresh').addEventListener('click', async () => {
+    if (refreshingMarket) return;
+    refreshingMarket = true; const b = document.getElementById('market-refresh'); b.disabled = true;
+    const status = document.getElementById('market-network');
+    try { const loaded = await Promise.all([loadListings(), loadAccount()]); if (loaded.includes(false)) throw new Error('market_unavailable'); renderMarket(); renderWallet(); status.dataset.error = 'false'; status.textContent = LANG === 'en' ? 'Market refreshed.' : 'Mercado actualizado.'; }
+    catch (e) { status.textContent = LANG === 'en' ? 'Connection interrupted. Try again.' : 'Conexión interrumpida. Vuelve a intentarlo.'; }
+    finally { b.disabled = false; refreshingMarket = false; }
+  });
+  document.addEventListener('keydown', e => {
+    const modals = Array.from(document.querySelectorAll('.modal-backdrop.show'));
+    const modal = modals[modals.length - 1]; if (!modal) return;
+    if (e.key === 'Escape') { e.preventDefault(); modal.classList.remove('show'); return; }
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), input:not(:disabled), select, a[href], [tabindex="0"]')).filter(n => n.getClientRects().length);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+  });
+  window.addEventListener('pagehide', () => { clearTimeout(searchTimer); if (window.GFPrecioPanel) GFPrecioPanel.cerrar(); });
+  boot().catch(() => { showGate(); });
 })();
 </script>
 </body>

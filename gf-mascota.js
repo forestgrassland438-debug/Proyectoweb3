@@ -114,7 +114,7 @@
       if (csrf) opts.headers['X-CSRF-Token'] = csrf;
       opts.body = JSON.stringify(cuerpo || {});
     }
-    var timer = setTimeout(function () { controller.abort(); }, 15000);
+    var timer = setTimeout(function () { controller.abort(); }, ruta === '/api/economia/tienda' ? 180000 : 15000);
     return fetch(origen + ruta, opts).then(function (r) {
       return r.json().then(function (d) {
         if (controller.signal.aborted) throw new Error('Solicitud cancelada');

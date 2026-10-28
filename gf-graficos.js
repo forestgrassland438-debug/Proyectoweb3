@@ -45,15 +45,18 @@
 
   /* ── EL RELOJ DEL SERVIDOR ─────────────────────────────────────────────── */
   var desfase = 0, sincronizado = false;
+  var baseServidor = 0, basePulso = 0;
+  function pulso() { return root.performance && typeof root.performance.now === 'function' ? root.performance.now() : null; }
   var reloj = {
     /** `ahora` del servidor (ms). Se guarda la diferencia con el reloj del equipo. */
     ajustar: function (ahoraServidor) {
       var n = Number(ahoraServidor);
       if (!isFinite(n) || n <= 0) return;
       desfase = n - Date.now();
+      baseServidor = n; basePulso = pulso();
       sincronizado = true;
     },
-    ahora: function () { return Date.now() + desfase; },
+    ahora: function () { var p = pulso(); return sincronizado && p !== null && basePulso !== null ? baseServidor + p - basePulso : Date.now() + desfase; },
     sincronizado: function () { return sincronizado; },
     /** Pide la hora a /api/tiempo (una vez basta; luego se va sumando). */
     sincronizar: function (apiBase) {
@@ -239,7 +242,9 @@
       var out = {};
       for (var k in nuevos) {
         if (!Object.prototype.hasOwnProperty.call(nuevos, k)) continue;
-        var l = (nuevos[k] || []).map(function (p) { return [aMs(Array.isArray(p) ? p[0] : p.t), Number(Array.isArray(p) ? p[1] : p.v)]; })
+        var l = (Array.isArray(nuevos[k]) ? nuevos[k].slice(-5000) : []).filter(function (p) { return p != null; }).map(function (p) {
+          var v = Array.isArray(p) ? p[1] : p.v;
+          return [aMs(Array.isArray(p) ? p[0] : p.t), v === null || v === undefined || v === '' ? null : Number(v)]; })
           .filter(function (p) { return isFinite(p[0]) && (isFinite(p[1]) || p[1] === null); })
           .sort(function (a, b) { return a[0] - b[0]; });
         out[k] = l;
@@ -257,7 +262,7 @@
     }
     function ponerRango(r) {
       if (!extension) { pintar(); return; }
-      var fin = op.tipo === 'barras' ? extension[1] : Math.max(extension[1], Math.min(reloj.ahora(), extension[1] + DIA));
+      var fin = extension[1];
       if (r === 'todo' || !RANGOS[r]) vista = [extension[0], extension[1]];
       else vista = [Math.max(extension[0], fin - RANGOS[r]), fin];
       if (vista[1] - vista[0] < HORA) vista = [extension[0], extension[1]];
@@ -307,7 +312,7 @@
       if (svg) svg.remove();
       svg = null; capaHover = null; ficha.hidden = true;
       var vis = visibles();
-      var hay = vis.some(function (s) { return (datos[s.id] || []).length; });
+      var hay = vis.some(function (s) { return (datos[s.id] || []).some(function (p) { return p[1] !== null && isFinite(p[1]); }); });
       lienzo.querySelectorAll('.gfg-vacio').forEach(function (n) { n.remove(); });
       if (!hay || !vista) {
         var v = el('div', 'gfg-vacio', op.vacio); v.style.height = alto + 'px';
@@ -322,9 +327,15 @@
       var apilado = op.tipo === 'barras';
       if (apilado) {
         var sumas = {};
-        vis.forEach(function (s) { (datos[s.id] || []).forEach(function (p) { if (p[0] < t0 - DIA || p[0] > t1 + DIA || !(p[1] > 0)) return; sumas[p[0]] = (sumas[p[0]] || 0) + p[1]; }); });
-        for (var k in sumas) if (Object.prototype.hasOwnProperty.call(sumas, k)) max = Math.max(max, sumas[k]);
         min = 0;
+        vis.forEach(function (s) { (datos[s.id] || []).forEach(function (p) {
+          if (p[0] < t0 - DIA || p[0] > t1 + DIA || p[1] === null || !isFinite(p[1])) return;
+          var bucket = sumas[p[0]] || (sumas[p[0]] = { positive: 0, negative: 0 });
+          if (p[1] >= 0) bucket.positive += p[1]; else bucket.negative += p[1];
+        }); });
+        for (var k in sumas) if (Object.prototype.hasOwnProperty.call(sumas, k)) {
+          max = Math.max(max, sumas[k].positive); min = Math.min(min, sumas[k].negative);
+        }
         if (!isFinite(max)) max = 1;
       } else {
         vis.forEach(function (s) {
@@ -362,7 +373,8 @@
         var yy = Y(v);
         if (yy < ARR - 1 || yy > alto - ABA + 1) return;
         svg.appendChild(sv('line', { x1: IZQ, x2: ancho - DER, y1: yy, y2: yy, 'class': i === 0 ? 'gfg-eje' : 'gfg-rej' }));
-        var tx = sv('text', { x: IZQ - 6, y: yy + 3.5, 'text-anchor': 'end' }); tx.textContent = fy(v, null);
+        var tx = sv('text', { x: IZQ - 6, y: yy + 3.5, 'text-anchor': 'end' });
+        var etiqueta = String(fy(v, null)); tx.textContent = etiqueta.length > 10 ? numeroCorto(v) : etiqueta;
         svg.appendChild(tx);
       });
       // Eje x (UTC).
@@ -418,7 +430,7 @@
         }
         g.appendChild(sv('path', { d: d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
         // Un único punto (sin línea que pintar): una marca pequeña.
-        if (l.length === 1 && !s.escalon) g.appendChild(sv('circle', { cx: X(l[0][0]), cy: Y(l[0][1]), r: 4, fill: s.color }));
+        if (l.length === 1 && l[0][1] !== null) g.appendChild(sv('circle', { cx: X(l[0][0]), cy: Y(l[0][1]), r: 4, fill: s.color }));
       });
     }
     function pintarBarras(g, vis, X, Y, t0, t1) {
@@ -428,15 +440,16 @@
       var paso = lista.length > 1 ? Math.min.apply(null, lista.slice(1).map(function (t, i) { return t - lista[i]; })) : DIA;
       var anchoBarra = Math.max(2, Math.min(28, (X(t0 + paso) - X(t0)) * 0.72));
       lista.forEach(function (t) {
-        var base = 0;
+        var basePositiva = 0, baseNegativa = 0;
         vis.forEach(function (s) {
           var p = (datos[s.id] || []).find(function (q) { return q[0] === t; });
-          var v = p ? Math.max(0, Number(p[1]) || 0) : 0;
+          var v = p ? Number(p[1]) || 0 : 0;
           if (!v) return;
+          var base = v > 0 ? basePositiva : baseNegativa;
           var ya = Y(base), yb = Y(base + v);
           // 2 px de separación entre segmentos: se distinguen sin depender del color.
-          g.appendChild(sv('rect', { x: X(t) - anchoBarra / 2, y: yb, width: anchoBarra, height: Math.max(1, ya - yb - 2), rx: 2, fill: s.color }));
-          base += v;
+          g.appendChild(sv('rect', { x: X(t) - anchoBarra / 2, y: Math.min(ya, yb), width: anchoBarra, height: Math.max(1, Math.abs(ya - yb) - 2), rx: 2, fill: s.color }));
+          if (v > 0) basePositiva += v; else baseNegativa += v;
         });
       });
     }
@@ -622,6 +635,7 @@
     }
 
     function actualizar(nuevo) {
+      if (destruido) return;
       nuevo = nuevo || {};
       if (nuevo.series) {
         series = nuevo.series.map(function (s, i) { return Object.assign({ color: PALETA[i % PALETA.length] }, s); });
@@ -646,10 +660,19 @@
       pintar: pintar,
       rango: ponerRango,
       destruir: function () {
+        if (destruido) return;
         destruido = true;
         clearTimeout(vigiaReloj);
         if (vigia) vigia.disconnect();
         lienzo.removeEventListener('wheel', alRueda);
+        lienzo.removeEventListener('pointerdown', alBajar);
+        lienzo.removeEventListener('pointermove', alMover);
+        lienzo.removeEventListener('pointerup', alSoltar);
+        lienzo.removeEventListener('pointercancel', alSoltar);
+        lienzo.removeEventListener('pointerleave', alSalir);
+        lienzo.removeEventListener('keydown', alTecla);
+        punteros.clear(); arrastre = pellizco = null;
+        datos = {}; series = []; geo = svg = capaHover = null;
         raiz.remove();
       }
     };

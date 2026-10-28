@@ -773,10 +773,15 @@ class CraftingSystem {
        lo que sale, con el índice de precios; ver gf-servicios.js). Si al final
        no se entrega nada, vuelve (ver el finally de abajo). */
     let cobroCrafteo=null, entregadoCrafteo=false;
+    if(!window.GFServicios){
+      this.showFeedback('The payment service is unavailable. Reopen the game before crafting.','error');return false;
+    }
     if(window.GFServicios){
       cobroCrafteo=await window.GFServicios.cobrar('craftear',recipe.resultItem,resultQty);
       if(cobroCrafteo&&!cobroCrafteo.ok){this.showFeedback('❌ '+cobroCrafteo.message,'error');return;}
     }
+    if(!cobroCrafteo||!cobroCrafteo.ok) return false;
+    if(this._destroyed||!this.scene){await window.GFServicios.devolver(cobroCrafteo.ref);return false;}
     this._crafting=true;
     // Aviso (en inglés) de que el crafteo empezó: la parte on-chain (consumir
     // materiales / agregar el resultado) es asíncrona y puede tardar, así que
@@ -932,7 +937,10 @@ class CraftingSystem {
     } finally {
       // (2026-10-28) No se entregó nada: lo cobrado por craftear vuelve (una vez; el servidor lo comprueba).
       if(!entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&cobroCrafteo.bronce>0&&window.GFServicios){
-        window.GFServicios.devolver(cobroCrafteo.ref);
+        await window.GFServicios.devolver(cobroCrafteo.ref);
+      }
+      if(entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&window.GFServicios?.confirmar){
+        await window.GFServicios.confirmar(cobroCrafteo.ref);
       }
       this._crafting=false;
       // El estado del botón depende de si QUEDA cola, no de este crafteo.

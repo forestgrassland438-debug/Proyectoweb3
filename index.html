@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=22.5.593cc1b7ffea" />
+  <link rel="stylesheet" href="styless.css?v=20261028.00c2182d82bf" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
   <link rel="stylesheet" href="gf-hud.css?v=22.5.e34cb2881578" />
 
@@ -136,7 +136,7 @@
   <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.fac44b366439" defer></script>
+  <script src="./gf-salvaje.js?v=20261028.76688f222472" defer></script>
   <script src="./gf-jefes.js?v=22.5.e24ed531dd1c" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
@@ -154,17 +154,17 @@
   <script src="./gf-tirones.js?v=22.5.ccdc78818f1b" defer></script>
   <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
   <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25" defer></script>
-  <script src="./gf-mascota.js?v=22.5.71f68ed8fe99" defer></script>
+  <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
-  <script src="./gf-servicios.js?v=22.5.114206c91bfd" defer></script>
+  <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
   <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
   <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
   <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
   <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
-  <script src="./gf-graficos.js?v=22.5.5233e592e1b7" defer></script>
-  <script src="./gf-economia.js?v=22.5.6229e3954f8a" defer></script>
+  <script src="./gf-graficos.js?v=20261028.542879aed93b" defer></script>
+  <script src="./gf-economia.js?v=20261028.66ade9054170" defer></script>
   <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
@@ -219,7 +219,7 @@
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
   <script src="./Scenes/tiendajuego.js?v=22.5.d24030e5f25b" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.baab8f92879a" defer></script>
+  <script src="./Scenes/GameScene.js?v=20261028.14747efc175d" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -257,10 +257,10 @@
   <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
   <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
-  <script src="./CraftingHub.js?v=22.5.a13d6a66e4f3" defer></script>
+  <script src="./CraftingHub.js?v=20261028.a9be9c73a042" defer></script>
   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
-  <script src="./gf-precio-panel.js?v=22.5.768f244d2efc" defer></script>
-  <script src="./tienda_sistema.js?v=22.5.e190a7011229" defer></script>
+  <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
+  <script src="./tienda_sistema.js?v=20261028.7773a2a51f03" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
@@ -570,11 +570,11 @@
                 
                 <div class="detail-actions-simple">
                   <!-- (2026-10-28) Historial y estadísticas de precio del objeto (gf-precio-panel.js). -->
-                  <button id="price-history-button-pc" class="interact-btn-pc gf-precio-btn" type="button" disabled>
-                    <span class="action-icon">📈</span> Price history
+                  <button id="interact-button-pc" class="interact-btn-pc" type="button" disabled>
+                    <span class="action-icon" aria-hidden="true">🛒</span> Buy / Sell
                   </button>
-                  <button id="interact-button-pc" class="interact-btn-pc" disabled>
-                    <span class="action-icon">🔍</span> Interact
+                  <button id="price-history-button-pc" class="interact-btn-pc gf-precio-btn" type="button" disabled>
+                    <span class="action-icon" aria-hidden="true">📈</span> Prices &amp; statistics
                   </button>
                 </div>
               </div>

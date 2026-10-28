@@ -1570,6 +1570,8 @@
         return;
       }
       aviso(scene, '🏆 You defeated the ' + m.def.nombre + '! +' + d.exp + ' XP', 'success');
+      if (d.tesoroEstado === 'sin_fondos') aviso(scene, 'The reward treasury needs funds. No Bronze was created or lost.', 'info');
+      if (d.tesoroEstado === 'tope_diario') aviso(scene, 'You reached today’s Bronze reward limit.', 'info');
       var total = Number(d.expTotal);
       if (Number.isFinite(total) && total > (Number(scene.nivel_exp) || 0)) {
         scene.nivel_exp = total;

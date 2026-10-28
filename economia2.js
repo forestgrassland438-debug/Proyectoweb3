@@ -27,7 +27,7 @@
   if (!ui || !session || !$('e2-quemar')) return;
 
   const POR = { oro: 1000000, plata: 1000, bronce: 1 };
-  const TESOROS = { circular: 'Circular-economy treasury', juego: 'Game treasury', reserva: 'Reserve fund' };
+  const TESOROS = { circular: 'Circular-economy treasury', juego: 'Game treasury' };
   let datos = null, cargando = false, ocupado = false, sucio = false, cerrado = false;
   root.GFEconomia2 = Object.freeze({ status: () => (ocupado ? 'busy' : sucio ? 'dirty' : '') });
 
@@ -79,12 +79,6 @@
   // ── PINTAR ────────────────────────────────────────────────────────────────
   function pintar() {
     const d = datos, tr = d.tesoros;
-    $('e2-res-saldo').textContent = fmt(tr.reserva.saldo);
-    filas($('e2-res-filas'), [
-      ['From deaths (revives)', fmt(tr.reserva.ingresado.muerte || 0)], ['Deposited by admins', fmt(tr.reserva.ingresado.admin || 0)],
-      ['Withdrawn', fmt(tr.reserva.retirado)], ['Burned', fmt(tr.reserva.quemado)],
-      ['Death payments, 30 days', fmt(d.muerte.cobros30) + ' · ' + fmt(d.muerte.cobrado30) + ' ' + t('bronze')]
-    ]);
     const h = d.hoy || {};
     $('e2-kpis').replaceChildren(
       kpi('×' + fmt(d.indice, 4), 'Price index today', d.indiceAyer ? t('yesterday ×') + fmt(d.indiceAyer, 4) : ''),
@@ -93,7 +87,7 @@
       kpi(pct(h.inflacionTotal7, 3), 'Total supply inflation, 7 days', t('every coin that exists')),
       kpi(fmt(h.masaActiva), 'Active money (bronze)'), kpi(fmt(h.masaTotal), 'Total supply (bronze)'),
       kpi(fmt(h.quemadoObjetos7), 'Items destroyed, 7 days (bronze value)'),
-      kpi(fmt(tr.circular.quemado + tr.juego.quemado + tr.reserva.quemado), 'Coins burned from treasuries'));
+      kpi(fmt(tr.circular.quemado + tr.juego.quemado), 'Coins burned from treasuries'));
     if (!sucio) rellenarConfig(d.config);
     pintarTablaMuerte();
     $('e2-ejemplos').replaceChildren(...(d.ejemplosServicio || []).map(x => el('span', 'tz-chip',
@@ -137,12 +131,12 @@
   function proyectar() {
     if (!datos) return;
     const q = leerQuema(), h = datos.hoy || {}, tr = datos.tesoros;
-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : q.tesoro === 'juego' ? tr.juego.saldo : tr.reserva.saldo;
+    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
     const A = Number(h.masaActiva) || 0, S = Number(h.masaTotal) || 0;
     const a7 = h.inflacionActiva7, s7 = h.inflacionTotal7, n7 = h.inflacionNeta7;
     const A7 = a7 !== null && a7 !== undefined ? A / (1 + a7) : null;
     const S7 = s7 !== null && s7 !== undefined ? S / (1 + s7) : null;
-    const quemaObj = a7 !== null && a7 !== undefined && n7 !== null && n7 !== undefined ? a7 - n7 : 0;
+    const quemaObj = 0;
     const A2 = A - (q.tesoro === 'circular' ? q.bronce : 0), S2 = S - q.bronce;
     const a7b = A7 ? (A2 - A7) / A7 : null, s7b = S7 ? (S2 - S7) / S7 : null;
     const n7b = a7b === null ? null : a7b - quemaObj;
@@ -150,7 +144,8 @@
     const oroHoy = Number(h.precioGwei) || 0;
     const oroA = precioOroGwei(cfgOro, oroHoy, n7), oroB = precioOroGwei(cfgOro, oroHoy, n7b);
     const idxA = indiceObjetivo(cfg, datos.indice, n7), idxB = indiceObjetivo(cfg, datos.indice, n7b);
-    const pasa = q.bronce > saldo;
+    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
+    const pasa = q.bronce > (Number.isFinite(disponible) ? disponible : saldo);
     const fila = (k, antes, despues, nota) => {
       const r = el('div', 'e2-proy-fila');
       r.append(el('span', '', t(k)), el('b', '', antes), el('span', 'e2-flecha', '→'), el('b', '', despues));
@@ -163,7 +158,7 @@
         saldo > 0 ? pct(q.bronce / saldo, 2) + ' ' + t('of the treasury balance') : t('the treasury is empty')),
       fila('Net inflation, 7 days (drives prices)', pct(n7, 5), pct(n7b, 5), delta(n7, n7b)),
       fila('Active money inflation, 7 days', pct(a7, 5), pct(a7b, 5), q.tesoro === 'circular' ? delta(a7, a7b)
-        : t('Game and reserve funds are already out of circulation: burning them lowers the total supply, not the money players hold.')),
+        : t('Game treasury funds are already out of circulation: burning them lowers the total supply, not the money players hold.')),
       fila('Total supply inflation, 7 days', pct(s7, 5), pct(s7b, 5), delta(s7, s7b)),
       fila('Top-up Gold price, tomorrow (zkLTC)', zk(oroA.manana / 1e9), zk(oroB.manana / 1e9), t('target ') + zk(oroB.objetivo / 1e9) + ' zkLTC'),
       fila('Shop price index, tomorrow', '×' + fmt(idxA.manana, 4), '×' + fmt(idxB.manana, 4), t('target ×') + fmt(idxB.objetivo, 4))
@@ -177,8 +172,9 @@
   $('e2-q-todo').addEventListener('click', () => {
     if (!datos) return;
     const q = leerQuema(), tr = datos.tesoros;
-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : q.tesoro === 'juego' ? tr.juego.saldo : tr.reserva.saldo;
-    $('e2-q-cantidad').value = String(Math.floor(saldo / (POR[q.moneda] || 1)));
+    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
+    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
+    $('e2-q-cantidad').value = String(Math.floor((Number.isFinite(disponible) ? disponible : saldo) / (POR[q.moneda] || 1)));
     proyectar();
   });
   $('e2-quemar').addEventListener('submit', async ev => {
@@ -192,12 +188,12 @@
     if (!root.confirm(texto)) return;
     ocupado = true; estado.textContent = t('Burning…'); $('e2-q-go').disabled = true;
     try {
-      const r = await session.request('/api/admin/economia/quemar', { method: 'POST', body: JSON.stringify({ tesoro: q.tesoro, moneda: q.moneda, cantidad: q.cantidad, motivo }) });
+      const r = await session.request('/api/admin/economia/quemar', { method: 'POST', body: JSON.stringify({ tesoro: q.tesoro, moneda: q.moneda, cantidad: q.cantidad, motivo, ref: root.crypto.randomUUID() }) });
       estado.textContent = t('Burned: ') + fmt(r.bronce) + ' ' + t('bronze') + '.';
       $('e2-q-cantidad').value = ''; $('e2-q-motivo').value = '';
       ocupado = false; await cargar();
     } catch (e) {
-      estado.textContent = e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
+      estado.textContent = e && e.code === 'reserva_protegida' ? t('The protected reserve cannot be burned. Use only the available surplus.') : e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
     } finally { ocupado = false; proyectar(); }
   });
 
@@ -259,23 +255,6 @@
     finally { ocupado = false; }
   });
 
-  // ── EL FONDO DE RESERVA: meter o sacar ────────────────────────────────────
-  $('e2-res-ajuste').addEventListener('submit', async ev => {
-    ev.preventDefault();
-    if (ocupado) return;
-    const tipo = $('e2-r-tipo').value, bronce = Math.floor(Number($('e2-r-cantidad').value)), motivo = $('e2-r-motivo').value.trim();
-    const estado = $('e2-r-estado');
-    if (!(bronce >= 1)) { estado.textContent = t('Type an amount.'); return; }
-    if (motivo.length < 3) { estado.textContent = t('Write a reason (3 characters or more).'); return; }
-    ocupado = true; estado.textContent = t('Applying…');
-    try {
-      await session.request('/api/admin/tesoro-reserva/ajuste', { method: 'POST', body: JSON.stringify({ tipo, bronce, motivo }) });
-      estado.textContent = t('Done.'); $('e2-r-cantidad').value = ''; $('e2-r-motivo').value = '';
-      ocupado = false; await cargar();
-    } catch (e) { estado.textContent = e && e.code === 'saldo_insuficiente' ? t('The reserve fund does not have that much.') : (e && e.message) || t('Could not apply.'); }
-    finally { ocupado = false; }
-  });
-
   // ── LOS GRÁFICOS ──────────────────────────────────────────────────────────
   const vivos = {};
   function grafico(id, op) {
@@ -294,12 +273,12 @@
       datos: { n: de('inflacionNeta7', 100), a: de('inflacionActiva7', 100), s: de('inflacionTotal7', 100) },
       formato: v => (v > 0 ? '+' : '') + Number(v).toFixed(3) + '%', vacio: t('Inflation appears after the second day of data.') });
     grafico('e2-g-tesoros', { etiqueta: t('Treasury balances'),
-      series: [{ id: 'c', nombre: t('Circular'), color: '#3987e5' }, { id: 'j', nombre: t('Game'), color: '#d95926' }, { id: 'r', nombre: t('Reserve'), color: '#199e70' }],
-      datos: { c: de('tesoroCircular'), j: de('tesoroJuego'), r: de('tesoroReserva') }, incluirCero: true,
+      series: [{ id: 'c', nombre: t('Circular'), color: '#3987e5' }, { id: 'j', nombre: t('Game'), color: '#d95926' }],
+      datos: { c: de('tesoroCircular'), j: serie.map(f => [f.dia, (Number(f.tesoroJuego) || 0) + (Number(f.tesoroReserva) || 0)]) }, incluirCero: true,
       formato: v => fmt(v) + ' ' + t('bronze'), vacio: t('No treasury history yet.') });
     grafico('e2-g-sumideros', { tipo: 'barras', etiqueta: t('Burns and sinks per day'), rangos: ['7d', '30d', 'todo'],
       series: [{ id: 'qm', nombre: t('Coins burned'), color: '#d95926' }, { id: 'qo', nombre: t('Items destroyed'), color: '#9085e9' },
-               { id: 'm', nombre: t('Deaths → reserve'), color: '#d55181' }, { id: 's', nombre: t('Smelting & crafting'), color: '#199e70' }],
+               { id: 'm', nombre: t('Deaths → game treasury'), color: '#d55181' }, { id: 's', nombre: t('Smelting & crafting'), color: '#199e70' }],
       datos: { qm: de('quemadoMonedas'), qo: de('quemadoObjetos'), m: de('muerteBronce'), s: de('serviciosBronce') },
       formato: v => fmt(v) + ' ' + t('bronze'), vacio: t('Nothing burned or collected yet.') });
   }

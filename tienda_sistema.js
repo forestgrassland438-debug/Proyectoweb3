@@ -2913,9 +2913,10 @@ class TiendaSistema {
         if (this._cargandoPrecios) return this._cargandoPrecios;
         const url = `${this._resolveApiBase()}/api/economia/precios`;
         this._cargandoPrecios = (async () => {
+            let corte = null;
             try {
                 const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-                const corte = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+                corte = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
                 const r = await fetch(url, { credentials: 'include', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
                 if (corte) clearTimeout(corte);
                 if (!r.ok) return false;
@@ -2931,6 +2932,7 @@ class TiendaSistema {
             } catch (e) {
                 return false;
             } finally {
+                if (corte) clearTimeout(corte);
                 this._cargandoPrecios = null;
             }
         })();
@@ -2948,7 +2950,7 @@ class TiendaSistema {
                 if (!item._precioDefecto) item._precioDefecto = { buyPrice: item.buyPrice, sellPrice: item.sellPrice, currency: item.currency };
                 const p = Object.prototype.hasOwnProperty.call(d.items, item.id) ? d.items[item.id] : null;
                 const moneda = p && MONEDA[p.moneda];
-                if (!p || !moneda) continue;
+                if (!p || !moneda || !Number.isSafeInteger(p.compra) || !Number.isSafeInteger(p.venta) || p.compra < 0 || p.venta < 0) continue;
                 // Lo que la tienda no vende sigue sin venderse (los peces solo se le venden a ella).
                 const compra = item._precioDefecto.buyPrice > 0 ? Math.max(0, Math.floor(Number(p.compra) || 0)) : 0;
                 const venta = Math.max(0, Math.floor(Number(p.venta) || 0));
@@ -3228,52 +3230,12 @@ class TiendaSistema {
             throw new Error('Daily purchase limit exceeded');
         }
         
-        this.setBalanceByCurrency(currency, balance - totalCost);
-        // VERIFICACIÓN DEL COBRO (2026-08-03): comprobar que al jugador se le
-        // descontó EXACTAMENTE el precio. Si el saldo no cuadra (porque algún
-        // eslabón de setBalanceByCurrency no llegó a aplicarse), se corrige
-        // aquí mismo antes de seguir con la compra.
-        this._verificarMovimientoMonedas(currency, balance, -totalCost, `Compra de ${quantity}x ${item.name}`);
-        if (fee > 0 && saldosConComision) this._aplicarSaldos(saldosConComision, `Comisión del tesoro: ${quantity}x ${item.name}`);
-
-        if (item.limiteDiario > 0) {
-            this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
-            this.saveDailyLimits();
-        }
-
-        const transactionInfo = {
-            type: 'compra',
-            itemId: item.id,
-            itemName: item.name,
-            quantity,
-            unitPrice,
-            totalCost,
-            currency,
-            fee,                       // (2026-10-22) comisión del tesoro, en bronce
-            ref: this._nuevaRef(),     // (2026-10-27) la operación en el registro de la tienda
-            remainingGold: this.playerMoneda,
-            remainingSilver: this.playerMonedaPlata,
-            remainingBronze: this._saldoBronce()
-        };
-        this._registrarTienda({ ref: transactionInfo.ref, fase: 'inicio', op: 'compra', itemId: item.id, cantidad: quantity,
-                                moneda: currency, precioUnidad: unitPrice, total: totalCost, fee,
-                                saldoAntes: balance, saldoDespues: this.getBalanceByCurrency(currency) });
-
-        // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
-        // aquí mismo, así que el modal quedaba trancado hasta que la
-        // transacción blockchain confirmara (minutos en el peor caso). Ahora
-        // la parte on-chain se ENCOLA en segundo plano (una compra tras otra,
-        // para no pisar nonces ni el lock interno) y el jugador queda libre
-        // para seguir comprando de inmediato. Si la transacción no confirma,
-        // _runOnchainPurchase reembolsa el dinero automáticamente.
-        this._enqueueOnchainPurchase(item, quantity, transactionInfo);
-
-        console.log('🛒 SHOP TRANSACTION (PURCHASE)', transactionInfo);
-
-        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — waiting for confirmation…`, 'info');
-
-        try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
-        console.log(`✅ Purchase recorded: ${quantity}x ${item.name} for ${totalCost} ${this.getCurrencyLabel(currency)}`);
+        const ref = this._nuevaRef();
+        const copy = { ...item };
+        this._encolarTrabajoTienda(`Shop purchase: ${quantity}x ${item.id}`, async () => {
+            await this._operacionEconomicaTienda('compra', copy, quantity, ref);
+        });
+        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — payment and delivery are verified by the server.`, 'info');
     }
 
     // Tabla de seguimiento on-chain por producto: itemId → [ruta_tabla, límite de stack]
@@ -5735,143 +5697,42 @@ renderSlot(index) {
     }
 
     async _ventaEnCadena(item, cantidad, tabla, soltar, ref) {
-        const currency    = this.getItemCurrency(item);
-        const unitGross   = Number(item.sellPrice) || 0;
-        const [tipoOnchain, limite] = tabla;
-
-        let recuento = null;
-        const antes = this.getItemCountInInventory(item.id);
-
-        try {
-            /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
-
-               Ese argumento acaba en `quitarDeFactura({ tipo })`, que lo compara
-               con el tipo de la factura del contrato para no quemar la factura
-               equivocada. Cuando aquí iba el literal 'slots' la comparación
-               fallaba SIEMPRE y la respuesta era "esa factura ya no estaba" — o
-               sea: te pagaban, el objeto desaparecía de la pantalla, en la
-               cadena seguía intacto, y al volver al mapa reaparecía. */
-            recuento = await this.ejecutarDivisionRemove(tipoOnchain, item.id, limite, cantidad);
-        } catch (err) {
-            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
-            recuento = null;
-        } finally {
-            // Ya no están en vuelo: la tienda puede volver a ofrecerlas si la
-            // venta no salió, o dejar de contarlas si salió.
-            soltar();
-        }
-
-        const despues       = this.getItemCountInInventory(item.id);
-        const porInventario = Math.max(0, antes - despues);
-
-        /* CUÁNTAS SE PAGAN. Se prefiere lo que dice la cadena (`confirmadas`);
-           la resta del inventario queda solo de respaldo para cuando el
-           recuento no llega, porque con la cola esa resta puede incluir lo que
-           haya hecho otro trabajo. Nunca más de lo pedido. */
-        const confirmadas = (recuento && Number.isFinite(recuento.confirmadas))
-            ? recuento.confirmadas
-            : porInventario;
-        const vendidas   = Math.max(0, Math.min(cantidad, confirmadas));
-        const yaGastadas = (recuento && Number.isFinite(recuento.yaGastadas)) ? recuento.yaGastadas : 0;
-
-        /* "YA ESTABA GASTADO" NO SE PAGA. La factura ya no estaba en la cadena:
-           el hueco iba retrasado y se ha cuadrado, pero ahora mismo no ha salido
-           nada de la cadena. Pagarlo sería crear dinero. Se le dice al jugador
-           para que no parezca que le han robado el objeto. */
-        if (yaGastadas > 0) {
-            this.showNotification?.(
-                `ℹ️ ${yaGastadas}x ${item.name} had already been spent elsewhere. ` +
-                `Your inventory was corrected and they were not paid.`,
-                'info'
-            );
-        }
-
-        if (vendidas <= 0) {
-            /* CON EL MOTIVO. "No se confirmó" a secas no le dice al jugador si
-               es que se le cayó la red, si el contrato no encuentra su factura o
-               si la transacción se quedó esperando — y sin eso no puede ni
-               decidir si reintentar ni contarlo bien. */
-            const motivo = (recuento && recuento.motivo) || this._ultimoMotivoFallo;
-            const porQue = motivo ? ` (${motivo})` : '';
-            if (yaGastadas <= 0) {
-                this.showNotification?.(
-                    `⚠️ ${item.name} was not sold: the blockchain did not confirm it${porQue}. Nothing was charged or paid.`,
-                    'error'
-                );
-            }
-            console.warn(`⚠️ Venta no confirmada: 0/${cantidad} ${item.id}`,
-                         motivo || '(sin motivo apuntado)');
-            if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
-                                             precioUnidad: unitGross, confirmadas: 0, yaGastadas, pagadoBronce: 0,
-                                             error: String(motivo || 'not confirmed on-chain').slice(0, 200) });
-            this._refrescarDisponibles();
-            return;
-        }
-
-        const grossPrice = unitGross * vendidas;
-        /* (2026-10-22) LA COMISIÓN ES LA DEL TESORO: el 1,5 %, en bronce (antes
-           era la `comision` de cada objeto, del 2 al 10 %, y se perdía). Lo que
-           no llega a una moneda entera de la del objeto se paga en plata y
-           bronce. Con el servidor de antes (sin bronce ni tesoro), sin comisión. */
-        const factor = currency === 'silver' ? 1000 : currency === 'bronze' ? 1 : 1000000;
-        const commission = (await this._servidorAlDia()) ? this._comisionBronce(item, vendidas, 'venta') : 0;
-        const netoBronce = Math.max(0, grossPrice * factor - commission);
-        const finalPrice = Math.floor(netoBronce / factor);
-        const resto = netoBronce - finalPrice * factor;
-        const restoPlata = currency === 'silver' || currency === 'bronze' ? 0 : Math.floor(resto / 1000);
-        const restoBronce = resto - restoPlata * 1000;
-
-        const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
-        this.setBalanceByCurrency(currency, saldoAntes + finalPrice);
-        // VERIFICACIÓN: el dinero tiene que haberse abonado exactamente.
-        this._verificarMovimientoMonedas(currency, saldoAntes, finalPrice, `Venta de ${vendidas}x ${item.name}`);
-        this._sumarMoneda('silver', restoPlata, `Venta de ${vendidas}x ${item.name} (cambio)`);
-        this._sumarMoneda('bronze', restoBronce, `Venta de ${vendidas}x ${item.name} (cambio)`);
-        if (commission > 0) this._informarComision('venta', item, vendidas);
-        // (2026-10-27) Lo pagado, en bronce (precio menos la comisión), al registro de la tienda.
-        if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
-                                         precioUnidad: unitGross, fee: commission, confirmadas: vendidas, yaGastadas,
-                                         pagadoBronce: netoBronce, saldoAntes: saldoAntes, saldoDespues: this.getBalanceByCurrency(currency),
-                                         error: vendidas < cantidad ? `only ${vendidas} of ${cantidad} confirmed` : '' });
-
-        const transactionInfo = {
-            type: 'venta',
-            itemId: item.id,
-            itemName: item.name,
-            quantity: vendidas,
-            unitPrice: unitGross,
-            totalGain: finalPrice,
-            grossPrice,
-            fee: commission,
-            currency,
-            remainingGold: this.playerMoneda,
-            remainingSilver: this.playerMonedaPlata
-        };
-        console.log('🛒 SHOP TRANSACTION (SALE)', transactionInfo);
-
-        if (vendidas < cantidad) {
-            const perdidas = cantidad - vendidas - yaGastadas;
-            if (perdidas > 0) {
-                this.showNotification?.(
-                    `⚠️ Only ${vendidas} of ${cantidad} ${item.name} were confirmed on-chain. ` +
-                    `You were paid for ${vendidas}; the rest are still yours.`,
-                    'error'
-                );
-            }
-        }
-
-        this.addToHistorial('venta', item, vendidas, finalPrice);
-        this.showTransactionAnimation('venta', item, vendidas, finalPrice, commission);
-        this.updateMonedaDisplay?.();
-        this.updateHistorialDisplay?.();
-        this.updateMobileHistorialDisplay?.();
-        this._refrescarDisponibles();
-
-        // Por el delegador: con la tienda ya cerrada no hace nada (ver _escenaViva).
-        try { this.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
-        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} + ${restoPlata} SL + ${restoBronce} BR (treasury fee: ${commission} BR)`);
+        try { return await this._operacionEconomicaTienda('venta', { ...item }, cantidad, ref || this._nuevaRef()); }
+        finally { soltar(); }
     }
-    
+
+    async _operacionEconomicaTienda(op, item, cantidad, ref) {
+        if (!window.GFMascota?.api) throw new Error('The authoritative payment service is unavailable.');
+        const factor = { gold: 1000000, silver: 1000, bronze: 1 }[this.getItemCurrency(item)];
+        const r = await window.GFMascota.api('/api/economia/tienda', { op, itemId: item.id, cantidad,
+            precioBronce: Number(op === 'compra' ? item.buyPrice : item.sellPrice) * factor, ref });
+        const d = r && r.datos || {};
+        if (!r || !r.ok || !d.ok) {
+            if (d.error === 'precios_actualizados') await this._cargarPreciosServidor();
+            const why = d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
+                : d.revision ? 'Your operation is recorded for chain review. Do not repeat it; the control center has the receipt.'
+                : d.message || d.error || 'The server could not complete the trade.';
+            this.showNotification?.(why, 'error'); throw new Error(why);
+        }
+        if (d.stats) {
+            if (window.GFBronce?.adoptarStats) window.GFBronce.adoptarStats(d.stats);
+            this.playerMoneda = Number(d.stats.oro) || 0; this.playerMonedaPlata = Number(d.stats.plata) || 0;
+            if (window.playerStats) Object.assign(window.playerStats, d.stats);
+        }
+        if (op === 'compra' && item.limiteDiario > 0) {
+            this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + d.confirmadas;
+            this.saveDailyLimits();
+        }
+        this._confirmedPurchaseInvoices = [];
+        try { await this._persistConfirmedPurchase(item.id); }
+        catch (e) { this.showNotification?.('Your trade is confirmed on-chain. Inventory sync is pending; reopen the map to recover it.', 'info'); }
+        this.addToHistorial(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, this.getItemCurrency(item));
+        this.showTransactionAnimation(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, d.fee || 0);
+        this.updateMonedaDisplay?.(); this._refrescarDisponibles();
+        this.showNotification?.(`✓ ${d.confirmadas}x ${item.name}: payment and delivery confirmed.`, 'success');
+        return d;
+    }
+
     // Mostrar animación de transacción
     showTransactionAnimation(type, item, quantity, total, commission = 0) {
         const notification = document.createElement('div');

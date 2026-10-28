@@ -293,8 +293,10 @@
   // ── EL PANEL ──────────────────────────────────────────────────────────────
   function montarCompra(cont, scene, walletInfo) {
     if (!cont) return;
+    if (cont._gfEconomiaDispose) cont._gfEconomiaDispose();
     estilo();
-    var vivo = function () { return !destruido && cont.isConnected; };
+    var cerrado = false, esperaConfirmacion = null;
+    var vivo = function () { return !cerrado && !destruido && cont.isConnected; };
     var direccion = String((walletInfo && walletInfo.address) || (scene && (scene.address || scene.playerName)) || '');
     var mio = null, ocupado = false, grafico = 'precio';
     cont.innerHTML = '<div class="gfe-vacio">Loading the economy…</div>';
@@ -356,18 +358,32 @@
        (cada foto lleva la suya), acercar con la rueda o pellizcando, arrastrar
        para moverse, rangos, ficha al pasar o tocar y tabla de datos. */
     var vivoGrafico = null;
+    var observador = typeof MutationObserver === 'function' ? new MutationObserver(function () {
+      if (!cont.isConnected) desmontar();
+    }) : null;
+    if (observador) observador.observe(document.body, { childList: true, subtree: true });
+    function desmontar() {
+      if (cerrado) return;
+      cerrado = true;
+      clearTimeout(esperaConfirmacion);
+      if (observador) observador.disconnect();
+      if (vivoGrafico) vivoGrafico.destruir();
+      vivoGrafico = null; scene = null;
+      delete cont._gfEconomiaDispose;
+    }
+    cont._gfEconomiaDispose = desmontar;
     function montarGrafico(d) {
       if (vivoGrafico) { try { vivoGrafico.destruir(); } catch (e) {} vivoGrafico = null; }
       var G = window.GFGraficos, caja = cont.querySelector('.gfe-grafico');
       if (!G || !caja) return;
       if (d.ahora) G.reloj.ajustar(d.ahora);
       var serie = Array.isArray(d.serie) ? d.serie : [];
-      var cuando = function (f) { var a = f.actualizado ? G.aMs(f.actualizado) : NaN; return isFinite(a) ? a : G.aMs(f.dia); };
+      var cuando = function (f) { return G.aMs(f.dia); };
       var de = function (campo, por) {
         return serie.filter(function (f) { return f[campo] !== null && f[campo] !== undefined && isFinite(Number(f[campo])); })
           .map(function (f) { return [cuando(f), Number(f[campo]) * (por || 1)]; });
       };
-      var op = { idioma: 'en', tema: 'oscuro', alto: 190, izquierda: 56, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
+      var op = { idioma: 'en', tema: 'oscuro', alto: 230, izquierda: 62, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
       if (grafico === 'inflacion') {
         vivoGrafico = G.crear(caja, Object.assign(op, {
           etiqueta: 'Inflation', referencia: { valor: 0, nombre: '0%' },
@@ -580,7 +596,10 @@
         return;
       }
       if (r && r.status === 202 && intento < 25) {
-        setTimeout(function () { confirmar(id, hash, intento + 1); }, 4000);
+        clearTimeout(esperaConfirmacion);
+        esperaConfirmacion = setTimeout(function () { confirmar(id, hash, intento + 1).catch(function () {
+          if (vivo()) mensaje('Connection interrupted. Your payment remains in My top-ups.', '#ffb86b');
+        }); }, 4000);
         return;
       }
       if (r && r.status === 202) { mensaje('The payment is still pending. Use “Check again” in a minute.', '#ffb86b'); refrescarMio().then(pintarPendientes); return; }
@@ -596,6 +615,7 @@
         if (el) { try { el.dispatchEvent(new Event('input')); } catch (e) {} }
       });
     });
+    return desmontar;
   }
 
   function destruir(e) { if (e && e.persisted) return; destruido = true; }

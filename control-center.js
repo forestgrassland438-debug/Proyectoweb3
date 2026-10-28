@@ -26,7 +26,7 @@
     { id:'climas', file:'climas.html', name:'World & weather', icon:'weather', group:'Game control', text:'Control weather, seasons and the world clock.' },
     { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives', icon:'treasury', group:'Game control', text:'The circular-economy treasury (1.5% of every market fee and the exchange fees) and the coin drops for free and VIP players.' },
     // (2026-10-26) Los dos tesoros, el precio del oro, la inflación y las compras con zkLTC.
-    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Three treasuries, burns, the price index, inflation, death and crafting prices, the three coins and Gold purchases with zkLTC.' },
+    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups.' },
     // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
     { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },

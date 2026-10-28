@@ -2751,8 +2751,10 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
   height: 100%;
   min-height: 0;
   padding: 20px;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .detail-content-simple {
@@ -2761,6 +2763,7 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
   align-items: center;
   gap: 20px;
   width: 100%;
+  flex: 0 0 auto;
 }
 
 .detail-header-simple {
@@ -2813,7 +2816,10 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
 /* Botón de interactuar en PC */
 .detail-actions-simple {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .interact-btn-pc {

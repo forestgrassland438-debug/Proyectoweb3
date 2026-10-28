@@ -237,7 +237,7 @@
     if (typeof document === 'undefined' || document.getElementById('gfpp-boton')) return;
     var s = document.createElement('style');
     s.id = 'gfpp-boton';
-    s.textContent = '.detail-actions-simple .gf-precio-btn{margin-bottom:8px}' +
+    s.textContent = '.detail-actions-simple .gf-precio-btn{margin:0;background:#153e38;border:1px solid #679c87;box-shadow:none;font:600 13px/1.4 system-ui;letter-spacing:0;text-transform:none;min-height:44px}' +
       '.mobile-action-section .gf-precio-btn{width:100%;margin:0 0 8px}' +
       '.gf-precio-btn[disabled]{opacity:.5;cursor:not-allowed}';
     (document.head || document.documentElement).appendChild(s);

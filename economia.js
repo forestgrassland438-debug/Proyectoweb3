@@ -29,7 +29,7 @@
     ['tienda', 'Game shop', '#3987e5'], ['p2p', 'P2P market', '#d95926'], ['viajes', 'Map travel', '#199e70'],
     ['vip', 'VIP', '#c98500'], ['revivir', 'Revive potions', '#d55181'], ['admin', 'Admin', '#008300'],
     // (2026-10-28) Lo que se cobra por fundir y craftear (economia2.js lo configura).
-    ['servicios', 'Smelting & crafting', '#9085e9']
+    ['servicios', 'Smelting & crafting', '#9085e9'], ['muerte', 'Death payments', '#a68d7c']
   ];
   const SALUD = { sin_datos: ['Collecting data', '◌'], deflacion: ['Deflation', '▼'], estable: ['Stable', '✓'], caliente: ['Warming up', '!'], recalentada: ['Overheated', '▲'] };
   const ESTADOS = { cotizada: 'Quoted', pagada: 'Paid · waiting', acreditada: 'Credited', fallida: 'Failed' };
