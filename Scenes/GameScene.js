@@ -77,7 +77,7 @@ class GameScene extends Phaser.Scene {
       // Anti-trampa de recolección: si es true, talar/minar pide la recompensa
       // al SERVIDOR (/api/gather/claim) en vez de acuñarla el cliente. Déjalo en
       // false hasta desplegar el backend con GATHER_ENFORCE y probar en staging.
-      this.GATHER_SERVER = false;
+      this.GATHER_SERVER = true;
 
       // Tope de nivel del personaje y de cada habilidad (ver _expTotalParaNivel).
       this.MAX_LEVEL_PERSONAJE = 150;
@@ -6716,12 +6716,12 @@ mineProps.forEach(prop => {
       //      que soltaba dos cosas (piedra + cobre) pagaba 100 y uno que soltaba
       //      una pagaba 50, por el mismo trabajo. Ahora es 50 por mineral, se
       //      lleve lo que se lleve, igual que un árbol.
-      this.nivel_exp = (this.nivel_exp || 0) + 50;
-      this._sumarExpHabilidad('mineria', 25);
+
 
       let rewards;
       if (this.GATHER_SERVER) {
         rewards = await this._gatherClaim(mineKey, pickName);
+        if (!rewards) { this._olvidarEstadoMina(mineKey); this.showMinedMineral(mineKey); this.enablePixelPerfectInput(spr); return; }
       } else {
         rewards = getMultipleRewards_Mine(mineKey, pickName);
         // "lo que se mina es transacción": _agregarFrutoOnChain manda la tx real
@@ -6731,8 +6731,10 @@ mineProps.forEach(prop => {
         }
       }
 
+      this.nivel_exp = (this.nivel_exp || 0) + 50;
+      this._sumarExpHabilidad('mineria', 25);
       // (los textos de progreso y el estado ya se limpiaron arriba, ver FIX)
-      if (rewards.length === 0) {
+      if (rewards.pending) { /* A separate reconciliation notice was shown. */ } else if (rewards.length === 0) {
         // Con pico de madera (o bajo) a veces no cae mineral.
         this.notifications.show(`Mined ${mineInfo.nombre}! But you got no ore this time.`, "warning", { icon: '⛏️' });
       } else {
@@ -6751,7 +6753,7 @@ mineProps.forEach(prop => {
       // ── 9. Actualizar agotamiento global y bloquear mina ─────────────
       if (mineralType) {
         const increment = MINE_TYPE_CONFIG[mineralType]?.percentIncrement || 1;
-        const depletionSuccess = await updateDepletionPercent(mineralType, increment);
+        const depletionSuccess = this.GATHER_SERVER ? true : await updateDepletionPercent(mineralType, increment);
         if (!depletionSuccess) {
           this.notifications.show('Could not update depletion. The ore was not locked.', 'error');
           // Si no se bloqueó en el servidor, devolver el mineral al jugador:
@@ -6763,7 +6765,7 @@ mineProps.forEach(prop => {
           return;
         }
 
-        const serverLockedUntil = await lockMine(mineKey, mineralType);
+        const serverLockedUntil = this.GATHER_SERVER ? rewards.lockedUntil : await lockMine(mineKey, mineralType);
         if (!serverLockedUntil) {
           this.notifications.show('Could not lock the ore on the server.', 'error');
           this._olvidarEstadoMina(mineKey);
@@ -6799,7 +6801,7 @@ mineProps.forEach(prop => {
           }
         };
         if (remainingMs > 0) {
-          setTimeout(() => unlockMineSprite(spr, mineKey), remainingMs);
+          this.time.delayedCall(remainingMs, () => unlockMineSprite(spr, mineKey));
         } else {
           unlockMineSprite(spr, mineKey);
         }
@@ -7998,7 +8000,7 @@ oreProps.forEach(prop => {
       this._onTutorialPineCut && this._onTutorialPineCut(treeType);
 
       // Otorgar experiencia por talar (mismo criterio que ya usa la minería)
-      this.nivel_exp = (this.nivel_exp || 0) + 50;
+
 
       // ── EXPERIENCIA DE WOODCUTTING ───────────────────────────────────────
       // BUG QUE ESTO ARREGLA — LA CAUSA PRINCIPAL DE "talar no sube de nivel":
@@ -8015,7 +8017,7 @@ oreProps.forEach(prop => {
       // Ahora se da aquí, en el punto donde el árbol REALMENTE cae, así que
       // cuenta en los dos modos y no puede duplicarse (_gatherClaim ya no la
       // suma). Son 25 por árbol, igual que la cosecha.
-      this._sumarExpHabilidad('deforestacion', 25);
+
 
       // GATHER_SERVER (anti-trampa): si está activo, el SERVIDOR valida el nodo,
       // lo bloquea, decide y ACUÑA la recompensa (el cliente no acuña). Si está
@@ -8023,6 +8025,7 @@ oreProps.forEach(prop => {
       let rewards;
       if (this.GATHER_SERVER) {
         rewards = await this._gatherClaim(treeKey, pickName);
+        if (!rewards) { this._olvidarEstadoArbol(treeKey); hideTreeStump(treeKey); this.enablePixelPerfectInput(spr); return; }
       } else {
         // oreRewards ya tiene el item correcto por sprite (madera_pinos/seca/con_hojas).
         // Se manda una transacción por recompensa (tipo + maxStack de ItemDefinitions).
@@ -8038,7 +8041,9 @@ oreProps.forEach(prop => {
         }
       }
 
-      if (rewards.length === 0) {
+      this.nivel_exp = (this.nivel_exp || 0) + 50;
+      this._sumarExpHabilidad('deforestacion', 25);
+      if (rewards.pending) { /* A separate reconciliation notice was shown. */ } else if (rewards.length === 0) {
         // Con hacha de madera (o baja) a veces no cae madera.
         this.notifications.show(`Chopped ${oreInfo.nombre}! But you got no wood this time.`, "warning", { icon: '🪓' });
       } else {
@@ -8058,7 +8063,7 @@ oreProps.forEach(prop => {
       // ---------- 9. Actualizar porcentaje global y bloquear árbol ----------
       if (treeType) {
         const increment = TREE_TYPE_CONFIG[treeType]?.percentIncrement || 1;
-        const deforestSuccess = await updateDeforestationPercent(treeType, increment);
+        const deforestSuccess = this.GATHER_SERVER ? true : await updateDeforestationPercent(treeType, increment);
         if (!deforestSuccess) {
           this.notifications.show('Could not update deforestation. The tree was not locked.', 'error');
           this._olvidarEstadoArbol(treeKey);
@@ -8066,7 +8071,7 @@ oreProps.forEach(prop => {
           return;
         }
 
-        const serverLockedUntil = await lockTree(treeKey, treeType);
+        const serverLockedUntil = this.GATHER_SERVER ? rewards.lockedUntil : await lockTree(treeKey, treeType);
         if (!serverLockedUntil) {
           this.notifications.show('Could not lock the tree on the server.', 'error');
           this._olvidarEstadoArbol(treeKey);
@@ -8105,7 +8110,7 @@ oreProps.forEach(prop => {
           }
         };
         if (remainingMs > 0) {
-          setTimeout(() => unlockTreeSprite(spr, treeKey), remainingMs);
+          this.time.delayedCall(remainingMs, () => unlockTreeSprite(spr, treeKey));
         } else {
           unlockTreeSprite(spr, treeKey);
         }
@@ -25550,30 +25555,40 @@ disableSpriteInput(sprite) {
 // item ya está acuñado on-chain por el servidor; se refleja local para la UI) o
 // [] si no cayó nada / falló.
 async _gatherClaim(nodeKey, toolId) {
+  const ref = window.crypto?.randomUUID?.() || ('gather_' + Date.now().toString(36) + Math.random().toString(36).slice(2));
   try {
     const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/gather/claim`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeKey, toolId })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nodeKey, toolId, ref })
     });
-    if (!res || !res.ok) return [];
     const data = await res.json();
-    if (data && data.reward && data.reward.tipo && data.reward.quantity > 0) {
-      // Reflejar local el item que el servidor ya acuñó on-chain (no re-acuñar).
-      this.addItemWithCheck(data.reward.tipo, data.reward.quantity);
-
-      // (La experiencia de habilidad YA NO se suma aquí. Se movió al punto en
-      //  que el árbol o el mineral se completan, que es común a los dos modos:
-      //  este método solo corre con GATHER_SERVER activado, y estando apagado
-      //  —que es lo normal— talar y minar no daban experiencia de habilidad
-      //  NUNCA. Sumarla también aquí la contaría dos veces.)
-
-      return [{ id: data.reward.tipo, cantidad: data.reward.quantity }];
+    if (!res.ok || !data.ok) throw new Error(data.message || data.error || 'Gathering unavailable');
+    if (!this.sys?.isActive?.()) return null;
+    const lock = new Date(data.lockedUntil);
+    if (!Number.isFinite(lock.getTime())) throw new Error('Invalid resource cooldown');
+    const rewards = []; rewards.lockedUntil = lock;
+    for (const r of data.rewards || []) {
+      if (!(r.invoiceId > 0) || !r.manualId || !(r.newTotal > 0)) continue;
+      const itemId = r.itemId || Object.keys(this.ItemDefinitions).find(id => this.ItemDefinitions[id]?.tipo === r.tipo);
+      if (!itemId) continue;
+      const collections = [this.STATE.slots, this.STATE.quickSlots];
+      let placed = false;
+      for (const slots of collections) for (const slot of slots) {
+        if (slot && Number(slot.idx) === r.invoiceId && slot.idm === r.manualId) { slot.count = r.newTotal; placed = true; }
+      }
+      if (!placed) for (const slots of collections) {
+        const index = slots.findIndex((slot, n) => slot === null && !((slots === this.STATE.slots ? this.STATE.ghostSlots?.inv : this.STATE.ghostSlots?.quick)?.[n]));
+        if (index >= 0) { slots[index] = { id: itemId, count: r.newTotal, idx: r.invoiceId, idm: r.manualId }; placed = true; break; }
+      }
+      if (!placed) this.notifications?.show('The item is confirmed on-chain. Free a slot and reconcile your inventory.', 'warning');
+      rewards.push({ id: itemId, cantidad: r.quantity });
     }
-    return [];
+    if (data.inventoryLoadedAt) this._inventoryLoadedAt = data.inventoryLoadedAt;
+    this.rebuildPlayerInventoryFromState?.(); this.renderAllSlots?.();
+    if (data.revision) { rewards.pending = true; this.notifications?.show(data.message, 'warning'); }
+    return rewards;
   } catch (e) {
-    console.error('❌ gather claim error:', e);
-    return [];
+    this.notifications?.show(e.message || 'Resources cannot be verified right now.', 'error');
+    return null;
   }
 }
 
