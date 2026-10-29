@@ -239,8 +239,19 @@ this.prevPlayerY = undefined;
       version: '1.0.0',
       accessToken: null,
       
+      _bindGame: function(game) {
+        if(this._game===game)return;
+        this._gameCleanup?.();
+        if(!game?.events)return;
+        this._game=game;
+        const onError=error=>this.captureError('phaser.game.error',[error],this.scene);
+        const onLoadError=(key,file)=>this.captureError('phaser.load.error',[`Failed to load: ${key}`,`File: ${file?.src}`,`Type: ${file?.type}`],this.scene);
+        const cleanup=()=>{game.events.off('error',onError);game.events.off('loaderror',onLoadError);game.events.off('destroy',cleanup);if(this._game===game){this._game=null;this._gameCleanup=null;}};
+        this._gameCleanup=cleanup;game.events.on('error',onError);game.events.on('loaderror',onLoadError);game.events.once('destroy',cleanup);
+      },
       // Inicializar sistema
       init: function(scene) {
+        this._bindGame(scene?.game);
         if (!this.enabled) {
           console.warn('⚠️ Sistema de reporte de errores deshabilitado');
           return;
@@ -346,47 +357,19 @@ this.prevPlayerY = undefined;
         // Capturar errores de Phaser específicos
         // (Estos van al emisor del JUEGO, que vive toda la página: con la
         // escena capturada, retenían la primera GameScene para siempre.)
-        if (scene.game) {
-          scene.game.events.on('error', (error) => {
-            this.captureError('phaser.game.error', [error], this.scene);
-          });
+        // Game-scoped bindings are replaced by _bindGame and released on destroy.
 
-          scene.game.events.on('loaderror', (key, file) => {
-            this.captureError('phaser.load.error', [
-              `Failed to load: ${key}`,
-              `File: ${file && file.src}`,
-              `Type: ${file && file.type}`
-            ], this.scene);
-          });
-        }
-        
         // Iniciar procesador de reportes pendientes
         this.startPendingProcessor();
+        window.addEventListener('pagehide',e=>{if(!e.persisted){clearInterval(this._processorIntervalId);this._processorIntervalId=null;this.scene=null;}});
         
         console.log('✅ Sistema de reporte de errores inicializado con autenticación');
       },
       
       // Cargar token de autenticación desde sessionStorage
-      loadAuthToken: function() {
-        try {
-          const tokensStr = sessionStorage.getItem('authTokens');
-          if (tokensStr) {
-            const tokens = JSON.parse(tokensStr);
-            this.accessToken = tokens.accessToken || null;
-            console.log('🔑 Token de autenticación cargado para reporte de errores');
-          }
-        } catch (error) {
-          console.warn('⚠️ No se pudo cargar token de autenticación:', error);
-          this.accessToken = null;
-        }
-      },
-      
-      // Actualizar token de autenticación
-      updateAuthToken: function(newToken) {
-        this.accessToken = newToken;
-        console.log('🔄 Token de autenticación actualizado para reporte de errores');
-      },
-      
+      loadAuthToken: function() { this.accessToken=null; },
+      updateAuthToken: function() { this.accessToken=null; },
+
       // Capturar error
       captureError: function(type, args, scene) {
         if (!this.enabled) return;
@@ -597,7 +580,9 @@ this.prevPlayerY = undefined;
       
       // Iniciar procesador de reportes pendientes
       startPendingProcessor: function() {
-        setInterval(() => {
+        if(this._processorIntervalId)return;
+        this._processorIntervalId=setInterval(() => {
+          if(document.hidden || !this.enabled)return;
           if (this.pendingReports.length > 0 && !this.isReporting) {
             const nextReport = this.pendingReports.shift();
             this.sendReport(nextReport);
@@ -625,6 +610,7 @@ this.prevPlayerY = undefined;
           const headers = {
             'Content-Type': 'application/json'
           };
+          const csrf=await window.getCsrfToken?.();if(csrf)headers['X-CSRF-Token']=csrf;
           
           // Agregar token de autorización si está disponible
           if (this.accessToken) {
@@ -633,21 +619,20 @@ this.prevPlayerY = undefined;
           
           // Usar fetch con timeout
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          this._reportTimeoutId = setTimeout(() => controller.abort(), 8000);
           
           // serverUrl es el `serverclient` de la escena, que ya acaba en /api:
           // sin quitarlo, la ruta salía como /api/api/error/report.
           const base = String(this.serverUrl || '').replace(/\/api\/?$/, '');
-          const response = await fetch(`${base}/api/error/report`, {
+          const response = await fetch(`${base}/api/report-error`, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(errorData),
+            body: JSON.stringify({ errors:[errorData] }),
             signal: controller.signal,
             mode: 'cors',
-            credentials: 'omit'
+            credentials: 'include'
           });
           
-          clearTimeout(timeoutId);
           this.fallosRed = 0;     // llegó al servidor: la red va
 
           if (response.ok) {
@@ -703,6 +688,7 @@ this.prevPlayerY = undefined;
             this.queueReport(errorData);
           }
         } finally {
+          clearTimeout(this._reportTimeoutId);this._reportTimeoutId=null;
           this.isReporting = false;
         }
       },
@@ -5932,7 +5918,7 @@ window.hub.onRetry = (hiddenData) => {
     // ASIGNAR LISTENERS
     // Todos van por _bindDomClick: el HUD es DOM persistente y un
     // addEventListener suelto se acumularía en cada entrada a la escena.
-    this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
+    this._bindDomClick(document.getElementById('dashboard-btn'), 'dashboard', this.onRoundBtnDashboard);
 
     // NFT Button
     this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
@@ -5971,8 +5957,8 @@ window.hub.onRetry = (hiddenData) => {
     // correcto, exista o no el resto del HUD.
     this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
 
-    this._bindDomClick(this.roundButtons[2], 'stats', this.onRoundBtnStats);
-    this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
+    this._bindDomClick(document.getElementById('music-btn'), 'stats', this.onRoundBtnStats);
+    this._bindDomClick(document.getElementById('transactions-btn'), 'reputation', this.onRoundBtnReputation);
 
     // ── REENGANCHE AL VOLVER DE OTRA ESCENA ──────────────────────────────
     // FIX "AL SALIR DE LA BATALLA LOS BOTONES REDONDOS NO SIRVEN":
@@ -6018,7 +6004,7 @@ window.hub.onRetry = (hiddenData) => {
     // duplica nada.
     try { this._reengancharHUD(); } catch (e) {}
     /*
-    this.roundButtons[4]?.addEventListener('click', this.onRoundBtnHudStats);
+    document.getElementById('nft-btn')?.addEventListener('click', this.onRoundBtnHudStats);
 
     */
 
@@ -9818,6 +9804,7 @@ _precargarTexturasCultivo() {
     ['tierra_mojada_plant3_calabaza', './Game/Objetos/Plantas/planta_calabaza/4.png'],
     ['tierra_muerta_plant4_calabaza', './Game/Objetos/Plantas/planta_calabaza/5.png']
   ];
+  for(const plant of window.GFPlantCatalog?.plants || [])for(let stage=1;stage<=5;stage++)TEXTURAS.push(['gfc_'+plant.key+'_'+stage,plant.folder+stage+'.png']);
   for (const [clave, ruta] of TEXTURAS) {
     if (!this.textures.exists(clave)) this.load.image(clave, ruta);
   }
@@ -11405,6 +11392,7 @@ clearTrashSlots() {
 
 // OBTENER NOMBRE PARA MOSTRAR (usando ItemDefinitions)
 getItemDisplayName(itemId) {
+  if(window.GFPlantCatalog?.items[itemId])return window.GFPlantCatalog.items[itemId].name;
   if (!itemId) return 'Item desconocido';
   
   // Mapeo de nombres amigables
@@ -12373,9 +12361,9 @@ async _devolverRecoleccionAgua() {
 
 initCropSystem() {
 
-  this.socket.off('cropConfig');
-  this.socket.off('plantSuccess');
-  this.socket.off('plantError');
+  // Crop subscriptions release only their owned handlers.
+  // Crop subscriptions release only their owned handlers.
+  // Crop subscriptions release only their owned handlers.
 
   this.cropData = new Map();
   this.plotImages = new Map();
@@ -12518,6 +12506,7 @@ initPlots() {
 }
 
 setupCropSocketEvents() {
+  window.GFNativeCrops?.attach(this);
   // ── FUGA DE MEMORIA QUE ESTO ARREGLA — "el juego iba rápido y se va
   //    poniendo lento" ────────────────────────────────────────────────────────
   //
@@ -12536,32 +12525,20 @@ setupCropSocketEvents() {
   // initCropSystem() ya hacía esto para tres eventos; faltaban los otros diez.
   // Se quitan TODOS los que se registran justo debajo, para que la lista se
   // pueda leer de un vistazo junto a los .on() correspondientes.
-  const eventosCultivo = [
-    'cropConfig', 'cropPlanted', 'cropWatered', 'cropGrowth',
-    'plantSuccess', 'plantError',
-    'waterSuccess', 'waterError',
-    'harvestSuccess', 'harvestError',
-    'cutSuccess', 'cutError',
-    'userCropsData'
-  ];
-  eventosCultivo.forEach(evento => this.socket.off(evento));
+  this._cropSocketDispose?.();
+  const socket=this.socket,bindings=[],run=this._sceneRunId;
+  const onCrop=(event,fn)=>{const wrapped=(...args)=>{if(!this._sceneStopped&&this._sceneRunId===run)return fn(...args);};bindings.push([event,wrapped]);socket.on(event,wrapped);};
+  const dispose=()=>{for(const [event,fn]of bindings)socket.off(event,fn);bindings.length=0;if(this._cropSocketDispose===dispose)this._cropSocketDispose=null;};
+  this._cropSocketDispose=dispose;this._onceSceneEnd(dispose);
 
-  /* Y TAMBIÉN AL APAGAR LA ESCENA, no solo al volver: mientras se está en la
-     tienda o en una batalla, estos oyentes seguían colgados del socket global
-     apuntando a la escena ya cerrada. Un 'cropGrowth' del servidor en ese rato
-     repintaba sprites destruidos, y la escena entera seguía en memoria. */
-  const sockCultivos = this.socket;
-  this._onceSceneEnd(() => {
-    eventosCultivo.forEach(evento => { try { sockCultivos.off(evento); } catch (_) {} });
-  });
-
-  this.socket.on('cropConfig', (config) => {
+  onCrop('nativeFarmResult',data=>window.GFNativeCrops?.adopt(this,data,run));
+  onCrop('cropConfig', (config) => {
     this.cropTypes = config;
     console.log('✅ Configuración de cultivos recibida:', this.cropTypes);
     this.loadUserCrops();
   });
 
-  this.socket.on('cropPlanted', (data) => {
+  onCrop('cropPlanted', (data) => {
     //console.log('✅ Semilla plantada en:', data.plotId, 'Posibilidad:', data.successChance + '%');
     if (data.userId === this.currentAccount) {
       this.updatePlotVisual(data.plotId, data.crop);
@@ -12609,7 +12586,7 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('plantSuccess', (data) => {
+  onCrop('plantSuccess', (data) => {
     // El cuadro se sembró: ya no hay semilla pendiente de devolver.
     try {
       if (this._semillaPagadaPorCuadro && data && data.plotId != null) {
@@ -12621,7 +12598,7 @@ setupCropSocketEvents() {
     this.updatePlotVisual(data.plotId, data.crop);
   });
   
-  this.socket.on('plantError', (data) => {
+  onCrop('plantError', (data) => {
     console.error('❌ Error al plantar:', data.error);
     this.notifications.show(data.error, "error");
 
@@ -12641,7 +12618,7 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('cropWatered', (data) => {
+  onCrop('cropWatered', (data) => {
     console.log('💧 Cultivo regado en:', data.plotId);
     this.queuedAction({ type: 'forSpam2'});
     if (data.userId === this.currentAccount) {
@@ -12688,16 +12665,16 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('waterSuccess', (data) => {
+  onCrop('waterSuccess', (data) => {
     console.log('💧 Riego exitoso en:', data.plotId);
     this.updatePlotVisual(data.plotId, data.crop);
   });
   
-  this.socket.on('waterError', (data) => {
+  onCrop('waterError', (data) => {
     this.notifications.show(data.error, "error");
   });
   
-  this.socket.on('cropGrowth', (data) => {
+  onCrop('cropGrowth', (data) => {
     if (data.userId === this.currentAccount) {
       this.updatePlotGrowth(
         data.plotId, 
@@ -12711,7 +12688,7 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('harvestSuccess', (data) => {
+  onCrop('harvestSuccess', (data) => {
     console.log('🎉 Cosechado en:', data.plotId, 'Recompensa:', data.rewards);
     this.resetPlot(data.plotId);
     this._onTutorialCut(); // tutorial: cuenta cortes/cosechas (paso 1)
@@ -12746,7 +12723,7 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('harvestError', (data) => {
+  onCrop('harvestError', (data) => {
     const resolver = data.plotId ? this._corteResolvers?.get(data.plotId) : null;
     if (resolver) {
       this._corteResolvers.delete(data.plotId);
@@ -12756,7 +12733,7 @@ setupCropSocketEvents() {
     this.notifications.show(data.error, "error");
   });
   
-  this.socket.on('cutSuccess', (data) => {
+  onCrop('cutSuccess', (data) => {
     console.log('✂️ Cortado en:', data.plotId, 'Recompensa:', data.rewards, 'Es muerto:', data.isDead, 'En progreso:', data.wasInProgress);
     this.resetPlot(data.plotId);
     this._onTutorialCut(); // tutorial: cuenta cortes/cosechas (paso 1)
@@ -12789,7 +12766,7 @@ setupCropSocketEvents() {
     }
   });
   
-  this.socket.on('cutError', (data) => {
+  onCrop('cutError', (data) => {
     const resolver = data.plotId ? this._corteResolvers?.get(data.plotId) : null;
     if (resolver) {
       this._corteResolvers.delete(data.plotId);
@@ -12799,7 +12776,7 @@ setupCropSocketEvents() {
     this.notifications.show(data.error, "error");
   });
   
-  this.socket.on('userCropsData', (data) => {
+  onCrop('userCropsData', (data) => {
     data.crops.forEach(crop => {
       this.updatePlotVisual(crop.plotId, crop);
     });
@@ -13054,6 +13031,7 @@ marcarCuadroPendiente(plotId, activo) {
 
 // English display names used only inside the plant confirmation hub
 _getSeedDisplayNameEN(seedType) {
+  if(window.GFPlantCatalog?.items[seedType])return window.GFPlantCatalog.items[seedType].name;
   const nombres = {
     Semillax: 'Carrot Seeds',
     Semillax1: 'Tomato Seeds',
@@ -13528,6 +13506,7 @@ async confirmSiembraPendiente() {
 // Envía la transacción on-chain de UN lote y, según el resultado, siembra
 // (off-chain) los cuadros que realmente se lograron descontar.
 async _procesarLoteSiembra(lote) {
+  if(window.GFNativeCrops?.isSeed(lote.seedType))return window.GFNativeCrops.plantBatch(this,lote);
   const { seedType, plotIds, slotsBloqueados } = lote;
   const cantidadTotal = plotIds.length;
   const nombreSemilla = this._getSeedDisplayNameEN(seedType);
@@ -13842,6 +13821,7 @@ async waterCrop(plotId) {
   if (window.GFMuerte && window.GFMuerte.bloquear(this, 'water')) return false;
   const cropData = this.cropData.get(plotId);
   if (!cropData) return;
+  if(window.GFNativeCrops?.isCrop(cropData))return !!await window.GFNativeCrops.waterBatch(this,[plotId],'can');
 
   const cropConfig = this.cropTypes[cropData.cropType] || cropData.cropConfig;
   if (!cropConfig) return;
@@ -14163,7 +14143,7 @@ async confirmRiegoPendiente() {
   this.hideRiegoHub();
   plotIds.forEach(id => this._watersEnVuelo.add(id));
 
-  this._riegoEnCurso = true;
+  this._riegoEnCurso = true;this._nativeWaterCount=0;
   try {
     const regadas = herramienta === 'bucket'
       ? await this._regarLoteConBaldes(plotIds)
@@ -14176,7 +14156,7 @@ async confirmRiegoPendiente() {
     });
 
     if (regadas > 0) {
-      this.nivel_exp = (this.nivel_exp || 0) + 5 * regadas;
+      this.nivel_exp = (this.nivel_exp || 0) + 5 * Math.max(0,regadas-(this._nativeWaterCount||0));
       this.notifications.show(
         `Watered ${regadas} plot(s)`,
         'success',
@@ -14190,6 +14170,8 @@ async confirmRiegoPendiente() {
 
 /** Riega con la regadera: gasta la barra de agua y desgasta la herramienta. */
 async _regarLoteConRegadera(plotIds) {
+  const nativePlots=plotIds.filter(id=>window.GFNativeCrops?.isCrop(this.cropData.get(id)));
+  let nativeCount=0;if(nativePlots.length){nativeCount=await window.GFNativeCrops.waterBatch(this,nativePlots,'can');plotIds=plotIds.filter(id=>!nativePlots.includes(id));if(!plotIds.length)return nativeCount;}
   let regadas = 0;
   let agua = Number(this.aguaPorcentaje) || 0;
 
@@ -14213,7 +14195,7 @@ async _regarLoteConRegadera(plotIds) {
   if (regadas > 0 && this.STATE.selectedItem && this.STATE.selectedItem.idx) {
     await this.verificarRompimiento(this.STATE.selectedItem);
   }
-  return regadas;
+  return regadas+nativeCount;
 }
 
 /**
@@ -14226,6 +14208,8 @@ async _regarLoteConRegadera(plotIds) {
  * riego para descontar, cerrar sesión en medio dejaría un balde lleno ya usado.
  */
 async _regarLoteConBaldes(plotIds) {
+  const nativePlots=plotIds.filter(id=>window.GFNativeCrops?.isCrop(this.cropData.get(id)));
+  let nativeCount=0;if(nativePlots.length){nativeCount=await window.GFNativeCrops.waterBatch(this,nativePlots,'bucket');plotIds=plotIds.filter(id=>!nativePlots.includes(id));if(!plotIds.length)return nativeCount;}
   const necesarias = plotIds.length;
 
   // CADA LOTE PAGA SUS PROPIOS BALDES (2026-08-05)
@@ -14315,7 +14299,7 @@ async _regarLoteConBaldes(plotIds) {
       'warning'
     );
   }
-  return regadas;
+  return regadas+nativeCount;
 }
 
 // ============================================================================
@@ -14335,6 +14319,7 @@ async _regarLoteConBaldes(plotIds) {
 // ============================================================================
 
 _getFruitDisplayNameEN(itemId) {
+  if(window.GFPlantCatalog?.items[itemId])return window.GFPlantCatalog.items[itemId].name;
   const nombres = {
     zanahoria_buena: 'Good Carrot', zanahoria_corta: 'Unripe Carrot', zanahoria_mala: 'Rotten Carrot',
     tomate_buena: 'Good Tomato', tomate_corta: 'Unripe Tomato', tomate_mala: 'Rotten Tomato',
@@ -14672,6 +14657,8 @@ async _agregarFrutoOnChain(itemId, cantidad) {
 // con espacio confirmado, y agrega on-chain (UNA transacción por tipo de
 // fruto) lo que el servidor realmente confirmó.
 async _procesarLoteCorte(plotIds) {
+  const nativePlots=plotIds.filter(id=>window.GFNativeCrops?.isCrop(this.cropData.get(id)));
+  if(nativePlots.length){await window.GFNativeCrops.harvestBatch(this,nativePlots);plotIds=plotIds.filter(id=>!nativePlots.includes(id));if(!plotIds.length)return;}
   const previstos = [];
 
   for (const plotId of plotIds) {
@@ -14810,6 +14797,7 @@ cutCrop(plotId) {
 }
 
 updatePlotVisual(plotId, cropData) {
+  window.GFNativeCrops?.visual(cropData);
   const imagen = this.plotImages.get(plotId);
   const progressText = this.plotTexts.get(plotId);
   if (!imagen) return;
@@ -14938,6 +14926,7 @@ updatePlotVisual(plotId, cropData) {
     }
   }
     
+  if(window.GFNativeCrops?.isCrop(cropData)&&progressText){if(cropData.isDead)progressText.setText('Rotten crop');else if(cropData.isCompleted)progressText.setText('Harvest!');else if(!cropData.isWatered)progressText.setText('Needs Water');else if(cropData.currentGrowthTime>=cropData.growthDuration)progressText.setText('Confirming growth…');}
   if (this.textures.exists(textureKey)) {
     imagen.setTexture(textureKey);
     // SIEMPRE USAR EL TAMAÑO ORIGINAL EN LUGAR DE 64x64
@@ -20445,13 +20434,12 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
 // GENERADOR DE manualId (se mantiene igual)
 // ------------------------------------------------------------------
 generarCodigo(longitud = 19) {
-  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let resultado = '';
-  for (let i = 0; i < longitud; i++) {
-    resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
+    return resultado;
   }
-  return resultado;
-}
 
 // ------------------------------------------------------------------
 // BLOQUEO VISUAL DE SLOTS (se mantiene igual)
@@ -20490,11 +20478,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   const self = this;
 
   function generarCodigoLocal(longitud = 19) {
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let resultado = '';
-    for (let i = 0; i < longitud; i++) {
-      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-    }
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
     return resultado;
   }
 
@@ -23766,7 +23753,8 @@ async loadPlayerData() {
       // un movimiento real del jugador (lo que podría marear la mirada del perro).
       this.prevPlayerX = this.player.x;
       this.prevPlayerY = this.player.y;
-      this.previousPosition = { x: this.player.x, y: this.player.y };
+      if (!this.previousPosition) this.previousPosition = { x: 0, y: 0 };
+        this.previousPosition.x = this.player.x; this.previousPosition.y = this.player.y;
     }
     
     // Re-aplicar window.playerStats — siempre tiene prioridad sobre BD
@@ -24245,6 +24233,7 @@ _showTutorialConfirm(text, onYes, onNo) {
   this._tutorialBannerReposition = () => this._positionTutorialBanner();
   this._positionTutorialBanner();
   window.addEventListener('resize', this._tutorialBannerReposition);
+  if (this._tutorialBannerRepoTimer) clearInterval(this._tutorialBannerRepoTimer);
   this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
@@ -24582,6 +24571,7 @@ _showTutorialBanner(text) {
   this._positionTutorialBanner();
   window.addEventListener('resize', this._tutorialBannerReposition);
   // Reposicionar periódicamente por si la barra de casillas aparece/cambia.
+  if (this._tutorialBannerRepoTimer) clearInterval(this._tutorialBannerRepoTimer);
   this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
@@ -26380,6 +26370,7 @@ VITAL_MAX_CLIENT = 100;
 
 // Cosechas buenas y podridas (dan menos) + el balde con agua.
 CONSUMABLES_FOOD = {
+  ...(window.GFPlantCatalog?.food || {}),
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
   fresa_buena: 5,
   zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
@@ -26544,47 +26535,31 @@ _openConsumePanel(itemId, info, available) {
 
 // Consume `qty` unidades en UNA sola transacción on-chain y suma el buff total.
 async _doConsume(itemId, qty, info) {
-  if (this._consumingItem) return;
-  this._consumingItem = true;
-  try {
-    const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
-    let consumed = qty;
-
-    if (def && def.tipo) {
-      const antes = this.contarItemEnInventario(itemId);
-      try {
-        // UNA sola transacción con la cantidad completa.
-        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, qty);
-      } catch (e) {
-        console.error('❌ Error consumiendo on-chain:', e);
-        this.notifications.show('Error consuming the item', 'error');
-        return;
-      }
-      const despues = this.contarItemEnInventario(itemId);
-      consumed = Math.max(0, antes - despues);
-      if (consumed < 1) {
-        this.notifications.show('Item consumption was not confirmed', 'error');
-        return;
-      }
-    } else {
-      const ok = await this.removeItemSmart(itemId, qty);
-      if (!ok) return;
+  if(this._consumingItem)return;this._consumingItem=true;const run=this._sceneRunId;
+  try{
+    const headers={'Content-Type':'application/json','X-CSRF-Token':await window.getCsrfToken()},key=itemId+':'+qty;
+    const call=async(path,body)=>{const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),180000);try{
+      const res=await fetch(this.serverBase+path,{method:body?'POST':'GET',credentials:'include',headers,body:body?JSON.stringify(body):undefined,signal:ctrl.signal});const data=await res.json();if(!res.ok)throw new Error(data.message||data.error||'Consumption unavailable');return data;
+    }finally{clearTimeout(timer);}};
+    const pending=await call('/api/craft/pending');let data;
+    if(pending.rows?.length){
+      if(pending.rows[0].recipe!=='consume_'+itemId||pending.rows[0].quantity!==qty){this.notifications?.show('Another item operation is pending. Reconcile it in crafting before consuming more.','warning');return;}
+      data=await call('/api/craft/reconcile',{operationId:pending.rows[0]._id});
     }
-
-    // Buff por lo REALMENTE consumido (tope 100). Persiste vía statsSync.
-    const total = info.gain * consumed;
-    if (info.isWater) {
-      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + total));
-    } else {
-      this.actualizarBarraComida(Math.min(100, this._vitalActual('comidaPorcentaje') + total));
-    }
-    this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
-    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
-    // Tutorial (paso 8): en cuanto come o bebe de verdad, se pasa al granjero.
-    this._onTutorialConsumed && this._onTutorialConsumed();
-  } finally {
-    this._consumingItem = false;
-  }
+    else{if(!this._consumeResume||this._consumeResume.key!==key)this._consumeResume={key,ref:crypto.randomUUID()};data=await call('/api/craft/execute',{recipeId:'consume_'+itemId,quantity:qty,ref:this._consumeResume.ref});}
+    if(!data.ok){if(data.status==='cancelled')this._consumeResume=null;this.notifications?.show(data.status==='cancelled'?'The unstarted consumption was cancelled. You can request it again.':'Consumption saved for reconciliation. Recheck before trying again.','warning');return;}
+    this._consumeResume=null;
+    if(run!==this._sceneRunId||this.sys?.isActive?.()===false)return;
+    const arrays=[this.STATE?.slots,this.STATE?.quickSlots].filter(Array.isArray),remaining=new Map((data.sourceInvoices||[]).map(x=>[Number(x.id),x.remaining]));
+    for(const array of arrays)for(let i=0;i<array.length;i++){const slot=array[i];if(slot&&remaining.has(Number(slot.idx))){const n=remaining.get(Number(slot.idx));if(n>0)slot.count=n;else array[i]=null;}}
+    for(const r of data.rewards||[]){let placed=false;for(const array of arrays)for(const slot of array)if(slot&&Number(slot.idx)===r.invoiceId){slot.count=r.newTotal;placed=true;}
+      if(!placed)for(const array of arrays){const ghost=array===this.STATE.slots?this.STATE.ghostSlots?.inv:this.STATE.ghostSlots?.quick,index=array.findIndex((x,i)=>!x&&!ghost?.[i]);if(index>=0){array[index]={id:r.itemId,count:r.newTotal,idx:r.invoiceId,idm:r.manualId};placed=true;break;}}}
+    if(data.inventoryLoadedAt)this._inventoryLoadedAt=data.inventoryLoadedAt;
+    if(data.stats){this._adoptarVitalesDelServidor(data.stats);Object.assign(window.playerStats||{},data.stats);}
+    this.rebuildPlayerInventoryFromState?.();this.renderInventory?.();this.renderQuickSlots?.();
+    this.notifications?.show('Item consumption confirmed.','success');this._onTutorialConsumed?.();
+  }catch(e){if(run===this._sceneRunId)this.notifications?.show(e.message||'Check pending consumption before retrying.','warning');}
+  finally{this._consumingItem=false;}
 }
 
 // =============================================================================
@@ -28847,7 +28822,8 @@ getPlayerIntentDirection() {
 
   
         // guardando posicion
-        this.previousPosition = { x: this.player.x, y: this.player.y };
+        if (!this.previousPosition) this.previousPosition = { x: 0, y: 0 };
+        this.previousPosition.x = this.player.x; this.previousPosition.y = this.player.y;
 
 
     this.posicionplayerx = this.player.x;
@@ -29046,7 +29022,7 @@ getPlayerIntentDirection() {
     // poniendo nombre de usuario
 
 
-    this.usuariox.setText(this.Username);
+    if (this.usuariox.text !== this.Username) this.usuariox.setText(this.Username);
     this.usuariox.setPosition(this.player.x, this.player.y - 60);
     this.shadowContainer.setPosition(this.player.x, this.player.y + 45); // ajustar a los pies
 
@@ -31052,9 +31028,9 @@ getPlayerIntentDirection() {
   _cablearHUD() {
       try {
         this.roundButtons = document.querySelectorAll('.round-btn');
-        this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
-        this._bindDomClick(this.roundButtons[2], 'stats',      this.onRoundBtnStats);
-        this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
+        this._bindDomClick(document.getElementById('dashboard-btn'), 'dashboard', this.onRoundBtnDashboard);
+        this._bindDomClick(document.getElementById('music-btn'), 'stats',      this.onRoundBtnStats);
+        this._bindDomClick(document.getElementById('transactions-btn'), 'reputation', this.onRoundBtnReputation);
         this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
         this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
           e.stopPropagation(); this.openNFTPanel();
@@ -31853,6 +31829,7 @@ if (window.globalPetData) {
    */
   _definirObjetos() {
         this.ItemDefinitions = {
+          ...(window.GFPlantCatalog?.items || {}),
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
           Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},

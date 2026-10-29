@@ -2167,10 +2167,10 @@ this.anims.create({
     if (window.GFLands)       window.GFLands.montar(this);
 
     // ASIGNAR LISTENERS
-    this._onDOM(this.roundButtons[0], 'click', this.onRoundBtnDashboard);
-    this._onDOM(this.roundButtons[1], 'click', this.onRoundBtnMail);
+    this._onDOM(document.getElementById('dashboard-btn'), 'click', this.onRoundBtnDashboard);
+    this._onDOM(document.getElementById('mail-btn'), 'click', this.onRoundBtnMail);
     
-    this._onDOM(this.roundButtons[2], 'click', this.onRoundBtnStats);
+    this._onDOM(document.getElementById('music-btn'), 'click', this.onRoundBtnStats);
 
     // ---------- BOTÓN 3 (Transactions)
     this.onRoundBtnTransactions = () => {
@@ -2188,7 +2188,7 @@ this.anims.create({
         panel.style.display = 'none';
       }
     };
-    this._onDOM(this.roundButtons[3], 'click', this.onRoundBtnTransactions);
+    this._onDOM(document.getElementById('transactions-btn'), 'click', this.onRoundBtnTransactions);
 
     // ---------- BOTÓN 4 (NFT)
     this.onRoundBtnNFT = () => {
@@ -2229,7 +2229,7 @@ this.anims.create({
         panel.style.display = 'none';
       }
     };
-    this._onDOM(this.roundButtons[4], 'click', this.onRoundBtnNFT);
+    this._onDOM(document.getElementById('nft-btn'), 'click', this.onRoundBtnNFT);
 
     // ---------- BOTÓN 5 (Skills)
     //
@@ -2341,6 +2341,7 @@ this.anims.create({
 
                 // Carácter global de las definiciones de ítems
         this.ItemDefinitions = {
+          ...(window.GFPlantCatalog?.items || {}),
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
           Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
@@ -5330,7 +5331,7 @@ removeOtherPlayer(playerId) {
           'border-radius:6px;padding:10px;position:relative'
         ].join(';');
         item.innerHTML = `
-          <button class="_mail-x" data-id="${mail.id}" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#ff6060;font-size:13px;cursor:pointer;line-height:1;" title="Delete">✕</button>
+          <button class="_mail-x" data-id="${this._escHtml(String(mail.id))}" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#ff6060;font-size:13px;cursor:pointer;line-height:1;" title="Delete">✕</button>
           <div style="font-size:8px;color:${mail.read ? '#6080a0' : '#40a0ff'};padding-right:20px;">${this._escHtml(mail.subject || '(no subject)')}</div>
           <div style="font-size:7px;color:#c8e8ff;line-height:1.5;">${this._escHtml(mail.body || '')}</div>
           <div style="font-size:6px;color:#405070;margin-top:2px;">${mail.from ? 'From: '+this._escHtml(mail.from) : ''} ${mail.date ? '· '+new Date(mail.date).toLocaleDateString() : ''}</div>
@@ -6752,6 +6753,9 @@ initInventory() {
 
 initQuickSlots() {
   const container = document.getElementById('quick-slots');
+  if (!container) return;
+  container.replaceChildren();
+  const previous=this.STATE.quickSlots || [];this.STATE.quickSlots=Array.from({length:7},(_,i)=>previous[i] || null);
   for (let i = 0; i < 7; i++) {
     const slotDiv = document.createElement('div');
     slotDiv.classList.add('quick-slot');
@@ -6762,12 +6766,15 @@ initQuickSlots() {
       this.handleSlotClick('quick', qsIdx, e.clientX, e.clientY);
     });
     container.appendChild(slotDiv);
-    this.STATE.quickSlots.push(null);
+
   }
 }
 
 initInventoryGrid() {
   const grid = document.getElementById('inventory-grid');
+  if (!grid) return;
+  grid.replaceChildren();
+  const previous=this.STATE.slots || [];this.STATE.slots=Array.from({length:40},(_,i)=>previous[i] || null);
   for (let i = 0; i < 40; i++) {
     const slotDiv = document.createElement('div');
     slotDiv.classList.add('inv-slot');
@@ -6778,7 +6785,7 @@ initInventoryGrid() {
       this.handleSlotClick('inv', idx, e.clientX, e.clientY);
     });
     grid.appendChild(slotDiv);
-    this.STATE.slots.push(null);
+
   }
 }
 
@@ -6835,13 +6842,12 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
 // GENERADOR DE manualId (se mantiene igual)
 // ------------------------------------------------------------------
 generarCodigo(longitud = 19) {
-  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let resultado = '';
-  for (let i = 0; i < longitud; i++) {
-    resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
+    return resultado;
   }
-  return resultado;
-}
 
 // ------------------------------------------------------------------
 // BLOQUEO VISUAL DE SLOTS (se mantiene igual)
@@ -6887,11 +6893,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   const self = this;
 
   function generarCodigoLocal(longitud = 19) {
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let resultado = '';
-    for (let i = 0; i < longitud; i++) {
-      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-    }
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
     return resultado;
   }
 
@@ -10696,6 +10701,7 @@ _showTutorialConfirm(text, onYes, onNo) {
   this._tutorialBannerReposition = () => this._positionTutorialBanner();
   this._positionTutorialBanner();
   window.addEventListener('resize', this._tutorialBannerReposition);
+  if (this._tutorialBannerRepoTimer) clearInterval(this._tutorialBannerRepoTimer);
   this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
@@ -11007,6 +11013,7 @@ _showTutorialBanner(text) {
   this._positionTutorialBanner();
   window.addEventListener('resize', this._tutorialBannerReposition);
   // Reposicionar periódicamente por si la barra de casillas aparece/cambia.
+  if (this._tutorialBannerRepoTimer) clearInterval(this._tutorialBannerRepoTimer);
   this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
@@ -12622,7 +12629,7 @@ actualizarBarraComida(porcentaje) {
       // Se entra también con la burbuja OCULTA si su plazo sigue vivo, para
       // poder reafirmarla si algo apagó el HUD en bloque (ver GameScene).
       {
-        const b = document.getElementById('local-chat-bubble');
+        const b = this._elBurbujaLocal?.isConnected ? this._elBurbujaLocal : (this._elBurbujaLocal = document.getElementById('local-chat-bubble'));
         const plazoVivo = this._burbujaHasta && Date.now() < this._burbujaHasta;
         if (b && (plazoVivo || b.style.display !== 'none')) this._positionLocalBubble(b);
       }
@@ -12707,7 +12714,8 @@ actualizarBarraComida(porcentaje) {
   
   
         // guardando posicion
-        this.previousPosition = { x: this.player.x, y: this.player.y };
+        if (!this.previousPosition) this.previousPosition = { x: 0, y: 0 };
+        this.previousPosition.x = this.player.x; this.previousPosition.y = this.player.y;
 
 
 
@@ -13485,11 +13493,11 @@ if (this.dogNameText) {
 
                 // Botones Redondos Cierres 
               if (this.roundButtons) {
-                  this.roundButtons[0]?.removeEventListener('click', this.onRoundBtnDashboard);
-                  this.roundButtons[1]?.removeEventListener('click', this.onRoundBtnMail);
-                  this.roundButtons[2]?.removeEventListener('click', this.onRoundBtnStats);
-                  this.roundButtons[3]?.removeEventListener('click', this.onRoundBtnTransactions);
-                  this.roundButtons[4]?.removeEventListener('click', this.onRoundBtnNFT);
+                  document.getElementById('dashboard-btn')?.removeEventListener('click', this.onRoundBtnDashboard);
+                  document.getElementById('mail-btn')?.removeEventListener('click', this.onRoundBtnMail);
+                  document.getElementById('music-btn')?.removeEventListener('click', this.onRoundBtnStats);
+                  document.getElementById('transactions-btn')?.removeEventListener('click', this.onRoundBtnTransactions);
+                  document.getElementById('nft-btn')?.removeEventListener('click', this.onRoundBtnNFT);
                   this.roundButtons[6]?.removeEventListener('click', this.onRoundBtnStore);
               }
               // El de Skills ya no se engancha con addEventListener sino con
@@ -13572,7 +13580,7 @@ if (this.dogNameText) {
 
 
 
-      this.usuariox.setText(this.Username);
+      if (this.usuariox.text !== this.Username) this.usuariox.setText(this.Username);
       this.usuariox.setPosition(this.player.x, this.player.y - 60);
   
 

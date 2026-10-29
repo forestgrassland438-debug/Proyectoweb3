@@ -132,18 +132,19 @@ class LoadingScenegame extends Phaser.Scene {
 
         // ── ItemDefinitions: todos los ítems del juego ──────────────────────
         this.ItemDefinitions = {
+          ...(window.GFPlantCatalog?.items || {}),
             item_1: { src: './Game/Source/recurso.png',  maxStack: 10 },
             item_2: { src: './Game/Source/recurso2.png', maxStack: 5  },
             item_3: { src: './Game/Source/tijeras.png',  maxStack: 20 },
 
             hacha_de_madera: { src: './Game/Source/pico_y_hacha/hacha_de_madera.png', maxStack: 5,  usos: 5  },
             hacha_de_piedra: { src: './Game/Source/pico_y_hacha/hacha_de_piedra.png', maxStack: 5,  usos: 10 },
-            hacha_de_cobre:  { src: './Game/Source/pico_y_hacha/hacha_de_cobre.png',  maxStack: 5,  usos: 20 },
-            hacha_de_hierro: { src: './Game/Source/pico_y_hacha/hacha_de_hierro.png', maxStack: 5,  usos: 40 },
+            hacha_de_cobre:  { src: './Game/Source/pico_y_hacha/hacha_de_cobre.png',  maxStack: 5,  usos: 15 },
+            hacha_de_hierro: { src: './Game/Source/pico_y_hacha/hacha_de_hierro.png', maxStack: 5,  usos: 20 },
             pico_de_madera:  { src: './Game/Source/pico_y_hacha/pico_de_madera.png',  maxStack: 5,  usos: 5  },
             pico_de_piedra:  { src: './Game/Source/pico_y_hacha/pico_de_piedra.png',  maxStack: 5,  usos: 10 },
-            pico_de_cobre:   { src: './Game/Source/pico_y_hacha/pico_de_cobre.png',   maxStack: 5,  usos: 20 },
-            pico_de_hierro:  { src: './Game/Source/pico_y_hacha/pico_de_hierro.png',  maxStack: 5,  usos: 40 },
+            pico_de_cobre:   { src: './Game/Source/pico_y_hacha/pico_de_cobre.png',   maxStack: 5,  usos: 15 },
+            pico_de_hierro:  { src: './Game/Source/pico_y_hacha/pico_de_hierro.png',  maxStack: 5,  usos: 20 },
 
             mineral_piedra:   { src: './Game/Source/piedra.png',         maxStack: 20 },
             mineral_cobre:    { src: './Game/Source/cobre.png',          maxStack: 20 },
@@ -220,6 +221,8 @@ class LoadingScenegame extends Phaser.Scene {
             Regaderax:      { src: './Game/Source/recurso2.png',   maxStack: 1 },
             Tijerasx:       { src: './Game/Source/tijeras.png',    maxStack: 1 },
 
+            pocion_antidoto: {src:'./Game/newpro/pociones/pocion_energia.png',maxStack:20,tipo:'pocion_antidoto',usos:null},
+            elixir_revivir: {src:'./Game/Objetos/pociones/elixir_revivir.png',maxStack:5,tipo:'elixir_revivir',usos:null},
             // Los nombres del contrato son distintos de las claves del juego.
             // Sin tipo, la sincronización borraba las cinco semillas compradas.
             Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50, tipo: 'bolsa zanahorias' },
@@ -844,6 +847,7 @@ class LoadingScenegame extends Phaser.Scene {
                     comida: this.comidaPorcentaje || 0,
                     oro:    this.moneda         || 0,
                     plata:  this.moneda_plata   || 0,
+                    bronce: this.moneda_bronce || 0,
                     exp:    this.nivel_exp      || 0,
                     invoiceIds: {}
                 };
@@ -913,6 +917,7 @@ class LoadingScenegame extends Phaser.Scene {
             // oro/plata: usar el valor del contrato siempre (0 si no hay factura)
             this.moneda       = typeof stats.oro   === 'number' ? stats.oro   : 0;
             this.moneda_plata = typeof stats.plata === 'number' ? stats.plata : 0;
+            this.moneda_bronce = typeof stats.bronce === 'number' ? stats.bronce : 0;
             // exp: tiene su propia tabla en el contrato, igual que oro y plata.
             // Solo se pisa el valor local cuando la factura de exp ya existe;
             // si todavía no se creó, el backend la sembrará con este valor.
@@ -926,7 +931,8 @@ class LoadingScenegame extends Phaser.Scene {
                 agua:       this.aguaPorcentaje,
                 comida:     this.comidaPorcentaje,
                 oro:        this.moneda,       // ya es 0 si no hay factura
-                plata:      this.moneda_plata, // ya es 0 si no hay factura
+                plata:      this.moneda_plata,
+                bronce:     this.moneda_bronce, // ya es 0 si no hay factura
                 exp:        this.nivel_exp || 0,
                 invoiceIds: stats.invoiceIds || {}
             };
@@ -1293,7 +1299,8 @@ class LoadingScenegame extends Phaser.Scene {
      */
     _tipoToItemId(tipo) {
         if (!tipo) return null;
-        const tipoNorm = tipo.trim().toLowerCase();
+        const tipoNorm = String(tipo).trim().toLowerCase();
+        if(tipoNorm==='pala_contrucion' || tipoNorm==='pala_construccion')return 'pala_construccion';
         if (tipoNorm.indexOf('player_') === 0) return null;
 
         // Tablas del contrato que NO son objetos del inventario: las barras,
@@ -1301,7 +1308,7 @@ class LoadingScenegame extends Phaser.Scene {
         // Viven en las mismas facturas del jugador, así que pasan por aquí en
         // cada carga; se descartan sin llenar la consola de avisos.
         if (['vida', 'agua', 'comida', 'oro', 'plata', 'exp',
-             'nivel', 'nombre', 'cons_parcelas'].indexOf(tipoNorm) !== -1) return null;
+             'bronce', 'vip', 'nivel', 'nombre', 'cons_parcelas'].indexOf(tipoNorm) !== -1) return null;
 
         // 1. Mapa explícito TIPO_TO_ITEM_ID
         if (this.TIPO_TO_ITEM_ID && this.TIPO_TO_ITEM_ID[tipoNorm]) {
@@ -1619,7 +1626,7 @@ class LoadingScenegame extends Phaser.Scene {
                 const itemObj = this.STATE.slots[index];
                 if (itemObj) {
                     const img = document.createElement('img');
-                    img.src = this.ItemDefinitions[itemObj.id].src;
+                    img.src = (this.ItemDefinitions[itemObj.id]?.src || './favicon.png');
                     img.alt = itemObj.id;
                     invDiv.appendChild(img);
                     if (itemObj.count > 1) {
@@ -1647,7 +1654,7 @@ class LoadingScenegame extends Phaser.Scene {
                 const itemObj = this.STATE.quickSlots[index];
                 if (itemObj) {
                     const img = document.createElement('img');
-                    img.src = this.ItemDefinitions[itemObj.id].src;
+                    img.src = (this.ItemDefinitions[itemObj.id]?.src || './favicon.png');
                     img.alt = itemObj.id;
                     quickDiv.appendChild(img);
                     if (itemObj.count > 1) {
