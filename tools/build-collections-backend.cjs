@@ -26,6 +26,9 @@ try {
     chainId: CHAIN_ID,
     explorerUrl: EXPLORER_URL,
     confirmations: process.env.COLLECTIONS_CONFIRMATIONS,
+    // (2026-10-26) El nombre en el juego de cada cartera propietaria (vista de propietarios).
+    resolveOwners: async wallets => Object.fromEntries((await GamePlayer.find({ address: { $in: wallets } }).select('address playerName Username').limit(1000).lean())
+      .map(p => [String(p.address || '').toLowerCase(), { playerName: p.playerName || '', username: p.Username || '' }])),
     onError: error => console.error('[Colecciones] Consulta fallida:', String(error && (error.code || error.name) || 'unknown').slice(0, 80))
   });
   console.log('Colecciones: API administrativa y registro persistente cargados.');

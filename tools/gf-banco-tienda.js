@@ -281,6 +281,7 @@ class ServidorFalso {
     this.peticiones = [];             // traza
     this.contadorTx = 0;
     this.comisiones = [];             // los avisos al tesoro (POST /api/tesoro/comision)
+    this.registros = [];              // (2026-10-27) el registro de la tienda (POST /api/tienda/registro)
   }
 
   get abi() {
@@ -388,6 +389,13 @@ class ServidorFalso {
     if (ruta === '/api/tesoro/comision' && metodo === 'POST') {
       if (this.opciones.servidorViejo) return json(404, { error: 'Not found' });
       this.comisiones.push(cuerpo);
+      return json(200, { ok: true });
+    }
+    /* EL REGISTRO DE LA TIENDA (2026-10-27): cada compra y venta se cuenta al
+       servidor (inicio, fin o error) para la auditoría del centro de control. */
+    if (ruta === '/api/tienda/registro' && metodo === 'POST') {
+      if (this.opciones.servidorViejo) return json(404, { error: 'Not found' });
+      this.registros.push(cuerpo);
       return json(200, { ok: true });
     }
 

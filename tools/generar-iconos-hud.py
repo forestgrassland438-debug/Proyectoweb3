@@ -243,18 +243,46 @@ def mochila():
     return ic
 
 
+def mapa():
+    """(2026-10-26) El mapa del mundo (gf-mapa-mundo.js, tecla M): un mapa
+    plegado en tres, tierra a la izquierda y agua a la derecha, la ruta en
+    rojo de trazo seguido y la chincheta del destino."""
+    ic = Icono()
+    ic.pieza(lambda d: d.polygon([(58, 128), (186, 100), (186, 404), (58, 432)], fill=255), CREMA, CREMA_O)
+    ic.pieza(lambda d: d.polygon([(186, 100), (314, 128), (314, 432), (186, 404)], fill=255), CREMA_O, (180, 152, 100))
+    ic.pieza(lambda d: d.polygon([(314, 128), (442, 100), (442, 404), (314, 432)], fill=255), CREMA, CREMA_O)
+    ic.pieza(lambda d: d.polygon([(78, 196), (150, 172), (176, 214), (172, 300), (120, 330), (78, 318)], fill=255), VERDE, VERDE_O, False)
+    ic.pieza(lambda d: d.polygon([(334, 300), (424, 280), (424, 388), (334, 408)], fill=255), TURQ, TURQ_O, False)
+    def ruta(d):
+        d.line([(110, 380), (170, 352), (230, 300), (282, 258), (330, 236)], fill=255, width=26, joint='curve')
+        for x, y in ((110, 380), (330, 236)):
+            d.ellipse((x - 13, y - 13, x + 13, y + 13), fill=255)
+    ic.pieza(ruta, ROJO, ROJO_O, False)
+    def chincheta(d):
+        d.ellipse((300, 60, 420, 180), fill=255)
+        d.polygon([(306, 140), (414, 140), (360, 236)], fill=255)
+    ic.pieza(chincheta, ROJO, ROJO_O)
+    ic.pieza(lambda d: d.ellipse((336, 96, 384, 144), fill=255), CREMA, None, False)
+    return ic
+
+
 ICONOS = {
     'panel': panel, 'correo': correo, 'musica': musica, 'transacciones': transacciones, 'nft': nft,
     'habilidades': habilidades, 'tienda': tienda, 'amigos': amigos, 'lands': lambda: isla(False),
     'lands_volver': lambda: isla(True), 'chat': chat, 'ojo': ojo, 'mochila': mochila,
+    'mapa': mapa,
 }
 
 
 def main():
+    import sys
     os.makedirs(DESTINO, exist_ok=True)
-    for nombre, f in ICONOS.items():
-        f().render().save(os.path.join(DESTINO, nombre + '.png'), optimize=True)
-    print('%d iconos -> %s' % (len(ICONOS), DESTINO))
+    # (2026-10-26) Con nombres, solo esos: `python tools/generar-iconos-hud.py mapa`
+    # no reescribe los demás.
+    elegidos = [n for n in sys.argv[1:] if n in ICONOS] or list(ICONOS)
+    for nombre in elegidos:
+        ICONOS[nombre]().render().save(os.path.join(DESTINO, nombre + '.png'), optimize=True)
+    print('%d iconos -> %s' % (len(elegidos), DESTINO))
 
 
 if __name__ == '__main__':

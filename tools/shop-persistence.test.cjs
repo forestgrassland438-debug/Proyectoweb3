@@ -11,6 +11,19 @@ const server = fs.readFileSync(serverPath, 'utf8');
 const a = server.indexOf('// <<SHOP-PVP-SYNC>>');
 const b = server.indexOf('// <<SHOP-PVP-SYNC-FIN>>', a);
 const source = server.slice(a, b);
+function authoritativeFixture(f, { wait = Promise.resolve(), confirmed } = {}) {
+  global.GFBronce.adoptarStats = stats => global.GFBronce.pintar(stats.bronce);
+  global.GFMascota = { api: async (url, body) => {
+    if (url !== '/api/economia/tienda') return { ok: false, status: 404, datos: null };
+    await wait;
+    const count = confirmed === undefined ? body.cantidad : confirmed;
+    const gross = body.precioBronce * count, fee = Math.round(gross * 0.05);
+    const balance = f.tienda.playerMonedaPlata * 1000 + global.GFBronce.valor() - gross - fee;
+    f.cadena.crear(f.JUGADOR, 'bolsa zanahorias', count, 'authority-' + body.ref);
+    return { ok: true, status: 200, datos: { ok: true, confirmadas: count, fee,
+      stats: { oro: 0, plata: Math.floor(balance / 1000), bronce: balance % 1000 } } };
+  } };
+}
 function backend(gp = {}) {
   const routes = new Map(), writes = [], queues = new Map();
   const state = { playerName: 'Ana', address: '0xaaa', inventory: [], chest: [], ...gp };
@@ -139,8 +152,7 @@ test('comprar y salir antes de confirmar entrega y guarda sin retener la escena 
   };
   let release;
   const pending = new Promise(resolve => { release = resolve; });
-  const division = f.tienda.ejecutarDivision.bind(f.tienda);
-  f.tienda.ejecutarDivision = async (...args) => { await pending; return division(...args); };
+  authoritativeFixture(f, { wait: pending });
   const item = bank.itemTienda(f.tienda, 'Semillax');
   let confirmed = 0; f.tienda.showTransactionAnimation = () => confirmed++;
   await f.tienda.processPurchase(item, 3);
@@ -173,7 +185,7 @@ test('una compra acuñada no se reembolsa si falla la lectura posterior o el gua
   f.tienda.playerMonedaPlata = 1000;
   const item = bank.itemTienda(f.tienda, 'Semillax');
   const silver = f.tienda.playerMonedaPlata;
-  f.tienda.ejecutarDivision = async () => { f.tienda._confirmedPurchaseQuantity = 3; };
+  authoritativeFixture(f);
   f.tienda._persistConfirmedPurchase = async () => { throw new Error('network'); };
   await f.tienda.processPurchase(item, 3); await f.tienda._colaTienda;
   // (2026-10-22) La compra paga además el 1,5 % del tesoro en bronce (rompiendo
@@ -188,7 +200,7 @@ test('una compra parcial registra lo entregado y devuelve solo el precio de lo q
   t.after(() => f.relay.cleanup());
   f.tienda.playerMonedaPlata = 1000;
   const item = bank.itemTienda(f.tienda, 'Semillax'), history = [];
-  f.tienda.ejecutarDivision = async () => { f.tienda._confirmedPurchaseQuantity = 2; };
+  authoritativeFixture(f, { confirmed: 2 });
   f.tienda._persistConfirmedPurchase = async () => ({ success: true });
   f.tienda.addToHistorial = (_type, _item, qty, cost) => history.push({ qty, cost });
   await f.tienda.processPurchase(item, 3); await f.tienda._colaTienda;
@@ -196,5 +208,5 @@ test('una compra parcial registra lo entregado y devuelve solo el precio de lo q
   const valor = f.tienda.playerMonedaPlata * 1000 + f.tienda.getBalanceByCurrency('bronze');
   assert.equal(valor, 1000 * 1000 - (item.buyPrice * 2 * 1000 + bank.comisionTesoro(item.buyPrice, 'silver', 2)));
   assert.deepEqual(history, [{ qty: 2, cost: item.buyPrice * 2 }]);
-  assert.ok(f.tienda.avisos.some(s => s.includes('1x') && s.includes('refunded')));
+  assert.ok(f.tienda.avisos.some(s => s.includes('payment and delivery confirmed')));
 });

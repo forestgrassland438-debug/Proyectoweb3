@@ -248,8 +248,9 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const plataDespues = Math.floor(Number(t.getBalanceByCurrency('silver')) || 0);
   ok(plataDespues === esperado, 'se paga el precio exacto menos comision',
      plataAntes + ' -> ' + plataDespues + ' (tocaba ' + esperado + ')');
-  const brutoBr = item.sellPrice * 5 * 1000, comisionBr = Math.round(brutoBr * 15 / 1000);
-  ok(global.gfComisionTesoroBronce(item.sellPrice, 'silver', 5) === comisionBr, 'la comisión es el 1,5 % en bronce',
+  // (2026-10-26) La comisión pasó al 5 % (1,5 % circular + 3,5 % del juego): GF_COMISION_TESORO_BPS = 500.
+  const brutoBr = item.sellPrice * 5 * 1000, comisionBr = Math.round(brutoBr * 500 / 10000);
+  ok(global.gfComisionTesoroBronce(item.sellPrice, 'silver', 5) === comisionBr, 'la comisión es el 5 % en bronce',
      global.gfComisionTesoroBronce(item.sellPrice, 'silver', 5) + ' (tocaba ' + comisionBr + ')');
   ok(t.getBalanceByCurrency('bronze') - bronceAntes === (brutoBr - comisionBr) % 1000, 'y el cambio llega en bronce',
      (t.getBalanceByCurrency('bronze') - bronceAntes) + ' (tocaba ' + ((brutoBr - comisionBr) % 1000) + ')');

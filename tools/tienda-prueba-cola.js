@@ -107,9 +107,10 @@ function valorEnBronce(tienda) {
        'y se paga el precio exacto menos comisión',
        b.tienda.getBalanceByCurrency('silver') + ' (tocaba ' + precioNeto(item, 5) + ')');
     const bruto = item.sellPrice * 5 * 1000;
-    ok(b.tienda.getBalanceByCurrency('bronze') === (bruto - Math.round(bruto * 0.015)) % 1000,
-       'el cambio de la comisión del 1,5 % llega en bronce',
-       b.tienda.getBalanceByCurrency('bronze') + ' (tocaba ' + ((bruto - Math.round(bruto * 0.015)) % 1000) + ')');
+    // (2026-10-26) La comisión pasó al 5 % (1,5 % circular + 3,5 % del juego): GF_COMISION_TESORO_BPS = 500.
+    ok(b.tienda.getBalanceByCurrency('bronze') === (bruto - Math.round(bruto * 0.05)) % 1000,
+       'el cambio de la comisión del 5 % llega en bronce',
+       b.tienda.getBalanceByCurrency('bronze') + ' (tocaba ' + ((bruto - Math.round(bruto * 0.05)) % 1000) + ')');
     const aviso = b.servidor.comisiones[0] || {};
     ok(b.servidor.comisiones.length === 1 && aviso.operacion === 'venta' && aviso.itemId === 'zanahoria_buena' &&
        aviso.cantidad === 5 && /^[A-Za-z0-9_-]{8,64}$/.test(String(aviso.ref || '')),
@@ -518,6 +519,49 @@ function valorEnBronce(tienda) {
        b.tienda.getBalanceByCurrency('silver') + ' (tocaba ' + esperado + ')');
     ok(b.tienda.getBalanceByCurrency('bronze') === 0, 'no se toca el bronce', String(b.tienda.getBalanceByCurrency('bronze')));
     ok(b.servidor.comisiones.length === 0, 'y no se avisa a un tesoro que no existe', String(b.servidor.comisiones.length));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n17) El registro de la tienda: cada compra y venta se cuenta al servidor, con sus números');
+  {
+    /* (2026-10-27) "Quiero ver quién compró, cuánto gastó y si pagó o no; si el
+       gasto al comprar y al vender es el correcto; y cualquier error en el
+       historial." La tienda manda inicio y fin (o error) a /api/tienda/registro. */
+    const b = banco.montar(BIN, {});
+    b.tienda.playerMonedaPlata = 1000;
+    const id = b.cadena.crear(JUGADOR, 'zanahoria_buena', 5, 'z1');
+    b.escena.poner(3, 'zanahoria_buena', 5, id, 'z1');
+    const zanahoria = banco.itemTienda(b.tienda, 'zanahoria_buena');
+    const semilla   = banco.itemTienda(b.tienda, 'Semillax');
+    await enSilencio(async () => {
+      await b.tienda.processPurchase(semilla, 3);
+      await b.tienda.processSale(zanahoria, 5);
+      await esperarCola(b.tienda, 60000);
+    });
+    const R = b.servidor.registros;
+    const de = (op, fase) => R.filter(r => r.op === op && r.fase === fase);
+    const ci = de('compra', 'inicio')[0] || {}, cf = de('compra', 'fin')[0] || {};
+    ok(ci.ref && ci.ref === cf.ref, 'la compra manda inicio y fin con la MISMA ref', JSON.stringify(R.map(r => r.op + ':' + r.fase)));
+    ok(ci.itemId === 'Semillax' && ci.cantidad === 3 && ci.precioUnidad === semilla.buyPrice && ci.total === semilla.buyPrice * 3 && ci.moneda === 'silver',
+       'con lo que costó (precio, total y moneda)', JSON.stringify(ci));
+    ok(ci.fee > 0 && ci.fee === b.tienda._comisionBronce(semilla, 3, 'compra'), 'y su comisión en bronce', String(ci.fee));
+    // `guardada` es lo que devolvió /api/inventory/reconcile (este banco no lo imita: sale false, y así se ve en la auditoría).
+    ok(cf.confirmadas === 3 && cf.reembolso === 0 && typeof cf.guardada === 'boolean', 'el fin dice cuántas se confirmaron y si se guardó', JSON.stringify(cf));
+    const vi = de('venta', 'inicio')[0] || {}, vf = de('venta', 'fin')[0] || {};
+    ok(vi.ref && vi.ref === vf.ref && vi.ref !== ci.ref, 'la venta, con su propia ref', vi.ref + ' / ' + vf.ref);
+    const brutoV = zanahoria.sellPrice * 5 * 1000, feeV = b.tienda._comisionBronce(zanahoria, 5, 'venta');
+    ok(vf.confirmadas === 5 && vf.pagadoBronce === brutoV - feeV, 'y lo que se pagó, en bronce (precio menos la comisión)', JSON.stringify(vf));
+    // Un fallo antes de cobrar también llega (sin fondos).
+    b.tienda.playerMonedaPlata = 0;
+    b.tienda.selectedItem = semilla; b.tienda.transactionType = 'compra';
+    const input = { value: '2' };
+    const getEl = global.document.getElementById;
+    global.document.getElementById = (x) => (x === 'pc-quantity-input' ? input : (getEl ? getEl.call(global.document, x) : null));
+    try { await enSilencio(() => b.tienda.executePcModalTransaction()); } finally { global.document.getElementById = getEl; }
+    await new Promise(r => setTimeout(r, 50));
+    const err = de('compra', 'error')[0] || {};
+    ok(err.itemId === 'Semillax' && err.cantidad === 2 && /insufficient/i.test(err.error || '') && err.grave === false,
+       'y una compra que no se pudo hacer, con su motivo', JSON.stringify(err));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

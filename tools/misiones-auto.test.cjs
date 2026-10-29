@@ -34,6 +34,10 @@ function montar() {
   vm.createContext(ctx);
   const codigo = [
     "const MISSION_LANGS = ['en-US', 'en-PH', 'es-419', 'pt-BR', 'zh-CN', 'ko-KR'];",
+    // (2026-10-28) "En misiones no podemos dar ítems, solo monedas de los tres tipos": la regla de verdad.
+    tramo('const GF_MISIONES_SOLO_MONEDAS', '\n'),
+    // (2026-10-26) Los premios pasan por gfPremioJusto (nunca la roca de carbón).
+    tramo('function gfPremioJusto(itemId) {', '/** Suma cuántas unidades'),
     tramo('function sanearMisionesDelDia(missions)', '// Leer las misiones de un NPC en un día'),
     tramo('/** Los monstruos que se pueden pedir', '// Lo que se puede elegir en el panel'),
     'this.sanearMisionesDelDia = sanearMisionesDelDia; this.gfGenerarMisiones = gfGenerarMisiones;',
@@ -48,7 +52,7 @@ const REGLAS = {
   pedidos: [{ itemId: 'madera_pinos', nombre: 'Pine Wood', min: 3, max: 6 }, { itemId: 'carbon', nombre: 'Coal', min: 2, max: 2 }],
   presas: [{ tipo: 'lobo_salvaje', nombre: 'Wolves', min: 2, max: 4 }, { tipo: '*', nombre: 'monsters', min: 5, max: 5 }],
   premios: [{ itemId: 'Semillax', nombre: 'Seeds', min: 1, max: 3, peso: 5 }, { itemId: 'no_se_acuna', min: 1, max: 1, peso: 100 }],
-  probPremio: 100, expMin: 10, expMax: 20, oroMin: 0, oroMax: 0, plataMin: 5, plataMax: 5, semilla: 0
+  probPremio: 100, expMin: 10, expMax: 20, oroMin: 0, oroMax: 0, plataMin: 5, plataMax: 5, bronceMin: 700, bronceMax: 700, semilla: 0
 };
 
 test('el generador es determinista por NPC + día + semilla', { skip: !HAY }, () => {
@@ -60,7 +64,7 @@ test('el generador es determinista por NPC + día + semilla', { skip: !HAY }, ()
   assert.notEqual(a, c, 'otra semilla (reroll) da otras misiones');
 });
 
-test('salen las que se piden, de los dos tipos y con recompensas acuñables', { skip: !HAY }, () => {
+test('salen las que se piden, de los dos tipos y SOLO con monedas (2026-10-28)', { skip: !HAY }, () => {
   const s = montar();
   let cazar = 0, entregar = 0;
   for (let d = 1; d <= 20; d++) {
@@ -80,9 +84,10 @@ test('salen las que se piden, de los dos tipos y con recompensas acuñables', { 
       }
       assert.ok(m.expReward >= 10 && m.expReward <= 20);
       assert.equal(m.silverReward, 5);
-      // Nunca un premio que no se pueda acuñar, aunque pese 100.
-      assert.equal(m.rewardItemId, 'Semillax');
-      assert.ok(m.rewardAmount >= 1 && m.rewardAmount <= 3);
+      assert.equal(m.bronzeReward, 700, 'y bronce');
+      // (2026-10-28) Ningún objeto de premio, aunque las reglas viejas traigan una lista.
+      assert.equal(m.rewardItemId, undefined);
+      assert.equal(m.rewardAmount, undefined);
     }
   }
   assert.ok(cazar > 10 && entregar > 10, 'la mezcla sale de los pesos (' + cazar + '/' + entregar + ')');
@@ -117,7 +122,12 @@ test('las reglas del panel se acotan y lo que no se puede acuñar no entra', { s
   assert.equal(r.oroMax, 1000);
   assert.equal(r.expMin, 0);
   assert.deepEqual(r.presas.map((p) => [p.tipo, p.min, p.max]), [['lobo_salvaje', 2, 9]]);
-  assert.deepEqual(r.premios.map((p) => p.itemId), ['pocion_vida']);
+  assert.equal(JSON.stringify(r.premios), '[]', '(2026-10-28) solo monedas: no se guardan premios en objetos');
+  assert.equal(s.gfSanearReglas({ bronceMin: -3, bronceMax: 5e9 }).bronceMax, 10000000, 'el bronce, acotado');
+  // Una misión a mano con un objeto de premio: el objeto no entra; las monedas sí.
+  const [x] = s.sanearMisionesDelDia([{ missionId: 'x1', itemId: 'carbon', requiredAmount: 1, rewardItemId: 'pocion_vida', rewardAmount: 2, bronzeReward: 1500 }]);
+  assert.equal(x.rewardItemId, undefined);
+  assert.equal(x.bronzeReward, 1500);
   assert.equal(r.pedidos[0].itemId, 'carbon');
 });
 

@@ -62,7 +62,7 @@ function cumple(d, f) {
   });
 }
 function consulta(fn) {
-  const q = { select() { return q; }, lean() { return q; }, exec: () => Promise.resolve().then(fn),
+  const q = { session() { return q; }, select() { return q; }, lean() { return q; }, exec: () => Promise.resolve().then(fn),
               then(ok, mal) { return Promise.resolve().then(fn).then(ok, mal); } };
   return q;
 }
@@ -86,7 +86,7 @@ function tesoroFalso(inicial) {
     updateOne: (f, u, o = {}) => consulta(() => {
       if (!doc) { if (!o.upsert) return { modifiedCount: 0 }; doc = vacio(); }
       if (!cumple(doc, f)) return { modifiedCount: 0 };
-      aplicar(u); return { modifiedCount: 1 };
+      aplicar(u); return { modifiedCount: 1, matchedCount: 1 };
     }),
     findOneAndUpdate: (f, u, o = {}) => consulta(() => {
       if (!doc) { if (!o.upsert) return null; doc = vacio(); }
@@ -99,26 +99,39 @@ function movimientosFalsos() {
   const filas = [], refs = new Set();
   return { filas, async create(d) {
     if (d.ref) { if (refs.has(d.ref)) { const e = new Error('E11000 duplicate key'); e.code = 11000; throw e; } refs.add(d.ref); }
+    if (Array.isArray(d)) { for (const row of d) filas.push(clone(row)); return d; }
     filas.push(clone(d)); return d;
   } };
 }
 
 // ── La sección del tesoro, viva en un contexto aislado ──────────────────────
-const NOMBRES = ['TIENDA_PRECIOS', 'TESORO_ID', 'TESORO_COMISION_BPS', 'TESORO_BRONCE_POR', 'TESORO_TOPE_TIENDA_DIA', 'TESORO_PROB_MAX',
+const NOMBRES = ['TIENDA_PRECIOS', 'TESORO_ID', 'TESORO_COMISION_BPS', 'TESORO_CIRCULAR_BPS', 'tesoroParteCircular', 'TESORO_BRONCE_POR', 'TESORO_TOPE_TIENDA_DIA', 'TESORO_PROB_MAX',
   'TESORO_CONFIG_BASE', 'GF_NIVEL_MAPA', 'gfNivelMinimoSala', 'gfNivelDeJugador', '_diaUTC', '_tesoroRacha', '_tesoroDia', '_tesoroTiendaDia',
   'tesoroNormalizarConfig', '_tesoroCfg', 'tesoroConfig', 'tesoroProbabilidad', 'tesoroCantidad', '_tesoroListo', 'tesoroListo',
   'tesoroIncentivo', 'tesoroDevolverReserva', 'tesoroPagar', 'tesoroComisionTienda', 'tesoroPublico',
   'MAX_LEVEL_PERSONAJE', 'expTotalParaNivel', 'nivelPorExperiencia', 'salaBase', 'gfNombreValido'];
 function seccion({ tesoro = null, vips = [], stats = {}, devolver = true } = {}) {
-  const rutas = new Map(), pagados = [];
+  const rutas = new Map(), pagados = [], juego = [], cupos = new Map();
+  let transactionTail = Promise.resolve();
   const Tesoro = tesoroFalso(tesoro), TesoroMov = movimientosFalsos();
   const nada = (req, res, next) => next && next();
   const c = {
     console: quiet, Tesoro, TesoroMov,
-    PlayerStats: { findOne: f => consulta(() => (stats[f.playerName] != null ? { exp: stats[f.playerName] } : null)) },
+    ecoError: (code, status) => Object.assign(new Error(code), { code, status }),
+    ecoTransaccion: async fn => {
+      const previous = transactionTail; let release; transactionTail = new Promise(r => { release = r; }); await previous;
+      const before = clone(Tesoro.doc), paidBefore = pagados.length;
+      try { return await fn({}); }
+      catch (e) { if (before && Tesoro.doc) { for (const k of Object.keys(Tesoro.doc)) delete Tesoro.doc[k]; Object.assign(Tesoro.doc, before); } pagados.splice(paidBefore); throw e; } finally { release(); }
+    },
+    PlayerStats: { findOne: f => consulta(() => ({ _id: f.playerName, exp: stats[f.playerName] || 0, botinCupo: cupos.get(f.playerName) })),
+      updateOne: async (q, u) => { cupos.set(q._id, u.$set.botinCupo); return { matchedCount: 1 }; },
+      findOneAndUpdate: async (f, u) => { if (!devolver) return null; pagados.push({ playerName: f.playerName, stat: 'bronce', n: u.$inc.bronce }); return { playerName: f.playerName, bronce: u.$inc.bronce }; } },
     gfTieneVipPorDireccion: async a => vips.includes(a),
     gfDevolverStat: async (playerName, stat, n) => { if (!devolver) return null; pagados.push({ playerName, stat, n }); return { playerName, [stat]: n }; },
     jugadorDeLaSesion: async req => req.gp || null,
+    // (2026-10-26) El tesoro del juego: aquí solo se apunta lo que le llega.
+    tesoroJuegoIngresar: async (origen, bronce, playerName, detalle) => { juego.push({ origen, bronce, playerName, detalle }); },
     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
     apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
     azar: () => 0
@@ -129,7 +142,7 @@ function seccion({ tesoro = null, vips = [], stats = {}, devolver = true } = {})
     `Math.random = () => azar();
      this.h = { TIENDA_PRECIOS, TESORO_CONFIG_BASE, TESORO_PROB_MAX, TESORO_TOPE_TIENDA_DIA, GF_NIVEL_MAPA, gfNivelMinimoSala, gfNivelDeJugador,
        tesoroNormalizarConfig, tesoroConfig, tesoroProbabilidad, tesoroCantidad, tesoroListo, tesoroIncentivo, tesoroDevolverReserva,
-       tesoroPagar, tesoroComisionTienda, tesoroPublico, expTotalParaNivel, nivelPorExperiencia, _tesoroRacha, _tesoroDia, _tesoroTiendaDia,
+       tesoroPagar, tesoroComisionTienda, tesoroParteCircular, tesoroPublico, expTotalParaNivel, nivelPorExperiencia, _tesoroRacha, _tesoroDia, _tesoroTiendaDia,
        olvidarConfig() { _tesoroCfg = null; _tesoroCfgEn = 0; }, olvidarListo() { _tesoroListo = null; } };`;
   // El contexto trae sus propios Math/Date/Map: cambiar Math.random dentro no toca el de las pruebas.
   vm.runInContext(codigo, c);
@@ -140,7 +153,7 @@ function seccion({ tesoro = null, vips = [], stats = {}, devolver = true } = {})
     await h({ body: {}, ...req }, res);
     return res;
   }
-  return { ...c.h, Tesoro, TesoroMov, pagados, llamar, setAzar(fn) { c.azar = fn; } };
+  return { ...c.h, Tesoro, TesoroMov, pagados, juego, llamar, setAzar(fn) { c.azar = fn; } };
 }
 
 // ── Las copias del cliente ──────────────────────────────────────────────────
@@ -244,7 +257,7 @@ test('el panel (tesoro.js) calcula EXACTAMENTE lo mismo que el servidor', () => 
 
 test('la comisión de la tienda: el servidor cobra con SU tabla lo mismo que el navegador', () => {
   const s = seccion(), cli = comisionCliente();
-  assert.equal(cli.bps, 150);
+  assert.equal(cli.bps, 500, 'el 5 % (1,5 circular + 3,5 del juego)');
   const ids = Object.keys(s.TIENDA_PRECIOS);
   assert.ok(ids.length >= 40, 'la tabla de precios está entera');
   for (const id of ids) {
@@ -254,7 +267,8 @@ test('la comisión de la tienda: el servidor cobra con SU tabla lo mismo que el 
       assert.equal(s.tesoroComisionTienda(id, 'venta', q), cli.f(venta, moneda === 'p' ? 'silver' : 'gold', q), id + ' venta x' + q);
     }
   }
-  assert.equal(s.tesoroComisionTienda('arco', 'compra', 1), 4500, '300 de plata → 1,5 % = 4.500 de bronce');
+  assert.equal(s.tesoroComisionTienda('arco', 'compra', 1), 15000, '300 de plata → 5 % = 15.000 de bronce');
+  assert.equal(s.tesoroParteCircular(15000), 4500, 'de ese 5 %, el 1,5 % al tesoro circular');
   assert.equal(s.tesoroComisionTienda('pes1', 'compra', 1), 0, 'lo que no se vende no cobra');
   assert.equal(s.tesoroComisionTienda('constructor', 'compra', 1), 0, 'un id heredado no existe');
   const r = spawnSync(process.execPath, [path.join(__dirname, 'tienda-precios-a-servidor.js'), '--comprobar', backendPath], { encoding: 'utf8' });
@@ -266,12 +280,13 @@ test('POST /api/tesoro/comision: cuenta una sola vez por ref, valida y respeta e
   const gp = { playerName: 'Ana', Username: 'Ana' };
   const pedir = body => s.llamar('POST', '/api/tesoro/comision', { gp, body });
   let r = await pedir({ operacion: 'compra', itemId: 'arco', cantidad: 2, ref: 'ref-00000001' });
-  assert.equal(r.statusCode, 200); assert.equal(r.body.bronce, 9000);
+  // (2026-10-26) El 5 % (30.000) se reparte: 9.000 al circular y 21.000 al del juego.
+  assert.equal(r.statusCode, 200); assert.equal(r.body.bronce, 30000); assert.equal(r.body.circular, 9000); assert.equal(r.body.juego, 21000);
   assert.equal(s.Tesoro.doc.saldo, 9000); assert.equal(s.Tesoro.doc.ingresado.tienda, 9000); assert.equal(s.Tesoro.doc.ingresos.tienda, 1);
   r = await pedir({ operacion: 'compra', itemId: 'arco', cantidad: 2, ref: 'ref-00000001' });
   assert.equal(r.body.repetido, true); assert.equal(s.Tesoro.doc.saldo, 9000, 'el mismo ref no cuenta dos veces');
   r = await pedir({ operacion: 'venta', itemId: 'arco', cantidad: 1, ref: 'ref-00000002' });
-  assert.equal(r.body.bronce, 2250); assert.equal(s.Tesoro.doc.saldo, 11250);
+  assert.equal(r.body.bronce, 7500); assert.equal(s.Tesoro.doc.saldo, 11250);
   for (const [body, error] of [[{ operacion: 'regalo', itemId: 'arco', cantidad: 1, ref: 'ref-00000003' }, 'operacion_invalida'],
     [{ operacion: 'compra', itemId: 'arco', cantidad: 0, ref: 'ref-00000003' }, 'cantidad_invalida'],
     [{ operacion: 'compra', itemId: 'arco', cantidad: 1000, ref: 'ref-00000003' }, 'cantidad_invalida'],
@@ -286,11 +301,12 @@ test('POST /api/tesoro/comision: cuenta una sola vez por ref, valida y respeta e
   const hoy = new Date().toISOString().slice(0, 10);
   s._tesoroTiendaDia.set('Ana', { dia: hoy, bronce: s.TESORO_TOPE_TIENDA_DIA - 1000 });
   r = await pedir({ operacion: 'compra', itemId: 'arco', cantidad: 1, ref: 'ref-00000004' });
-  assert.equal(r.body.bronce, 1000, 'solo lo que cabe hasta el tope');
+  assert.equal(r.body.bronce, 1000, 'solo lo que cabe hasta el tope'); assert.equal(r.body.circular, 300);
   r = await pedir({ operacion: 'compra', itemId: 'arco', cantidad: 1, ref: 'ref-00000005' });
   assert.equal(r.body.bronce, 0); assert.equal(r.body.tope, true);
-  assert.equal(s.Tesoro.doc.saldo, 12250);
+  assert.equal(s.Tesoro.doc.saldo, 11550);
   assert.equal(s.TesoroMov.filas.length, 3);
+  assert.deepEqual(s.juego.map(j => [j.origen, j.bronce]), [['tienda', 21000], ['tienda', 5250], ['tienda', 700]], 'el 3,5 %, al tesoro del juego');
 });
 
 test('el incentivo: sin nombre no hay, se reserva del saldo, la suerte sube sin premio y baja al cobrar, tope diario', async () => {
@@ -303,22 +319,24 @@ test('el incentivo: sin nombre no hay, se reserva del saldo, la suerte sube sin 
   assert.equal(s._tesoroRacha.size, 0, 'a quien no tiene nombre ni se le cuenta la suerte');
   const ana = { playerName: 'Ana', Username: 'Ana', address: '0xa' };
   s.setAzar(() => 0.99);                                        // no sale
-  assert.equal(await s.tesoroIncentivo(ana, def, 'lobo', 5), null);
-  assert.equal(await s.tesoroIncentivo(ana, def, 'lobo', 5), null);
+  assert.equal((await s.tesoroIncentivo(ana, def, 'lobo', 5)).cantidad, 100, 'recompensa base automática');
+  assert.equal((await s.tesoroIncentivo(ana, def, 'lobo', 5)).cantidad, 100);
   assert.equal(s._tesoroRacha.get('Ana'), 2);
   s.setAzar(() => 0);                                           // sale
   const b = await s.tesoroIncentivo(ana, def, 'lobo', 5);
   assert.ok(b && b.cantidad >= 100); assert.equal(b.vip, false); assert.equal(b.nivel, 5);
   assert.equal(s._tesoroRacha.get('Ana'), 0);
   assert.equal(s.Tesoro.doc.saldo + s.Tesoro.doc.reservado, 1e6, 'reservar no crea ni destruye monedas');
-  assert.equal(s.Tesoro.doc.reservado, b.cantidad);
+  assert.equal(s.Tesoro.doc.reservado, b.cantidad + 200);
   const vip = await s.tesoroIncentivo({ playerName: 'Rosa', Username: 'Rosa', address: '0xvip' }, def, 'lobo', 5);
   assert.equal(vip.vip, true);
   assert.ok(vip.cantidad > b.cantidad * 1.2, 'el VIP cobra más con la misma suerte');
   // Tope diario.
-  s.Tesoro.doc.config = { topeDiario: 2 }; s.olvidarConfig();
+  s.Tesoro.doc.config = { topeDiario: 4 }; s.olvidarConfig();
   assert.ok(await s.tesoroIncentivo(ana, def, 'lobo', 5));
   assert.equal(await s.tesoroIncentivo(ana, def, 'lobo', 5), null, 'tercer premio del día: no');
+  s._tesoroDia.clear();
+  assert.equal(await s.tesoroIncentivo(ana, def, 'lobo', 5), null, 'vaciar la caché no borra el cupo persistido');
   // Apagado.
   s.Tesoro.doc.config = { activo: false }; s.olvidarConfig();
   assert.equal(await s.tesoroIncentivo({ playerName: 'Leo', Username: 'Leo', address: '0xl' }, def, 'lobo', 5), null);
@@ -335,6 +353,20 @@ test('el incentivo no sale si el tesoro no da para el pago mínimo (y la suerte 
   assert.equal(await vacio.tesoroIncentivo(ana, { exp: 150 }, 'lobo', 5), null, 'sin documento del tesoro no hay premio');
 });
 
+/* (2026-10-26) "Los enemigos no sueltan monedas de bronce, solo objetos." Con
+ * un tesoro pequeño (la parte proporcional no llega a 100) pero con saldo para
+ * el mínimo, el premio sale con el mínimo; antes se tiraba en silencio. */
+test('con un tesoro pequeño que llega al mínimo, el premio sale con el mínimo', async () => {
+  const s = seccion({ tesoro: { saldo: 5000 } });
+  s.setAzar(() => 0);
+  const ana = { playerName: 'Ana', Username: 'Ana', address: '0xa' };
+  const b = await s.tesoroIncentivo(ana, { exp: 150 }, 'lobo', 5);
+  assert.ok(b, 'sale');
+  assert.equal(b.cantidad, 100);
+  assert.equal(s.Tesoro.doc.saldo, 4900);
+  assert.equal(s.Tesoro.doc.reservado, 100, 'sale del tesoro: reservar no crea monedas');
+});
+
 test('pagar y devolver: el premio va a la moneda de bronce; si no hay stats o caduca, vuelve al saldo', async () => {
   const s = seccion({ tesoro: { saldo: 1000, reservado: 600 } });
   const gp = { playerName: 'Ana', Username: 'Ana' };
@@ -347,8 +379,8 @@ test('pagar y devolver: el premio va a la moneda de bronce; si no hay stats o ca
   await s.tesoroDevolverReserva(200, 'caducado');
   assert.equal(s.Tesoro.doc.reservado, 0); assert.equal(s.Tesoro.doc.saldo, 1200); assert.equal(s.Tesoro.doc.caducados, 1);
   const sinStats = seccion({ tesoro: { saldo: 0, reservado: 300 }, devolver: false });
-  assert.equal(await sinStats.tesoroPagar(gp, { cantidad: 300, incentivo: { vip: false } }), null);
-  assert.equal(sinStats.Tesoro.doc.saldo, 300); assert.equal(sinStats.Tesoro.doc.reservado, 0);
+  await assert.rejects(() => sinStats.tesoroPagar(gp, { cantidad: 300, incentivo: { vip: false } }), /sin_stats/);
+  assert.equal(sinStats.Tesoro.doc.saldo, 0); assert.equal(sinStats.Tesoro.doc.reservado, 300, 'el fallo revierte y conserva la reserva para reintentar');
   assert.equal(sinStats.Tesoro.doc.caducados, 0, 'no es un caducado');
 });
 
@@ -403,22 +435,27 @@ test('los mapas por nivel: misma tabla y misma curva en el servidor y en el clie
   assert.equal(await s.gfNivelDeJugador(null), 0);
 });
 
-test('el mercado P2P cobra el 1,5 % y lo apunta en el tesoro, en bronce', async () => {
+test('el mercado P2P cobra el 5 % y lo reparte: 1,5 % al tesoro circular y 3,5 % al del juego, en bronce', async () => {
   const src = fs.readFileSync(path.join(raiz, 'marketplace-routes.js'), 'utf8');
-  assert.match(src, /const MARKET_FEE_BPS = 150;/);
+  assert.match(src, /const MARKET_FEE_BPS = 500;/);
   const desk = 'C:/Users/pc/Desktop/marketplace-routes.js';
   if (fs.existsSync(desk)) assert.equal(fs.readFileSync(desk, 'utf8'), src, 'bin/marketplace-routes.js y el del servidor son el mismo archivo');
   const a = acorn.parse(src, { ecmaVersion: 'latest' });
   const n = buscar(a, x => x.type === 'FunctionDeclaration' && x.id && x.id.name === 'ingresarAlTesoro');
   assert.ok(n, 'falta ingresarAlTesoro en marketplace-routes.js');
-  const Tesoro = tesoroFalso(), TesoroMov = movimientosFalsos();
-  const c = { Tesoro: { updateOne: (f, u, o) => ({ exec: () => Tesoro.updateOne(f, u, o).exec() }) }, TesoroMov, TESORO_ID: 'principal', Math, Date };
+  const Tesoro = tesoroFalso(), TesoroMov = movimientosFalsos(), Juego = tesoroFalso();
+  const c = { Tesoro: { updateOne: (f, u, o) => ({ exec: () => Tesoro.updateOne(f, u, o).exec() }) }, TesoroMov, TESORO_ID: 'principal', Math, Date,
+              TesoroJuego: { updateOne: (f, u, o) => ({ exec: () => Juego.updateOne(f, u, o).exec() }) }, TESORO_JUEGO_ID: 'principal',
+              TESORO_CIRCULAR_BPS: 150, MARKET_FEE_BPS: 500 };
   vm.createContext(c);
   vm.runInContext(src.slice(n.start, n.end) + '\nthis.f = ingresarAlTesoro;', c);
   await c.f('plata', 4.5, 'Vendedor', 'espada_hierro', 3);
   await c.f('oro', 0.02, 'Vendedor', 'cofre1', 1);
   await c.f('plata', 0, 'Vendedor', 'nada', 1);
-  assert.equal(Tesoro.doc.saldo, 4500 + 20000);
-  assert.equal(Tesoro.doc.ingresado.p2p, 24500); assert.equal(Tesoro.doc.ingresos.p2p, 2);
-  assert.deepEqual(TesoroMov.filas.map(m => [m.origen, m.bronce, m.detalle]), [['p2p', 4500, 'p2p espada_hierro x3'], ['p2p', 20000, 'p2p cofre1 x1']]);
+  // 4.500 de bronce → 1.350 circular + 3.150 del juego; 20.000 → 6.000 + 14.000.
+  assert.equal(Tesoro.doc.saldo, 1350 + 6000);
+  assert.equal(Tesoro.doc.ingresado.p2p, 7350); assert.equal(Tesoro.doc.ingresos.p2p, 2);
+  assert.equal(Juego.doc.saldo, 3150 + 14000);
+  assert.deepEqual(TesoroMov.filas.map(m => [m.tesoro || 'circular', m.bronce, m.detalle]),
+    [['circular', 1350, 'p2p espada_hierro x3'], ['juego', 3150, 'p2p espada_hierro x3'], ['circular', 6000, 'p2p cofre1 x1'], ['juego', 14000, 'p2p cofre1 x1']]);
 });
