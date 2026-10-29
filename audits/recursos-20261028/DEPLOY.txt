@@ -1,0 +1,30 @@
+PUBLICAR WEB (solo estos archivos de esta ampliación):
+control-center.html
+control-center.js
+reporter.html
+reporter.js
+market.html
+market-experience.css
+GUIA-ECONOMIA.md
+GUIA-ECONOMIA.html
+Scenes/GameScene.js
+index.html
+admin-suite-i18n.js
+assets/economia/circuito-recursos.svg
+assets/economia/curva-recursos.png
+assets/economia/simulacion-365-dias.png
+assets/market/forest-outpost-20261028.png
+cuentas.html
+cuentas.js
+operations-panels.css
+operations-panels.js
+recursos.html
+recursos.js
+
+BACKEND (en su servicio, juntos):
+C:/Users/pc/Desktop/server2.js
+C:/Users/pc/Desktop/marketplace-routes.js
+C:/Users/pc/Desktop/gf-wallet-sdk/server/gf-wallet-routes.js
+
+No publiques carpetas before/, parches, herramientas de prueba ni copias del backend en el hosting web.
+No reemplaces rr.txt.txt ni redespliegues el contrato por estos cambios.

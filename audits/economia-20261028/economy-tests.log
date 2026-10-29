@@ -1,0 +1,91 @@
+✔ el precio del oro: arranca en la base, sube con la inflación y como mucho un 5 % al día (21.6461ms)
+✔ comprar oro: cotiza, el pago se mira en la cadena y el oro se da UNA vez (30.7669ms)
+✔ comprar oro: pendiente se vuelve a mirar, el tope diario manda y pagar de menos da solo lo pagado (14.4443ms)
+✔ la comisión de los cambios: de menor a mayor (oro 1 %, plata 2 %, bronce 3 %) y el navegador cuenta lo mismo (9.2591ms)
+✔ lo que va a cada tesoro, y sin monedas gratis (37.4791ms)
+✔ pagar en bronce: primero bronce; si no llega se rompe plata y luego oro, y el cambio vuelve (24.669ms)
+✔ el índice de precios: sigue la inflación neta y como mucho ±pasoMax al día (7.064ms)
+✔ precios de la tienda: por defecto × índice × demanda, en enteros; vender nunca da más que comprar (6.9236ms)
+✔ recalcular: el índice del día mueve la tienda y queda un punto en el historial (21.237ms)
+✔ el panel cambia el precio por defecto (oro, plata o bronce) y solo ese objeto se rehace (15.2386ms)
+✔ la muerte: el precio del panel con el índice (30, 60, 120… hasta el tope) (13.2953ms)
+✔ fundir y craftear: precio justo con el índice, cobro con cambio, al tesoro del juego y devolución una vez (21.5403ms)
+✔ quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado (8.3862ms)
+✔ fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema (13.5007ms)
+✔ basura y suelo caducado: el valor de lo destruido (tienda, referencia o P2P), con tope (12.2277ms)
+✔ solo los jefes dan objetos; las misiones solo monedas (4.9126ms)
+✔ el servidor lo usa donde toca (muerte, botín, suelo, tienda, misiones, foto del día) (9.9911ms)
+✔ fallo de escritura: saldo, recibo y tesoro revierten juntos; reintentar no duplica (16.9744ms)
+✔ migrar la tercera reserva conserva cada moneda y su configuración, una sola vez (6.0971ms)
+✔ transferir y quemar protegen el capital del juego y las devoluciones; no crean dinero (11.654ms)
+✔ diez mil cambios conservan valor y rechazan números inválidos sin saldos negativos (130.8162ms)
+✔ autorreembolso, referencias alteradas y lotes inválidos no producen monedas (8.7573ms)
+✔ tienda autoritativa: comprar y vender conservan cada bronce y el servidor cobra sus precios (10.8242ms)
+✔ tienda sin liquidez no quema objetos; una confirmación ambigua no se vuelve a ejecutar (19.2582ms)
+✔ recargas: el historial trae el tx de cada una; la cartera del juego no se compra oro a sí misma (48.0319ms)
+✔ recargas: sin cartera en el panel, el zkLTC va a la del administrador (ADMIN_ADDRESSES) (11.604ms)
+✔ reclamar con el tx: el pago casa con su cotización perdida y se da el oro UNA vez (19.3363ms)
+✔ reclamar con el tx: lo que NO vale (13.6115ms)
+✔ recoger del suelo: por debajo del nivel del objeto no se recoge lo de otro (y queda el intento) (17.2265ms)
+✔ soltar: suspendido o bloqueado no suelta nada (y queda el intento) (6.8499ms)
+✔ 30 entradas y salidas liberan máscaras y gráficos sin borrar listeners ajenos (20.4043ms)
+✔ la compra usa el ítem original aunque cambie la selección y acota el texto/timer (4.4598ms)
+✔ una respuesta de wallet de una entrada anterior no altera la nueva escena (10.8686ms)
+inventory/reconcile: purchase_not_visible_on_chain
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+✔ el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos (14.5946ms)
+✔ un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse (4.1844ms)
+✔ una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente (7.3165ms)
+✔ una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos (6.9609ms)
+✔ la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena (11.4603ms)
+✔ actualizar una compra conserva los usos de los objetos que ya tenía el jugador (40.0191ms)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+✔ comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda (233.0424ms)
+✔ el inventario local nunca agrega unidades de una factura a otra del mismo objeto (13.3017ms)
+✔ una compra acuñada no se reembolsa si falla la lectura posterior o el guardado (26.8273ms)
+✔ una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó (14.9699ms)
+✔ la configuración se acota: nada fuera de rango, nada que no sea número (15.0235ms)
+✔ la probabilidad: automática por free/VIP + nivel + suerte, manual fija, jefes al doble y nunca más del 75 % (6.2449ms)
+✔ la cantidad: una parte del saldo, nunca más que el tope ni que el propio saldo, y más para VIP y jefes (7.3744ms)
+✔ el panel (tesoro.js) calcula EXACTAMENTE lo mismo que el servidor (64.8045ms)
+✔ la comisión de la tienda: el servidor cobra con SU tabla lo mismo que el navegador (221.1982ms)
+✔ POST /api/tesoro/comision: cuenta una sola vez por ref, valida y respeta el tope diario (10.3104ms)
+✔ el incentivo: sin nombre no hay, se reserva del saldo, la suerte sube sin premio y baja al cobrar, tope diario (8.7019ms)
+✔ el incentivo no sale si el tesoro no da para el pago mínimo (y la suerte sigue) (9.3915ms)
+✔ con un tesoro pequeño que llega al mínimo, el premio sale con el mínimo (5.2357ms)
+✔ pagar y devolver: el premio va a la moneda de bronce; si no hay stats o caduca, vuelve al saldo (23.7997ms)
+✔ al arrancar, lo reservado por el proceso anterior vuelve al saldo una sola vez (13.2758ms)
+✔ el panel: configurar normaliza y guarda; meter y sacar exigen motivo y saldo (26.9486ms)
+✔ los mapas por nivel: misma tabla y misma curva en el servidor y en el cliente (29.0546ms)
+✔ el mercado P2P cobra el 5 % y lo reparte: 1,5 % al tesoro circular y 3,5 % al del juego, en bronce (23.9163ms)
+✔ applyStats pinta lo del servidor SIN devolvérselo (y respeta lo pendiente más nuevo) (9.1091ms)
+✔ el servidor declara la muerte cuando ÉL deja la vida a 0 (golpe, mordisco, veneno) (11.8537ms)
+✔ el cliente: si el servidor dice "sigue vivo", la barra coge la vida de verdad (1.3996ms)
+✔ cambios de moneda: atómicos en Mongo, sin esperar a la cadena y con su comisión al tesoro circular (32.7958ms)
+✔ el bronce: una cuenta que ya tenía monedas no recibe los 1000 de bienvenida (7.2464ms)
+✔ el VIP cuenta con la hora del servidor (3.6648ms)
+ℹ tests 63
+ℹ suites 0
+ℹ pass 63
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1970.1467

@@ -1,0 +1,122 @@
+[
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.html",
+    "before": "audits\\recursos-20261028\\before\\control-center.html",
+    "sha256": "250d0de27d8e849b0ebda895604dc6619797051ecee0c97cf3f02ae2e77301b9",
+    "bytes": 9273
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.js",
+    "before": "audits\\recursos-20261028\\before\\control-center.js",
+    "sha256": "3fc1e78260020f659c331018fe553651106bc730081704b2ebea46da1d254795",
+    "bytes": 22722
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.css",
+    "before": "audits\\recursos-20261028\\before\\control-center.css",
+    "sha256": "f5a2346b0e7bbdbb2adb3c3aa20154afc2e97cf9522bcedba4b6adcf1f50c3a8",
+    "bytes": 18514
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.html",
+    "before": "audits\\recursos-20261028\\before\\reporter.html",
+    "sha256": "560d396443418f381eba2804ba8cb888fc167af1db3aac3a9b9cddb7681332aa",
+    "bytes": 11812
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.js",
+    "before": "audits\\recursos-20261028\\before\\reporter.js",
+    "sha256": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c",
+    "bytes": 17382
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\market.html",
+    "before": "audits\\recursos-20261028\\before\\market.html",
+    "sha256": "13c00eeddb9dfc60a0cad58cca094fdf57d71b68ecc04adb3bcd386a15951dff",
+    "bytes": 125046
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\market-experience.css",
+    "before": "audits\\recursos-20261028\\before\\market-experience.css",
+    "sha256": "a113dbdf2ae6a6334627d59cb8d9cb7c4e983d7737116448f344f4e826dec6f8",
+    "bytes": 3477
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GUIA-ECONOMIA.md",
+    "before": "audits\\recursos-20261028\\before\\GUIA-ECONOMIA.md",
+    "sha256": "a4c4b860fb49f4ecad9aa9097842d5a2c4eb6220c870aa39da762c561cc568e7",
+    "bytes": 13527
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GUIA-ECONOMIA.html",
+    "before": "audits\\recursos-20261028\\before\\GUIA-ECONOMIA.html",
+    "sha256": "f965cc3d3a5d6ad238e9aef05e1bf83ea5bdebd0851ccc8e0521836ea8ee8450",
+    "bytes": 15622
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\GameScene.js",
+    "before": "audits\\recursos-20261028\\before\\Scenes\\GameScene.js",
+    "sha256": "14747efc175db472c1c9ffab2e91d16eba4122fc5344f09b7370e7cbd8ce76be",
+    "bytes": 1306568
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\index.html",
+    "before": "audits\\recursos-20261028\\before\\index.html",
+    "sha256": "0b8896ce8f1ec50eadf66b15ae255b89a63612fc158b4c02279dc473d13eee5e",
+    "bytes": 95124
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\game.html",
+    "before": "audits\\recursos-20261028\\before\\game.html",
+    "sha256": "f057d6c69c508d0b755a31bee9410f1fd9be2782cda63c07de9660fc18f69e41",
+    "bytes": 1663
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-economia.js",
+    "before": "audits\\recursos-20261028\\before\\gf-economia.js",
+    "sha256": "66ade9054170f0f908bfb32772c4b3130547de8ff0b72c3d9713aa4191c1ec90",
+    "bytes": 43810
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-suite-i18n.js",
+    "before": "audits\\recursos-20261028\\before\\admin-suite-i18n.js",
+    "sha256": "e4444dd88b1ac156516554b1d5367e67274279a99eb5ea779d225bca104b417f",
+    "bytes": 123033
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\server2.js",
+    "before": "audits\\recursos-20261028\\before\\desktop\\server2.js",
+    "sha256": "4e2ecfc11c794f8b9f181c46202ee6a6639dd9676a6463184b0e4f378b96b3fe",
+    "bytes": 1732796
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\gf-wallet-sdk\\server\\gf-wallet-routes.js",
+    "before": "audits\\recursos-20261028\\before\\desktop\\gf-wallet-sdk\\server\\gf-wallet-routes.js",
+    "sha256": "ab4755f9f42423a5cf7bb41439a3e3db1ab9460bb3811f4c00f18ac3d7bdbc22",
+    "bytes": 34209
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\rr.txt.txt",
+    "before": "audits\\recursos-20261028\\before\\desktop\\rr.txt.txt",
+    "sha256": "967814198562c3f3734ace498d1f692715b0160aa756b2edf35c10e4243395a8",
+    "bytes": 33648
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\marketplace-routes.js",
+    "before": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\recursos-20261028\\before\\marketplace-routes.js",
+    "sha256": "7cf2440df6dbfd7eea2f31e89e118af6f21e807aabbb9290e0c1c6b79ae27f85",
+    "bytes": 80713
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\marketplace-routes.js",
+    "before": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\recursos-20261028\\before\\desktop\\marketplace-routes.js",
+    "sha256": "7cf2440df6dbfd7eea2f31e89e118af6f21e807aabbb9290e0c1c6b79ae27f85",
+    "bytes": 80713
+  },
+  {
+    "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\economia2.test.cjs",
+    "before": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\recursos-20261028\\before\\tools\\economia2.test.cjs",
+    "sha256": "8c0067d97d7b7be4d4975765be3c24afcb1ab13b4041b4a336cf63caeef8f30c",
+    "bytes": 31377
+  }
+]

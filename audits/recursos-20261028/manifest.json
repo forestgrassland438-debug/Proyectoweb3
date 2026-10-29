@@ -1,0 +1,376 @@
+{
+  "deployed": false,
+  "productionWrites": false,
+  "contractModified": false,
+  "subagentsUsed": false,
+  "files": [
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.html",
+      "role": "frontend",
+      "new": false,
+      "before": "250d0de27d8e849b0ebda895604dc6619797051ecee0c97cf3f02ae2e77301b9",
+      "after": "9ea8445877118851355577f0b1e11df55ef78fa044b40718de50fc57c8cf4842",
+      "bytes": 9501
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.js",
+      "role": "frontend",
+      "new": false,
+      "before": "3fc1e78260020f659c331018fe553651106bc730081704b2ebea46da1d254795",
+      "after": "59348c34dcb1f3970c0ada3e24e7b1597a27308a30957d5b13c482ce91a709cf",
+      "bytes": 24335
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.html",
+      "role": "frontend",
+      "new": false,
+      "before": "560d396443418f381eba2804ba8cb888fc167af1db3aac3a9b9cddb7681332aa",
+      "after": "074f97da3c37142bb1f40be26a901aabc999f39dd8f22b91edb4e49511d28ce6",
+      "bytes": 13661
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.js",
+      "role": "frontend",
+      "new": false,
+      "before": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c",
+      "after": "ca6c190c3736b7e2c3dba8e45e3b92bdccabdb716610f86f7207c3dd26f2cae3",
+      "bytes": 20151
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\market.html",
+      "role": "frontend",
+      "new": false,
+      "before": "13c00eeddb9dfc60a0cad58cca094fdf57d71b68ecc04adb3bcd386a15951dff",
+      "after": "9d1f28c1c72afcc2c48cacb2a319e2199854878130db8704e6511d75f1f3f0f5",
+      "bytes": 137606
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\market-experience.css",
+      "role": "frontend",
+      "new": false,
+      "before": "a113dbdf2ae6a6334627d59cb8d9cb7c4e983d7737116448f344f4e826dec6f8",
+      "after": "e4c6c91cbcce7bc7ad1f0ad38024daf4cd612164fd1f4f01878c8154fa7bbbd9",
+      "bytes": 15014
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GUIA-ECONOMIA.md",
+      "role": "frontend",
+      "new": false,
+      "before": "a4c4b860fb49f4ecad9aa9097842d5a2c4eb6220c870aa39da762c561cc568e7",
+      "after": "bf5f418e657ca98014979e9285179fce699cd50069d9d7c6801c853d7c0430e2",
+      "bytes": 28626
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GUIA-ECONOMIA.html",
+      "role": "frontend",
+      "new": false,
+      "before": "f965cc3d3a5d6ad238e9aef05e1bf83ea5bdebd0851ccc8e0521836ea8ee8450",
+      "after": "2ca12a96e5ca42f9026a7140215fd5309eaed9718557192f7276ae608f8e4ba4",
+      "bytes": 32406
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\GameScene.js",
+      "role": "frontend",
+      "new": false,
+      "before": "14747efc175db472c1c9ffab2e91d16eba4122fc5344f09b7370e7cbd8ce76be",
+      "after": "5e35bd096fb2cfb817251eede2882ddf0d0424269c2f21df0d18c79545339548",
+      "bytes": 1341041
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\index.html",
+      "role": "frontend",
+      "new": false,
+      "before": "0b8896ce8f1ec50eadf66b15ae255b89a63612fc158b4c02279dc473d13eee5e",
+      "after": "2aa5d99e49b886e88332cf7031fdbc687a95e4b2acc1c56773bd418dd575f000",
+      "bytes": 95124
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-suite-i18n.js",
+      "role": "frontend",
+      "new": false,
+      "before": "e4444dd88b1ac156516554b1d5367e67274279a99eb5ea779d225bca104b417f",
+      "after": "3ef1bce44e2e10917231f51109bcf248450d48c3d7e0519b352ec0b8bbc186e2",
+      "bytes": 123976
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\server2.js",
+      "role": "backend",
+      "new": false,
+      "before": "4e2ecfc11c794f8b9f181c46202ee6a6639dd9676a6463184b0e4f378b96b3fe",
+      "after": "97dface5975e55e231b662e2af52ac06433168e00807e6f9135089897d087edf",
+      "bytes": 1772329
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\gf-wallet-sdk\\server\\gf-wallet-routes.js",
+      "role": "backend",
+      "new": false,
+      "before": "ab4755f9f42423a5cf7bb41439a3e3db1ab9460bb3811f4c00f18ac3d7bdbc22",
+      "after": "908e5353e6796c22b5bc9362edc5fa11866e0d289e4d5cfa6a0f02069ba66d11",
+      "bytes": 35694
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\marketplace-routes.js",
+      "role": "backend",
+      "new": false,
+      "before": "7cf2440df6dbfd7eea2f31e89e118af6f21e807aabbb9290e0c1c6b79ae27f85",
+      "after": "46457c41002637eb57f8fd3b8e74834430c56acba7eb5b737fcadf8958d8e9ab",
+      "bytes": 84137
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\marketplace-routes.js",
+      "role": "backend",
+      "new": false,
+      "before": "7cf2440df6dbfd7eea2f31e89e118af6f21e807aabbb9290e0c1c6b79ae27f85",
+      "after": "46457c41002637eb57f8fd3b8e74834430c56acba7eb5b737fcadf8958d8e9ab",
+      "bytes": 84137
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\economia2.test.cjs",
+      "role": "test",
+      "new": false,
+      "before": "8c0067d97d7b7be4d4975765be3c24afcb1ab13b4041b4a336cf63caeef8f30c",
+      "after": "e021ed0f80e62708ca143f252a9e8ca0cc23359c607c0530f6474830c4bd125b",
+      "bytes": 33079
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\assets\\economia\\circuito-recursos.svg",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "90ef618b5ea7ac222b227a14f7954f19d081332332503091980960b183a7e27c",
+      "bytes": 1891
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\assets\\economia\\curva-recursos.png",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "d0039a1146e5e4581c72d410f0d3bc3a545fe7082a4d04a85caec9affaa21adb",
+      "bytes": 97015
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\assets\\economia\\simulacion-365-dias.png",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "5b6445e253083a0d5f2d74d204edcc24768e557d9b74ddc125c5807f2de4d247",
+      "bytes": 113331
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\assets\\market\\forest-outpost-20261028.png",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "4403c9a8b3c73ccf40688c8614e034db6cc153051f6b493b785a81e90048dfff",
+      "bytes": 2476028
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\cuentas.html",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "e5eaf33caa32610ef06821783e2adee4172d142b1af13800133fb1699dd09965",
+      "bytes": 3473
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\cuentas.js",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "eddd844db850aa75b67faabfb7475225e67d21734ee08ac09e113a542ac5a54c",
+      "bytes": 3616
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\operations-panels.css",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "a9736400c4e5b0c8c1af8b8eb98eee912de4e2eea4455f0ca961038d29e2e668",
+      "bytes": 4840
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\operations-panels.js",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "da7169814a8654f5a94cf2c68ce593a83578efa6980952c309f1249445eb4184",
+      "bytes": 2882
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\recursos.html",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "9371d3a6df2d719ccb83bbc4dead2430c3d50a9f901479496c73240982d2dee8",
+      "bytes": 5518
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\recursos.js",
+      "role": "frontend",
+      "new": true,
+      "before": null,
+      "after": "2a1afbcc57fbd69a01f659e49314fb081ed4e8240e41ccb3b4df40e1301085a3",
+      "bytes": 10461
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-browser-verification.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "a469c58d236d61eea2feea77a5ed06a42b8cf6da091d8a05dc245a9c42bf56c4",
+      "bytes": 10102
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-chain-integration.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "61878c0b21ae5e62053562b591b5b81be340f669ccfb65bf628e9002e860d3b3",
+      "bytes": 13437
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-control-ui.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "d23825924e40c4fac9df61a8667afc12c035ec449e7b6f884036f20ba9dd10ab",
+      "bytes": 5242
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-economy-apply.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "0cd1d9ab56dd5b5f1cff4b923bb755c889a031c30ec4fa4f70cd74f19394c2fb",
+      "bytes": 5619
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-economy-integrate.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "c6166488d171c1fd46f9ecbacd870e8eb480e5439aefc90c2f85e64e5a8b1e3f",
+      "bytes": 12474
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-economy.fragment.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "abaaea42f8b83a9d4a5d1c541ece632b744c96d43af690725f939fa3036409d3",
+      "bytes": 13253
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-economy.test.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "d494cb6e3865ea79de8d4e1773e1e08bc8f40cb6867048d6086eea25f77e179d",
+      "bytes": 11692
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-final-backend.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "da86ca8f382d9976f0bd284505260f4fd96be126fd355105b3e2ed43ad4e51cd",
+      "bytes": 1779
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-final-check.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "39f83d782bd1a953d45ee71d3d84713b87904f0c7a1cb55243245209b1398c96",
+      "bytes": 1930
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-finalize.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "a1c8fa5e038fa4110d3a9ff8efb30c7b96e3a98a0585e5d29d039c59f021ecdf",
+      "bytes": 7331
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-finishing.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "3793adb69b1e3404d4cd23f145f28c460af2e9c6fcd8fe522e565ddd6ec99cae",
+      "bytes": 7900
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-gather.fragment.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "5f15b975d1f1cfd235a1d7d7b6be038c5fbdbbfc9b27ea45ef1ecc5eb0490f1c",
+      "bytes": 8426
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-guide-build.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "bf8dd96cce6e47408c17677a169e34ef83f04e229a163735c78ef3938eddc19a",
+      "bytes": 22409
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-market-custody.fragment.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "175f18a9ec739ecc17bbe9467d736b4f9017d31f353161d70175033a9d93d9c1",
+      "bytes": 17542
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-market-integrate.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "f89af9b856a8b5918fa421cba87f968eb2eb8ab5a7447810d13c4278feb70f13",
+      "bytes": 7053
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-market-ui.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "130d6c9c79e15e853a74da30a3ab4700d14370da87cb5d4226e05e904fe0c18e",
+      "bytes": 17461
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-reporter-ui.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "f973baa1c45a854b010f7d7f60415ad76ab50c96137d02064dfe5f2fddd9bda0",
+      "bytes": 9157
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-simulation.cjs",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "aa7238ffd039078f806c6b32ed9f6c8af30b35a1fc146ca5856c86811c1b3633",
+      "bytes": 3252
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-sync.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "32b7150f6f355b69fbc89a3a9ecf7544cde039831e2cccd80d8ad64ca4c38419",
+      "bytes": 639
+    },
+    {
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\resource-wallet-profile.py",
+      "role": "test_tool",
+      "new": true,
+      "before": null,
+      "after": "7f141bd7f4834a4008bd5fee7a4e39ebbce6ed042db3b14e742af40c20a8a551",
+      "bytes": 2805
+    }
+  ]
+}

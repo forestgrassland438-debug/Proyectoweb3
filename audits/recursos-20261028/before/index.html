@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
+       se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
+       encogía la página al enfocar el chat o el crafting, el lienzo se
+       redimensionaba y al cerrarse el teclado volvía a crecer: eso es el "zoom"
+       y los fallos de repintado que se veían en el teléfono. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+  <meta name="google" content="notranslate" />
+  <meta http-equiv="Content-Language" content="en" />
+  <title>GRASSLAND FOREST</title>
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
+  <link rel="stylesheet" href="styless.css?v=20261028.00c2182d82bf" />
+  <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
+  <link rel="stylesheet" href="gf-hud.css?v=22.5.e34cb2881578" />
+
+  <!-- ============================
+       CONTENT-SECURITY-POLICY (meta for testing / development)..
+       IMPORTANT: move this to HTTP response header in production (recommended).
+       This version allows local-dev HTTP/ws endpoints and permits the single inline
+       script whose SHA256 hash was observed in your console. It also keeps
+       your external CDNs allowed.
+
+       NOTES:
+       - For production, prefer HTTPS/WSS endpoints and serve CSP via HTTP header.
+       - Replace the local hosts (127.0.0.1:8080 / 3001) with your production API domain and remove the sha256 or unsafe-inline.
+       - Consider using nonces generated server-side for truly safe inline scripts.
+  ============================ -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 base-uri 'self';
+                 object-src 'none';
+                 script-src 'self';
+                 connect-src 'self' https: http://127.0.0.1:8080 http://localhost:8080 http://127.0.0.1:3001 ws://127.0.0.1:8080 ws://127.0.0.1:3001 ws: wss:;
+                 img-src 'self' data: blob: https: http://127.0.0.1:8080 http://localhost:8080;
+                 style-src 'self' 'unsafe-inline';
+                 font-src 'self' data:;
+                 media-src 'self' blob:;
+                 frame-src 'self';
+                 worker-src 'self' blob:;
+                 manifest-src 'self';
+                 form-action 'self';
+                 upgrade-insecure-requests;" />
+
+  <!-- Other security meta (prefer server headers in prod) -->
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+  <!-- Local, pinned browser libraries with SRI. Rebuild: npm run build:vendor in bin.
+       Versions, hashes and licenses are recorded in vendor/manifest.json and LICENSES.txt. -->
+
+  <!-- Phaser (pinned) -->
+  <script src="./vendor/phaser.min.js?v=e92ddef111ba" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+
+  <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
+  <script src="./vendor/socket.io.min.js?v=870d83168a0e" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
+  <!-- Una sola partida por cuenta: envuelve io() y fetch. Va JUSTO después del cliente de Socket.IO. -->
+  <script src="./gf-sesion-unica.js?v=22.5.d2dc7115673b" defer></script>
+  <!-- Las invitaciones: pronto a propósito, para guardar el ?ref= del enlace
+       antes de que el login se lleve al jugador. Pinta la pestaña "Invites". -->
+  <script src="./gf-invitaciones.js?v=audit20261016.13cf4b40b097" defer></script>
+
+  <!-- Ethers -->
+  <script src="./vendor/ethers.umd.min.js?v=532950515fd2" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
+
+  <!-- rex virtual joystick -->
+  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
+
+  <!-- ============================
+       Local scripts (all external, defer). No inline <script> blocks remain.
+       Ensure your server serves these files over HTTPS in production.
+       ============================ -->
+
+  <script src="./ui-image-fallbacks.js" defer></script>
+
+  <!-- missionspanel.js -->
+  <script src="./missionspanel.js?v=22.5.cbe639b9d7b9" defer></script>
+
+  <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
+       le piden las rutas de los sprites del jugador. -->
+  <script src="./gf-soulbound.js?v=22.5.7f8c39d8e3df" defer></script>
+  <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04" defer></script>
+  <!-- Relieve 2.5D de personajes, NPC y mascota (2026-10-12): se aplica al
+       cargar cada textura; los PNG no se tocan. -->
+  <script src="./gf-relieve.js?v=22.5.770a46e6b095" defer></script>
+  <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
+  <script src="./gf-nft.js?v=22.5.67f2c6bd03ca" defer></script>
+  <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39" defer></script>
+  <!-- (2026-10-27) El nivel de cada objeto: la tienda, el suelo y el mercado (la MISMA tabla que GF_NIVEL_OBJETO de server2.js). -->
+  <script src="./gf-niveles-objetos.js?v=22.5.eed4a459e168" defer></script>
+  <script src="./gf-lands.js?v=22.5.118ac060b63f" defer></script>
+
+  <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
+       el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
+       pinta el panel del dashboard. -->
+  <script src="./gf-canales.js?v=22.5.525534d76810" defer></script>
+  <script src="./gf-profundidad.js?v=22.5.b8cee6e7c889" defer></script>
+  <!-- (2026-10-26) El tronco de cada árbol encima de su choque (salvaje y zonas). -->
+  <script src="./gf-troncos.js?v=22.5.9c7b9955523d" defer></script>
+  <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8" defer></script>
+  <script src="./gf-nieve.js?v=22.5.435bca8e424f" defer></script>
+  <script src="./gf-pesca.js?v=22.5.df5d5c38f56a" defer></script>
+  <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
+  <script src="./gf-monte.js?v=22.5.077d85a03e35" defer></script>
+  <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
+  <script src="./gf-reposo.js?v=21.4.d131cf64dcf9" defer></script>
+  <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5" defer></script>
+  <script src="./gf-antorchas.js?v=22.5.f602d6102aee" defer></script>
+  <script src="./gf-botes.js?v=22.5.d2ecef6288ce" defer></script>
+  <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.f4e63c49731d">
+  <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
+  <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
+  <script src="./gf-character-skills.js?v=22.5.b87ce67311d6" defer></script>
+  <script src="./gf-espada.js?v=22.5.9beb5cd8efb3" defer></script>
+  <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
+       tajo). Detrás de la espada: aparta sus botones si hace falta. -->
+  <script src="./gf-hud-ajuste.js?v=22.5.56ccd6a7df4d" defer></script>
+  <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
+  <!-- Caminos para los monstruos (rodean las paredes). Antes que los que lo usan. -->
+  <script src="./gf-rutas.js?v=22.1.c909be131777" defer></script>
+  <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
+       tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
+  <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9" defer></script>
+  <script src="./gf-mobs-red.js?v=22.5.437264456c3c" defer></script>
+  <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949" defer></script>
+  <!-- La serpiente de magma de la mina (la monta MinaScene). -->
+  <!-- Recoger y soltar sin esperar a la cadena: la cola y su contador (2026-10-19). -->
+  <script src="./gf-cola-cadena.js?v=22.5.ae046151620c" defer></script>
+  <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
+  <script src="./gf-npcs.js?v=22.5.df341c48646a" defer></script>
+  <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6" defer></script>
+  <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac" defer></script>
+  <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e" defer></script>
+  <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
+  <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
+       PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
+  <script src="./gf-salvaje.js?v=20261028.76688f222472" defer></script>
+  <script src="./gf-jefes.js?v=22.5.e24ed531dd1c" defer></script>
+  <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
+       remolinos, nevada y luces de noche (lo montan las escenas de
+       Scenes/ZonasScenes.js). -->
+  <script src="./gf-camellos.js?v=22.5.9812a80489cc" defer></script>
+  <script src="./gf-fauna-zonas.js?v=22.5.9bb8a1d14a15" defer></script>
+  <script src="./gf-zonas.js?v=22.5.86e48976ef3e" defer></script>
+  <script src="./gf-agua.js?v=22.5.783d5f911ef3" defer></script>
+  <script src="./gf-suelo.js?v=22.5.1769043b2030" defer></script>
+  <script src="./gf-casas.js?v=22.5.c1d7d5dc58ff" defer></script>
+  <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6" defer></script>
+
+  <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
+       consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
+  <script src="./gf-tirones.js?v=22.5.ccdc78818f1b" defer></script>
+  <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
+  <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25" defer></script>
+  <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
+  <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
+  <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
+  <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
+  <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
+  <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
+  <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
+  <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
+  <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
+  <script src="./gf-graficos.js?v=20261028.542879aed93b" defer></script>
+  <script src="./gf-economia.js?v=20261028.66ade9054170" defer></script>
+  <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
+  <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
+  <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
+  <script src="./gf-clima.js?v=audit20261016.4ab981fc0772" defer></script>
+
+  <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
+       el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
+       tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
+  <script src="./gf-postproceso.js?v=22.5.b2be1ebab6e5" defer></script>
+
+  <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
+       (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
+  <script src="./gf-pisadas.js?v=22.5.aaa96d6e798c" defer></script>
+
+  <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
+       bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
+       clima, del viento y del ciclo de dia porque les pregunta a los tres en
+       cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
+       tools/generar-sonidos.js y viven en Game/MUSIC. -->
+  <script src="./gf-audio.js?v=22.5.7b8b409d783a" defer></script>
+
+  <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
+       al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
+       censo de copas, asi que va detras de los dos. -->
+  <script src="./gf-buho.js?v=audit20261016.8b7ee87197d9" defer></script>
+
+  <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
+       efectos del combate. Va antes de las escenas porque BattleScene lo usa
+       en su preload. -->
+  <script src="./gf-batalla-arte.js?v=audit20261016.d1934b134ee5" defer></script>
+  <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
+       servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
+       mover a tu perro sin esperar a la red. -->
+  <script src="./gf-brawl-motor.js?v=audit20261016.8cb3bac3c4b0" defer></script>
+
+  <!-- Scenes -->
+  <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
+       Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
+       create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
+  <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
+  <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2" defer></script>
+  <script src="./gf-amigos.js?v=22.5.aad9d1c1f261" defer></script>
+  <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
+       adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
+  <script src="./gf-admin-ajuste.js?v=22.5.85f84998105f" defer></script>
+  <!-- (2026-10-26) El mapa del mundo: tecla M o el botón "Map"; viajar pagando en bronce. -->
+  <script src="./gf-mapa-mundo.js?v=22.5.0dbd402e13fd" defer></script>
+  <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f" defer></script>
+  <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d" defer></script>
+
+  <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.5.d24030e5f25b" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
+  <script src="./Scenes/GameScene.js?v=20261028.14747efc175d" defer></script>
+  <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
+       ella o `class MinaScene extends GameScene` no encuentra la clase base.
+       Con `defer` los scripts se ejecutan en el orden del documento, asi que
+       basta con dejarla en esta linea y no antes. -->
+  <script src="./Scenes/MinaScene.js?v=22.5.412c8253e5c4" defer></script>
+  <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
+       asi que tambien tiene que ir DESPUES de ella. -->
+  <script src="./Scenes/LandsScene.js?v=22.5.d3bf5d95efbb" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=22.5.3b0a21ea6bbc" defer></script>
+  <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
+  <script src="./Scenes/SalvajeScene.js?v=22.5.6e6d2234209f" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=22.5.5bc3a1b4cd85" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa" defer></script>
+
+  <!-- tienda marketplace p2p -->
+  <script src="./Scenes/ShopScene.js?v=22.4.4385704c3485" defer></script>
+
+  <!-- utilities -->
+
+  <!-- phaser-canvas-scaler.js NO se carga: 27 KB que se descargaban y parseaban
+       en cada arranque para nada. Define la clase PhaserCanvasScaler, pero
+       nadie hace `new PhaserCanvasScaler(...)` en todo el proyecto. Las únicas
+       referencias (app.js, memory-fix.js, gf-graphics-settings.js) miran
+       `window.phaserScaler` — la INSTANCIA — siempre detrás de un `if`, así que
+       sin el archivo se comportan igual que hasta ahora: la instancia no existía
+       antes y sigue sin existir. El archivo se queda en el repositorio por si
+       algún día se usa; solo se dejó de cargar.
+       El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
+  <script src="./phaser-rpg-perf.js?v=22.5.2ab933167846" defer></script>
+  <script src="./Phaser-camera.js?v=22.5.85fe422bf494" defer></script>
+  <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14" defer></script>
+
+  <!-- blockchain / transaction -->
+  <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
+  <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
+  <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
+  <script src="./CraftingHub.js?v=20261028.a9be9c73a042" defer></script>
+  <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
+  <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
+  <script src="./tienda_sistema.js?v=20261028.7773a2a51f03" defer></script>
+  <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
+  <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
+  <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
+
+
+  <script src="./register-scenes.js?v=22.5.4a66c40ab27f" defer></script>
+
+  <script src="./memory-fix.js?v=22.5.fee9136a55a9" defer></script>
+  <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
+       como type="module" ejecutaba el archivo completo dos veces (doble parse
+       y doble descarga). Eliminada. -->
+
+  <script src="./NotificationHub.js?v=22.5.1f744425ec12" defer></script>
+
+  <!-- tileManager: if it uses import/export, keep module -->
+  <script type="module" src="lib/tileManager.js?v=22.5.02e7e78c3861" defer></script>
+
+  <!-- preload critical asset -->
+  <link rel="preload" href="./Game/Source/cursor.png" as="image" />
+
+  <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
+       que las escenas para que ninguna transacción se quede sin registrar. -->
+  <script src="./tx-gate.js?v=22.5.6d14fc1716c7" defer></script>
+
+  <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
+       Va después de ethers (lo necesita para firmar) y su arranque solo instala
+       window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.5.4e833af8d370" defer></script>
+  <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44" defer></script>
+  <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6" defer></script>
+  <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
+       dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
+  <script src="./gf-wallet-dashboard.js?v=audit20261016.f6c303d71a2c" defer></script>
+
+  <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
+       el resto negro). Debe ir ANTES de app.js para publicar --app-height
+       antes de que se cree el lienzo. No toca el zoom de la cámara. -->
+  <script src="./viewport-fix.js?v=22.4.a4e37828640e" defer></script>
+
+  <!-- main app bootstrap -->
+  <script src="app.js?v=22.5.987eaaff7a00" defer></script>
+
+  <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
+       Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
+       que app.js publica al crear el juego. -->
+  <script src="./gf-graphics-settings.js?v=22.5.fe0448e24cc1" defer></script>
+
+  <!-- ============================
+       END HEAD
+       ============================ -->
+</head>
+
+
+<body>
+
+  <!-- Note: I kept all your comments (not removed). The markup below is unchanged except to avoid inline JS. -->
+
+  <!-- <div id="container"></div>-->
+  <!--  <div id="message-container"></div>-->
+  <div id="hud-cursor"></div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 2) Quick-slots: 7 casillas siempre visibles en bottom-center -->
+  <!-- Quick-slots bar + inventory shortcut (flex row so button sticks to the end) -->
+  <div id="quick-slots-bar" class="hidden" style="
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:4px; z-index:100; pointer-events:none;
+  ">
+    <div id="quick-slots" style="position:static; transform:none; bottom:auto; left:auto; pointer-events:none;"></div>
+    <!-- Shortcut button: opens inventory — visible always, useful on mobile -->
+    <button id="inv-shortcut-btn" aria-label="Open inventory" title="Inventory" style="pointer-events:auto;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="7" width="20" height="15" rx="3" fill="rgba(140,170,255,0.18)" stroke="rgba(160,200,255,0.75)" stroke-width="1.5"/>
+        <path d="M8 7V5a4 4 0 018 0v2" stroke="rgba(160,200,255,0.85)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="13" x2="22" y2="13" stroke="rgba(160,200,255,0.40)" stroke-width="1"/>
+        <rect x="10" y="11" width="4" height="4" rx="1" fill="rgba(160,200,255,0.60)"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 3) Panel de Inventario (40 slots), oculto por defecto -->
+  <div id="inventory-panel">
+    <!-- Drag handle: only this strip triggers panel movement -->
+    <div class="inv-drag-handle">
+      <h2 class="letrainv">Inventory</h2>
+      <button class="cerrar-hud" aria-label="Close inventory">✕</button>
+    </div>
+    <div id="inventory-grid"></div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 4) Elemento “drag-item” que sigue al cursor cuando arrastras -->
+  <div id="drag-item" style="display: none; position: absolute; z-index: 10000; pointer-events: none;">
+    <img alt="" style="max-width: 64px; max-height: 64px;" />
+    <span id="drag-count"
+      style="position: absolute; top: -5px; right: -5px; background: rgba(0,0,0,0.8); color: white; font-size: 11px; font-weight: bold; padding: 1px 4px; border-radius: 3px; min-width: 16px; text-align: center; border: 1px solid white;"></span>
+  </div>
+
+
+      <!-- Overlay de fondo -->
+    <div id="dashboard-overlay" class="dashboard-overlay">
+        <!-- Contenedor principal del dashboard -->
+        <div class="dashboard-container">
+            <!-- Cabecera con título y botón cerrar -->
+            <div class="dashboard-header">
+                <h2 class="dashboard-title">Profile Info</h2>
+                <button id="close-dashboard" class="close-btn">✕</button>
+            </div>
+
+            <!-- Contenido del dashboard -->
+            <div class="dashboard-content">
+                <!-- Sección Username -->
+                <div class="section">
+                    <h3 class="section-title">Username</h3>
+                    <div class="input-group">
+                        <input type="text" id="username-input" class="nick-input" value="world" maxlength="20">
+                        <button id="change-username" class="action-btn">Change</button>
+                    </div>
+                    <p class="info-text">You can change your username once every month.</p>
+                </div>
+
+                <!-- Sección Avatar -->
+                <div class="section">
+                    <h3 class="section-title">Avatar</h3>
+                    <div class="avatar-section">
+                        <div id="avatar-preview" class="avatar-preview">
+                            <span class="avatar-text">Avatar</span>
+                        </div>
+                        <div class="avatar-controls">
+                            <button id="upload-avatar" class="action-btn">Upload Image</button>
+                            <input type="file" id="avatar-file" accept="image/*" style="display: none;">
+                            <button id="random-avatar" class="secondary-btn">Random</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección Skin -->
+                <div class="section">
+                    <h3 class="section-title">Skin</h3>
+                    <p class="info-text">Select a skin for your character.</p>
+                    <div class="skin-preview" id="skin-preview">
+                        <!-- Vista previa de skin -->
+                    </div>
+                </div>
+
+                <!-- Sección Idioma -->
+                <div class="section">
+                    <h3 class="section-title">Select Language</h3>
+                    <div class="languages-grid">
+                        <button class="language-btn" data-lang="1">English US</button>
+                        <button class="language-btn" data-lang="2">English Philippines</button>
+                        <button class="language-btn" data-lang="3">Spanish Latin America</button>
+                        <button class="language-btn" data-lang="4">Portuguese</button>
+                        <button class="language-btn" data-lang="5">Chinese</button>
+                        <button class="language-btn" data-lang="6">Korean</button>
+                    </div>
+                </div>
+
+                <!-- Botón Guardar -->
+                <div class="section">
+                    <button id="save-changes" class="save-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+    <!-- Transaction Hub Panel -->
+<div id="tx-hub" class="tx-hub-hidden" data-draggable="true">
+  <div class="tx-hub-header">
+    <h2 class="tx-hub-title">📜 Transaction Log</h2>
+    <button id="tx-hub-close" class="tx-hub-close-btn" aria-label="Close">✕</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tx-hub-tabs">
+    <button class="tx-tab active" data-tab="interaction">Interaction</button>
+    <button class="tx-tab" data-tab="items">Items</button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="tx-tab-content active" id="tx-interaction">
+    <div class="tx-list" id="tx-list-interaction"></div>
+  </div>
+  <div class="tx-tab-content" id="tx-items">
+    <div class="tx-list" id="tx-list-items"></div>
+  </div>
+
+  <!-- Footer with sync status -->
+  <div class="tx-hub-footer">
+    <span id="tx-status-text">🔄 Synced</span>
+    <button id="tx-refresh" class="tx-refresh-btn">⟳</button>
+  </div>
+</div>
+
+
+
+
+    <!-- Add this inside the body of your index.html, after the Phaser canvas -->
+<!-- Add this inside the body of your index.html, after the Phaser canvas -->
+<div id="tienda-hub" class="tienda-hub-hidden">
+  <!-- Overlay for dark background -->
+  <div id="tienda-overlay" class="tienda-overlay-hidden"></div>
+
+  <!-- Main shop panel -->
+  <div class="tienda-panel">
+    <!-- Shop header -->
+    <div class="tienda-header">
+      <div class="tienda-title">
+        <h2><span class="tienda-icon">🏪</span> Johnny Johnson's Shop</h2>
+        <div class="tienda-saldo">
+          <span class="coin-balance">
+            <img src="./Game/Source/moneda de oro.png" alt="Gold coin" class="moneda-icon">
+            <span id="tienda-moneda">0</span> GL
+          </span>
+          <span class="coin-balance">
+            <img src="./Game/Source/moneda de plata.png" alt="Silver coin" class="moneda-icon">
+            <span id="tienda-moneda-plata">0</span> SL
+          </span>
+        </div>
+      </div>
+      <button id="cerrar-tienda" class="cerrar-tienda">×</button>
+    </div>
+
+    <!-- Search bar and filters -->
+    <div class="tienda-controls">
+      <div class="search-container">
+        <input type="text" id="tienda-search" placeholder="Search items..." class="tienda-search">
+        <span class="search-icon">🔍</span>
+      </div>
+      
+      <div class="tienda-filters">
+        <select id="tienda-categoria" class="tienda-select">
+          <option value="todas">All categories</option>
+          <option value="semillas">Seeds</option>
+          <option value="herramientas">Tools</option>
+          <option value="minerales">Minerals</option>
+          <option value="alimentos">Food</option>
+          <option value="equipo">Equipment</option>
+          <option value="especial">Special</option>
+          <option value="construccion">Construction</option>
+        </select>
+        
+        <select id="tienda-tipo" class="tienda-select">
+          <option value="compra">Buy</option>
+          <option value="venta">Sell</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Apartados de la tienda (2026-10-03). Hacen lo mismo que el
+         desplegable de categorías, pero a la vista: el de Construcción es el
+         que vende lo que se coloca en la isla. Lo engancha tienda_sistema.js
+         (initEvents / _pintarApartados). -->
+    <div class="tienda-apartados" id="tienda-apartados" role="tablist" aria-label="Shop sections">
+      <button type="button" class="tienda-apartado activo" data-cat="todas" role="tab" aria-selected="true">All</button>
+      <button type="button" class="tienda-apartado" data-cat="semillas" role="tab" aria-selected="false">🌱 Seeds</button>
+      <button type="button" class="tienda-apartado" data-cat="herramientas" role="tab" aria-selected="false">🔨 Tools</button>
+      <button type="button" class="tienda-apartado" data-cat="alimentos" role="tab" aria-selected="false">🍎 Food</button>
+      <button type="button" class="tienda-apartado" data-cat="equipo" role="tab" aria-selected="false">⚔️ Equipment</button>
+      <button type="button" class="tienda-apartado tienda-apartado-construccion" data-cat="construccion" role="tab" aria-selected="false">🏗️ Construction</button>
+    </div>
+
+    <!-- Main content -->
+    <div class="tienda-content">
+      <!-- Items list panel -->
+      <div class="items-panel">
+        <div class="items-grid" id="tienda-items"></div>
+        <div class="items-loading" id="tienda-loading">Loading items...</div>
+        <div class="items-empty" id="tienda-empty" style="display: none;">
+          No items found
+        </div>
+      </div>
+
+      <!-- Side details panel (PC only) - SIMPLIFIED -->
+      <div class="sidebar-panel pc-only">
+        <!-- Tabs -->
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-tab="detalles">Details</button>
+          <button class="sidebar-tab" data-tab="historial">History</button>
+        </div>
+
+        <!-- Tab content with scroll -->
+        <div class="sidebar-content">
+          <!-- Details tab - IMAGE, NAME AND BUTTON ONLY -->
+          <div class="tab-content active" id="tab-detalles">
+            <div class="item-detail-simple" id="item-detail-simple">
+              <div class="detail-content-simple">
+                <div class="detail-header-simple">
+                  <img id="detail-img-simple" src="./Game/Source/moneda de oro.png" alt="Item" class="detail-image-simple">
+                  <div class="detail-title-simple">
+                    <h3 id="detail-name-simple">Select an item</h3>
+                    <div class="detail-price-simple" id="detail-price-simple">
+                      <img src="./Game/Source/moneda de oro.png" alt="GL" id="detail-price-icon-simple" class="moneda-icon">
+                      <span id="detail-price-value-simple">0</span> <span id="detail-price-label-simple">GL</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="detail-actions-simple">
+                  <!-- (2026-10-28) Historial y estadísticas de precio del objeto (gf-precio-panel.js). -->
+                  <button id="interact-button-pc" class="interact-btn-pc" type="button" disabled>
+                    <span class="action-icon" aria-hidden="true">🛒</span> Buy / Sell
+                  </button>
+                  <button id="price-history-button-pc" class="interact-btn-pc gf-precio-btn" type="button" disabled>
+                    <span class="action-icon" aria-hidden="true">📈</span> Prices &amp; statistics
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- History tab -->
+          <div class="tab-content" id="tab-historial">
+            <div class="historial-container-pc">
+              <h4>Transaction History</h4>
+              <div class="historial-list-pc" id="historial-list-pc">
+                <div class="historial-empty-pc">
+                  No recent transactions
+                </div>
+              </div>
+              <button id="clear-historial-pc" class="clear-btn-pc">Clear History</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer with info -->
+    <div class="tienda-footer">
+      <div class="tienda-info">
+        <span id="tienda-total-items">0</span> items available
+        <span class="divider">•</span>
+        <span id="tienda-filtro">All items</span>
+      </div>
+      <div class="tienda-help">
+        <button id="tienda-help-btn" class="help-btn">?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile modal - Item details -->
+  <div id="mobile-item-modal" class="mobile-modal hidden">
+    <div class="mobile-modal-content">
+      <div class="mobile-modal-header">
+        <h3 id="mobile-item-name">Item</h3>
+        <button id="close-mobile-modal" class="mobile-modal-close">×</button>
+      </div>
+      
+      <div class="mobile-modal-body">
+        <div class="mobile-item-image-container">
+          <img id="mobile-item-img" src="./Game/Source/moneda de oro.png" alt="Item" class="mobile-item-image">
+          <div class="mobile-item-price" id="mobile-item-price">
+            <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon">
+            <span id="mobile-item-price-value">0</span> GL
+          </div>
+        </div>
+        
+        <div class="mobile-item-info">
+          <p id="mobile-item-desc">Item description.</p>
+          
+          <div class="mobile-item-stats">
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Daily stock:</span>
+              <span class="mobile-stat-value" id="mobile-item-stock">∞</span>
+            </div>
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Available:</span>
+              <span class="mobile-stat-value" id="mobile-item-disponible">0</span>
+            </div>
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Fee:</span>
+              <span class="mobile-stat-value" id="mobile-item-comision">0%</span>
+            </div>
+          </div>
+          
+          <div class="mobile-quantity-controls">
+            <div class="mobile-quantity-title">Quantity:</div>
+            <div class="mobile-quantity-buttons">
+              <button id="mobile-quantity-down" class="mobile-quantity-btn">-</button>
+              <input type="number" id="mobile-quantity-input" value="1" min="1" max="99" class="mobile-quantity-input">
+              <button id="mobile-quantity-up" class="mobile-quantity-btn">+</button>
+            </div>
+          </div>
+          
+          <div class="mobile-action-section">
+            <div class="mobile-action-total" id="mobile-action-total">
+              Total: <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon"> 0 GL
+            </div>
+            <!-- (2026-10-28) Historial y estadísticas de precio del objeto. -->
+            <button id="mobile-price-history-btn" class="mobile-historial-btn gf-precio-btn" type="button">
+              <span class="mobile-action-icon">📈</span> Price history
+            </button>
+            <button id="mobile-action-button" class="mobile-action-btn" disabled>
+              <span class="mobile-action-icon">💰</span> <span id="mobile-action-text">Buy</span>
+            </button>
+            
+            <!-- HISTORY BUTTON FOR MOBILE -->
+            <div class="mobile-historial-btn-container">
+              <button id="mobile-historial-btn" class="mobile-historial-btn">
+                <span class="mobile-action-icon">📜</span> View History
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PC modal - Full item details -->
+  <div id="pc-item-modal" class="pc-modal hidden">
+    <div class="pc-modal-content">
+      <div class="pc-modal-header">
+        <div class="pc-modal-title">
+          <h3 id="pc-item-name">Item</h3>
+          <div class="pc-modal-price" id="pc-modal-price">
+            <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon">
+            <span id="pc-item-price-value">0</span> GL
+          </div>
+        </div>
+        <button id="close-pc-modal" class="pc-modal-close">×</button>
+      </div>
+      
+      <div class="pc-modal-body">
+        <div class="pc-modal-left">
+          <img id="pc-item-img" src="./Game/Source/moneda de oro.png" alt="Item" class="pc-item-image">
+          <div class="pc-item-category" id="pc-item-category">
+            <span class="category-label">Category:</span>
+            <span class="category-value" id="pc-category-value">-</span>
+          </div>
+        </div>
+        
+        <div class="pc-modal-right">
+          <div class="pc-item-description">
+            <h4>Description</h4>
+            <p id="pc-item-desc">Select an item to view its description.</p>
+          </div>
+          
+          <div class="pc-item-stats">
+            <h4>Information</h4>
+            <div class="pc-stat-row">
+              <div class="pc-stat">
+                <span class="pc-stat-label">Daily stock:</span>
+                <span class="pc-stat-value" id="pc-item-stock">∞</span>
+              </div>
+              <div class="pc-stat">
+                <span class="pc-stat-label">Available:</span>
+                <span class="pc-stat-value" id="pc-item-disponible">0</span>
+              </div>
+              <div class="pc-stat">
+                <span class="pc-stat-label">Fee:</span>
+                <span class="pc-stat-value" id="pc-item-comision">0%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="pc-quantity-controls">
+            <div class="pc-quantity-title">Quantity:</div>
+            <div class="pc-quantity-buttons">
+              <button id="pc-quantity-down" class="pc-quantity-btn">-</button>
+              <input type="number" id="pc-quantity-input" value="1" min="1" max="99" class="pc-quantity-input">
+              <button id="pc-quantity-up" class="pc-quantity-btn">+</button>
+            </div>
+            <div class="pc-max-available" id="pc-max-available">
+              Maximum available: <span id="pc-max-value">1</span>
+            </div>
+          </div>
+          
+          <div class="pc-action-section">
+            <div class="pc-action-total" id="pc-action-total">
+              Total: <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon"> 0 GL
+            </div>
+            <button id="pc-action-button" class="pc-action-btn" disabled>
+              <span class="pc-action-icon">💰</span> <span id="pc-action-text">Buy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile modal - Full history -->
+  <div id="mobile-historial-modal" class="mobile-modal hidden">
+    <div class="mobile-modal-content">
+      <div class="mobile-modal-header">
+        <h3>Transaction History</h3>
+        <button id="close-mobile-historial" class="mobile-modal-close">×</button>
+      </div>
+      
+      <div class="mobile-modal-body">
+        <div class="historial-container-mobile">
+          <div class="historial-list-mobile" id="historial-list-mobile">
+            <div class="historial-empty-mobile">
+              No recent transactions
+            </div>
+          </div>
+          <button id="clear-mobile-historial" class="clear-btn-mobile">Clear History</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div id="tienda-help-modal" class="tienda-modal hidden">
+    <div class="modal-content">
+      <h3>Shop Help</h3>
+      <div class="help-sections">
+        <div class="help-section">
+          <h4>📱 On Mobile:</h4>
+          <ul>
+            <li><strong>Single tap:</strong> Select item</li>
+            <li><strong>Double tap:</strong> Open buy/sell panel</li>
+            <li><strong>Swipe:</strong> Browse items</li>
+            <li><strong>View History:</strong> Shows all transactions</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4>💻 On PC:</h4>
+          <ul>
+            <li><strong>Left click:</strong> Select item</li>
+            <li><strong>Click Interact:</strong> Open transaction panel</li>
+            <li><strong>Mouse wheel:</strong> Scroll list and history</li>
+            <li><strong>Enter:</strong> Confirm transaction in panel</li>
+            <li><strong>WASD:</strong> Work normally while typing</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4>⚙️ Features:</h4>
+          <ul>
+            <li><strong>Limits:</strong> Only apply to daily purchases</li>
+            <li><strong>Fee:</strong> Only applies to sales</li>
+            <li><strong>Search:</strong> Filter by name or category</li>
+            <li><strong>History:</strong> Saves your last 100 transactions</li>
+          </ul>
+        </div>
+      </div>
+      <button id="close-help" class="modal-close">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUB DE BATALLAS -->
+<div id="battleHubOverlay" class="battle-hub-overlay hidden">
+  <div class="battle-hub-card" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
+    
+    <button class="battle-hub-close" id="battleHubCloseBtn" aria-label="Cerrar menú">✕</button>
+
+    <div class="battle-hub-header">
+      <div class="battle-hub-icon" aria-hidden="true">
+        🐾
+      </div>
+      <h2 id="battleHubTitle">Pet Arena</h2>
+      <p>Move, bark and be the last dog standing</p>
+    </div>
+
+    <div class="battle-hub-actions">
+      <button id="battleHubAdventureBtn" class="battle-btn battle-btn-adventure">
+        <span class="btn-icon">🌲</span>
+        <span class="btn-text">
+          <strong>5 Daily Battles</strong>
+          <small>Complete the daily challenge</small>
+        </span>
+      </button>
+
+      <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
+        <span class="btn-icon">⚔</span>
+        <span class="btn-text">
+          <strong>Arena PvP</strong>
+          <small>Up to 6 players · last one standing wins</small>
+        </span>
+      </button>
+
+      <button id="battleHubPracticeBtn" class="battle-btn battle-btn-practice">
+        <span class="btn-icon">🎯</span>
+        <span class="btn-text">
+          <strong>Practice</strong>
+          <small>Train against 3 bots · no points</small>
+        </span>
+      </button>
+
+      <button id="battleHubRankingBtn" class="battle-btn battle-btn-ranking">
+        <span class="btn-icon">🏆</span>
+        <span class="btn-text">
+          <strong>Ranking</strong>
+          <small>Season points table</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+  
+
+<!-- ===== Interfaz de la ARENA (HTML/CSS, adaptable) =====
+     La dibuja y la mueve Scenes/BattleScene.js. Phaser pinta la arena y los
+     luchadores; esto es lo que va encima: tu tarjeta, el reloj, los que
+     quedan, los avisos, los mandos táctiles y las pantallas de búsqueda,
+     de caído y de resultados. -->
+<div id="battleUI" class="battle-ui bz hidden">
+
+  <!-- Arriba: tú · el reloj y los que quedan · rendirse -->
+  <div class="bz-top">
+    <div class="bz-yo" id="bzYo">
+      <div class="bz-retrato" id="bzRetrato" aria-hidden="true"></div>
+      <div class="bz-yo-datos">
+        <div class="bz-yo-nombre"><span id="bzYoNombre">—</span> <span class="bz-nivel" id="bzYoNivel"></span></div>
+        <div class="bz-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
+        <div class="bz-yo-extra">
+          <span id="bzYoHuesos" title="Power bones: +10% damage and health each">🦴 0</span>
+          <span id="bzYoBajas" title="Knockouts">💥 0</span>
+        </div>
+      </div>
+    </div>
+    <div class="bz-centro">
+      <div class="bz-modo" id="bzModo">ARENA</div>
+      <div class="bz-reloj" id="bzReloj">--:--</div>
+      <div class="bz-niebla-estado hidden" id="bzNieblaEstado" title="The fog closes in phases: stay inside the white circle"></div>
+      <div class="bz-quedan" title="Fighters still standing"><span aria-hidden="true">🐾</span><b id="bzQuedan">-</b><small>left</small></div>
+    </div>
+    <div class="bz-acciones">
+      <button type="button" id="bzSalir" class="bz-btn bz-btn-salir">Surrender</button>
+    </div>
+  </div>
+
+  <!-- Quién ha tumbado a quién -->
+  <ol class="bz-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
+
+  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, la niebla… -->
+  <div class="bz-aviso hidden" id="bzAviso" aria-live="assertive"></div>
+
+  <!-- El borde rojo al recibir un golpe -->
+  <div class="bz-dolor" id="bzDolor"></div>
+
+  <!-- Estás en la niebla (o va a llegar): hacia dónde correr -->
+  <div class="bz-fuera hidden" id="bzFuera" role="status" aria-live="polite">
+    <i class="bz-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
+  </div>
+
+  <!-- Se ha ido la conexión: el servidor te guarda el perro unos segundos -->
+  <div class="bz-red hidden" id="bzRed" role="status" aria-live="polite">
+    <i aria-hidden="true"></i><span>Connection lost — reconnecting…</span>
+  </div>
+
+  <!-- Buscando partida -->
+  <div class="bz-busqueda" id="bzBusqueda">
+    <div class="bz-busqueda-tarjeta" role="dialog" aria-labelledby="bzBusquedaTitulo">
+      <div class="bz-huellas" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h2 id="bzBusquedaTitulo">Searching for players…</h2>
+      <p id="bzBusquedaTexto">Be the last dog standing.</p>
+      <div class="bz-sala" id="bzSala" aria-live="polite"></div>
+      <div class="bz-busqueda-tiempo" id="bzBusquedaTiempo">0:00</div>
+      <!-- La sala de espera: quién ha entrado y quién está listo (2026-10-10). -->
+      <ul class="bz-lobby hidden" id="bzLobby" aria-live="polite"></ul>
+      <ul class="bz-consejos" id="bzConsejos">
+        <li><b>Move</b> WASD / left stick</li>
+        <li><b>Bark</b> click / right stick · 3 charges that reload</li>
+        <li><b>Super</b> E or right-click · charges as you hit</li>
+        <li><b>Hide</b> in tall grass · <b>bones</b> make you stronger</li>
+      </ul>
+      <div class="bz-busqueda-botones">
+        <button type="button" id="bzListo" class="bz-btn bz-btn-listo hidden" aria-pressed="false">Ready</button>
+        <button type="button" id="bzPracticar" class="bz-btn bz-btn-sec">Practice vs bots</button>
+        <button type="button" id="bzCancelar" class="bz-btn bz-btn-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y dispara con la derecha -->
+  <div class="bz-tactil" id="bzTactil">
+    <div class="bz-zona-mover" id="bzZonaMover"><div class="bz-stick" id="bzStickMover"><i></i></div></div>
+    <div class="bz-zona-disparo" id="bzZonaDisparo"><div class="bz-stick bz-stick-fuego" id="bzStickDisparo"><i></i></div></div>
+    <button type="button" class="bz-super" id="bzSuper" aria-label="Super attack" disabled>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bz-super-fondo" cx="32" cy="32" r="28"/><circle class="bz-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
+      <span>SUPER</span>
+    </button>
+  </div>
+
+  <!-- Abajo (PC): la barra del súper y las teclas -->
+  <div class="bz-pie" id="bzPie">
+    <div class="bz-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
+    <div class="bz-teclas"><kbd>WASD</kbd> move · <kbd>Click</kbd> bark · <kbd>Space</kbd> auto-aim · <kbd>E</kbd> / <kbd>Right-click</kbd> super</div>
+  </div>
+
+  <!-- Te han tumbado: mirar cómo acaba o volver al mapa -->
+  <div class="bz-caido hidden" id="bzCaido">
+    <div class="bz-caido-tarjeta" role="dialog" aria-labelledby="bzCaidoTitulo">
+      <h3 id="bzCaidoTitulo">Knocked out!</h3>
+      <p id="bzCaidoTexto"></p>
+      <div class="bz-caido-botones">
+        <button type="button" id="bzMirar" class="bz-btn bz-btn-ghost">Keep watching</button>
+        <button type="button" id="bzVolverCaido" class="bz-btn">Back to map</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="bz-resultado hidden" id="bzResultado">
+    <div class="bz-resultado-tarjeta" role="dialog" aria-labelledby="bzResTitulo">
+      <div class="bz-medalla" id="bzResPuesto">#1</div>
+      <h2 id="bzResTitulo">Victory!</h2>
+      <p id="bzResSub"></p>
+      <ul class="bz-premios" id="bzResPremios"></ul>
+      <ol class="bz-tabla" id="bzResTabla"></ol>
+      <div class="bz-resultado-botones">
+        <button type="button" id="bzOtraVez" class="bz-btn bz-btn-sec">Play again</button>
+        <button type="button" id="bzVolver" class="bz-btn">Back to map</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
+<div id="battleRankOverlay" class="battle-rank-overlay hidden">
+  <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
+    <div class="battle-rank-head">
+      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
+      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <p id="battleRankSeason" class="battle-rank-season"></p>
+    <div class="battle-rank-scroll">
+      <table class="battle-rank-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Player</th><th class="rank-pet">Pet</th><th class="rank-addr">Wallet</th>
+            <th class="rank-num">Points</th><th class="rank-num">Won</th><th class="rank-num">Lost</th>
+            <th class="rank-num">Battles</th><th class="rank-num rank-racha">Best streak</th>
+          </tr>
+        </thead>
+        <tbody id="battleRankBody"></tbody>
+      </table>
+    </div>
+    <div class="battle-rank-foot">
+      <span id="battleRankMe" class="battle-rank-me"></span>
+      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
+<div id="battleRotateNotice" class="battle-rotate-notice hidden">
+  <div class="battle-rotate-inner">
+    <div class="battle-rotate-icon">📱↻</div>
+    <p>Rotate your phone to landscape to play the battle comfortably.</p>
+    <!-- Con el giro automatico bloqueado, sin este boton no habia salida: el
+         aviso tapaba la batalla entera (ni jugar ni rendirse). -->
+    <button type="button" id="battleRotateSeguir" class="battle-rotate-seguir">Play in portrait</button>
+  </div>
+</div>
+
+  <!-- Missions panel -->
+  <div id="missions-panel" class="missions-panel hidden" role="dialog" aria-hidden="true">
+    <div class="missions-header">
+      <div class="missions-title-container">
+        <h2 id="missions-npc-title">Misiones Diarias</h2>
+        <div class="missions-meta">
+          <span id="missions-reset-time" class="reset-time">Reinicio en: 12 horas</span>
+          <span id="missions-progress" class="progress">Completadas: 0/0</span>
+        </div>
+      </div>
+      <button id="close-missions" class="close-button" aria-label="Cerrar misiones">×</button>
+    </div>
+
+    <div class="missions-content">
+      <div id="missions-list" class="missions-list">
+      </div>
+    </div>
+
+    <div class="missions-footer">
+      <button id="refresh-missions" class="refresh-button">
+        <span>🔄 update</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="missions-overlay" class="missions-overlay hidden"></div>
+
+  <!-- Perfil, Agua , vida y comida -->
+<!-- Perfil, Agua , vida y comida -->
+<div id="cajahub">
+  <div id="hub" class="hidden">
+    <div id="hub-image-container">
+      <div id="player-level-container">
+        <span id="player-level">Lv. 0</span>
+      </div>
+      <div id="hub-image">
+        <img id="player-image" alt="Player" />
+      </div>
+    </div>
+    <div id="hub-info">
+      <div id="username">Username</div>
+      <div class="status-bar" id="health-bar">
+        <div class="status-fill" style="width: 100%; background-color: #e74c3c;"></div>
+        <span class="status-text">Vida 100%</span>
+      </div>
+      <div class="status-bar" id="water-bar">
+        <div class="status-fill" style="width: 100%; background-color: #3498db;"></div>
+        <span class="status-text">Agua 100%</span>
+      </div>
+      <div class="status-bar" id="food-bar">
+        <div class="status-fill" style="width: 100%; background-color: #f39c12;"></div>
+        <span class="status-text">Comida 100%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Hub de Basura - Con selector de cantidad -->
+<div id="trash-hub" class="trash-hub-hidden" style="z-index: 1000;">
+  <div class="trash-hub-content">
+    <div class="trash-hub-header">
+      <h2 class="trash-hub-title">🗑️ Trash</h2>
+      <button id="trash-hub-close" class="trash-hub-close-btn">✕</button>
+    </div>
+    <div class="trash-hub-info">
+      <p id="trash-instructions">Select an item from inventory then click a slot</p>
+    </div>
+    <div class="trash-slots-container">
+      <div class="trash-slots-row">
+        <div class="trash-slot" data-slot="0"></div>
+        <div class="trash-slot" data-slot="1"></div>
+        <div class="trash-slot" data-slot="2"></div>
+      </div>
+      <div class="trash-slots-row">
+        <div class="trash-slot" data-slot="3"></div>
+        <div class="trash-slot" data-slot="4"></div>
+        <div class="trash-slot" data-slot="5"></div>
+      </div>
+    </div>
+    <div class="trash-hub-footer">
+      <button id="trash-confirm-btn" class="trash-confirm-btn" disabled>🗑️ Delete Items</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quantity Selector -->
+<div id="trash-quantity-selector" class="trash-quantity-hidden" style="z-index: 1001;">
+  <div class="trash-quantity-content">
+    <h3 id="trash-quantity-title">Select quantity</h3>
+    <div class="trash-quantity-controls">
+      <button id="trash-quantity-minus" class="trash-quantity-btn minus">-</button>
+      <span id="trash-quantity-display" class="trash-quantity-display">1</span>
+      <button id="trash-quantity-plus" class="trash-quantity-btn plus">+</button>
+    </div>
+    <div class="trash-quantity-range">
+      <input type="range" id="trash-quantity-slider" min="1" max="10" value="1" class="trash-quantity-slider">
+      <span id="trash-quantity-max" class="trash-quantity-max">Max: 10</span>
+    </div>
+    <button id="trash-quantity-all" class="trash-quantity-action-btn all">Select All</button>
+    <div class="trash-quantity-buttons">
+      <button id="trash-quantity-cancel" class="trash-quantity-action-btn cancel">Cancel</button>
+      <button id="trash-quantity-confirm" class="trash-quantity-action-btn confirm">Add</button>
+    </div>
+  </div>
+</div>
+
+  
+<!-- Furnace Panel -->
+<div id="furnace-panel" class="furnace-hidden" style="z-index: 10001;">
+  <div class="furnace-container">
+    <div class="furnace-header">
+      <h2 class="furnace-title">🔥 Furnace</h2>
+      <button id="furnace-close" class="furnace-close-btn">✕</button>
+    </div>
+    <div class="furnace-body">
+      <div class="furnace-slots-row">
+        <div class="furnace-slot-box">
+          <div class="furnace-slot" id="furnace-slot-ore" data-type="ore">
+            <span class="furnace-slot-label">Ore</span>
+          </div>
+          <div class="furnace-slot" id="furnace-slot-coal" data-type="coal">
+            <span class="furnace-slot-label">Coal</span>
+          </div>
+        </div>
+        <div class="furnace-arrow">▶</div>
+        <div class="furnace-result-box">
+          <div class="furnace-slot result" id="furnace-slot-result">
+            <span class="furnace-slot-label">Result</span>
+          </div>
+          <div id="furnace-timer" class="furnace-timer" style="display:none">⏱️ <span id="furnace-time-display">--</span></div>
+        </div>
+      </div>
+      <div id="furnace-status" class="furnace-status">Pick up ore, click the top slot; pick up coal, click the bottom one</div>
+      <div class="furnace-recipes">
+        <div class="furnace-recipes-title">📋 Recipes</div>
+        <div id="furnace-recipe-list" class="furnace-recipe-list">
+          <!-- Estas filas tienen que decir lo MISMO que FURNACE_RECIPES en
+               GameScene.js. Antes anunciaban tres recetas que no existían
+               (piedra, y carbón x2/x3), y el horno no fundía nada. -->
+          <!-- Nada de 🪵 aquí: es Unicode 13 y Windows 10 se quedó en la 12, así
+               que sale como un cuadrado vacío. ⬛ es de toda la vida. -->
+          <div class="furnace-recipe-row">
+            <span>🟤 Copper Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>🟠 Copper Ingot · 1 min</span>
+          </div>
+          <div class="furnace-recipe-row">
+            <span>⚫ Iron Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>⚪ Iron Ingot · 5 min</span>
+          </div>
+        </div>
+        <!-- (2026-10-28) Lo que cuesta fundir hoy: lo pone el servidor y sigue la economía (GameScene._pintarTarifaHorno). -->
+        <div id="furnace-fee" class="furnace-recipes-title" style="margin-top:8px;font-weight:600;opacity:.9"></div>
+      </div>
+      <div class="furnace-footer">
+        <button id="furnace-smelt-btn" class="furnace-btn-smelt" disabled>🔥 Smelt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications Panel -->
+<div id="notif-panel" class="notif-panel-hidden" style="z-index: 10002;">
+  <div class="notif-container">
+    <div class="notif-header">
+      <h2 class="notif-title">📬 Notifications</h2>
+      <div class="notif-header-actions">
+        <button id="notif-mark-all-read" class="notif-mark-btn">✔ Mark All Read</button>
+        <button id="notif-clear-all" class="notif-mark-btn" style="background:#3a1e1e;border-color:#ff6060;color:#ffc8c8;">🗑 Clear All</button>
+        <button id="notif-close" class="notif-close-btn">✕</button>
+      </div>
+    </div>
+    <div id="notif-list" class="notif-list">
+      <div class="notif-empty">No notifications yet</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Skills Panel -->
+<div id="skills-panel" class="skills-panel-hidden" style="z-index:10004;">
+  <div class="skills-container">
+    <div class="skills-header">
+      <h2 class="skills-title">⚔️ Skills</h2>
+      <button id="skills-close" class="skills-close-btn">✕</button>
+    </div>
+    <div class="skills-body">
+      <!-- SKILLS REALES DEL JUEGO (ver game.html). Sin "Vitality"/"Agility"
+           (no eran habilidades reales) y sin la sección de insignias. -->
+      <div class="skills-section">
+        <div class="skills-section-title">📊 Player level</div>
+        <div class="skills-stats-grid">
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">⭐</span><span class="skill-stat-name">Level</span>
+            <span class="skill-stat-val" id="sk-level">1</span>
+            <span class="skill-stat-exp" id="sk-level-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="skills-section">
+        <div class="skills-section-title">🛠️ Skills</div>
+        <div class="skills-stats-grid" id="skills-stats-grid">
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌿</span><span class="skill-stat-name">Farming</span>
+            <span class="skill-stat-val" id="sk-farming">1</span>
+            <span class="skill-stat-exp" id="sk-farming-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">⛏️</span><span class="skill-stat-name">Mining</span>
+            <span class="skill-stat-val" id="sk-mining">1</span>
+            <span class="skill-stat-exp" id="sk-mining-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌲</span><span class="skill-stat-name">Woodcutting</span>
+            <span class="skill-stat-val" id="sk-woodcutting">1</span>
+            <span class="skill-stat-exp" id="sk-woodcutting-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌊</span><span class="skill-stat-name">Fishing</span>
+            <span class="skill-stat-val" id="sk-fishing">1</span>
+            <span class="skill-stat-exp" id="sk-fishing-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🍳</span><span class="skill-stat-name">Cooking</span>
+            <span class="skill-stat-val" id="sk-cooking">1</span>
+            <span class="skill-stat-exp" id="sk-cooking-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">💪</span><span class="skill-stat-name">Strength</span>
+            <span class="skill-stat-val" id="sk-strength">1</span>
+            <span class="skill-stat-exp" id="sk-strength-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Panel NFT (botón redondo NFT): el personaje Soulbound y los NFT de la
+     colección que elige el administrador (2026-10-04). El apartado "My Pet"
+     se quitó: la mascota tiene su propio panel y su barra. -->
+<div id="nft-panel" class="nft-panel-hidden" style="z-index:10003;" role="dialog" aria-modal="true" aria-labelledby="nft-title">
+  <div class="nft-container">
+    <div class="nft-header">
+      <h2 class="nft-title" id="nft-title">🧬 Character &amp; NFTs</h2>
+      <button id="nft-close" class="nft-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div class="nft-body">
+      <!-- Soulbound Characters -->
+      <div class="nft-section nft-section--sb">
+        <div class="nft-section-title">Soulbound Character</div>
+        <div class="sb-current">
+          <div class="sb-current-art"><img id="sb-current-img" alt="" /></div>
+          <div class="sb-current-info">
+            <div id="sb-current-name" class="sb-current-name">—</div>
+            <div id="sb-current-gender" class="sb-current-gender"></div>
+            <div class="sb-current-hint">Pick a character below. It is bound to your account.</div>
+          </div>
+        </div>
+        <!-- Los rellena gf-soulbound.js con lo que haya en Game/Sprites/Soulbound/
+             (no hay lista fija que mantener). -->
+        <div id="sb-list" class="sb-list">
+          <div class="sb-loading">Loading characters…</div>
+        </div>
+      </div>
+
+      <!-- My NFTs: los de la colección de admin.html, leídos de la cartera. -->
+      <div class="nft-section nft-section--mine">
+        <div class="nft-section-head">
+          <div class="nft-section-title">My NFTs · <span id="nft-collection-name">—</span> <span id="nft-count" class="nft-count"></span></div>
+          <button type="button" id="nft-refresh" class="nft-refresh" aria-label="Read my wallet again" title="Read my wallet again">⟳</button>
+        </div>
+        <div class="nft-wallet-row">Wallet <span id="nft-wallet" class="nft-wallet"></span></div>
+        <div id="nft-list" class="nft-grid">
+          <div class="nft-empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Crafting hub -->
+<!-- Inicia oculto por defecto -->
+<div id="crafting-hub" class="crafting-hub-hidden" role="dialog" aria-modal="true" aria-labelledby="crafting-title">
+  <div class="crafting-container" role="document">
+    <div class="crafting-header">
+      <h2 id="crafting-title" class="crafting-title">⚒️ Crafting Workshop</h2>
+      <div class="header-controls">
+        <button id="crafting-close" class="crafting-close-btn" aria-label="Close the crafting panel" data-crafting-close>✕</button>
+      </div>
+    </div>
+
+    <div class="crafting-main">
+      <aside class="crafting-sidebar" aria-label="Filters and recipes">
+        <div class="crafting-filters">
+          <h3 class="filter-title">📁 Categories</h3>
+          <div class="filter-buttons" role="tablist" aria-label="Recipe categories">
+            <button class="filter-btn active" data-category="all" role="tab" aria-selected="true">All</button>
+            <button class="filter-btn" data-category="tools" role="tab">Axes</button>
+            <button class="filter-btn" data-category="consumables" role="tab">Pickaxes</button>
+            <button class="filter-btn" data-category="resources" role="tab">Extras</button>
+            <button class="filter-btn" data-category="chests" role="tab">Chests</button>
+          </div>
+        </div>
+
+        <div class="crafting-search">
+          <label for="crafting-search-input" class="sr-only">Search recipe</label>
+          <input type="text" id="crafting-search-input" placeholder="🔍 Search recipe..." class="search-input" autocomplete="off" inputmode="search">
+        </div>
+
+        <!-- LISTA: ahora flex:1 para estirarse -->
+        <div class="recipes-list" id="recipes-list" tabindex="0" aria-live="polite">
+          <div class="empty-state">Pick a category or search for a recipe</div>
+        </div>
+      </aside>
+
+      <section class="crafting-details" aria-label="Crafting details">
+        <!-- En móvil este bloque se oculta y se usa overlay -->
+        <div class="recipe-details" id="recipe-details">
+          <div class="recipe-header">
+            <img src="./assets/default-item.png" alt="Ítem resultante" class="recipe-result-img" id="recipe-result-img">
+            <div class="recipe-info">
+              <h3 class="recipe-name" id="recipe-name">Select a recipe</h3>
+              <div class="recipe-meta">
+                <div class="recipe-level" id="recipe-level">
+                  <span class="level-icon" aria-hidden="true">⭐</span> Level: <strong id="required-level">0</strong>
+                </div>
+                <div class="recipe-category" id="recipe-category">
+                  Category: <span id="category-name">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="required-resources">
+            <h4>📦 Required resources:</h4>
+            <div class="resources-list" id="resources-list">
+              <div class="empty-state">Select a recipe to see what it needs</div>
+            </div>
+
+            <div class="optional-resources hidden" id="optional-resources" aria-hidden="true">
+              <h4>🎯 Choose one of these:</h4>
+              <div class="optional-list" id="optional-list"></div>
+            </div>
+          </div>
+
+          <div class="crafting-quantity">
+            <h4>Quantity to craft:</h4>
+            <div class="quantity-controls">
+              <button id="decrease-qty" class="qty-btn" aria-label="Less">-</button>
+              <input type="number" id="crafting-qty" value="1" min="1" max="99" class="qty-input" inputmode="numeric" aria-label="Quantity to craft">
+              <button id="increase-qty" class="qty-btn" aria-label="More">+</button>
+              <div class="max-possible" id="max-possible">Max: <span id="max-craft">0</span></div>
+            </div>
+          </div>
+
+          <div class="crafting-actions">
+            <button id="craft-button" class="craft-btn" disabled aria-disabled="true">
+              <span class="craft-icon" aria-hidden="true">⚒️</span> Craft
+            </button>
+            <div class="crafting-feedback" id="crafting-feedback" role="status" aria-live="polite"></div>
+          </div>
+
+          <!-- La "vista previa del inventario" (🎒) se quitó el 2026-08-05:
+               solo repetía, sin nombres ni contexto, los mismos materiales que
+               la lista de arriba ya muestra como "tienes/necesitas". Ocupaba
+               sitio debajo del botón de craftear y no aportaba nada.
+               updateInventoryPreview() sigue existiendo y sale sin hacer nada
+               si no encuentra su contenedor, así que no hay que tocar el JS. -->
+        </div>
+      </section>
+    </div>
+
+    <div class="crafting-status" aria-hidden="false">
+      <div class="status-item">
+        <span class="status-label">Your level:</span>
+        <span class="status-value" id="player-levelx">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Recipes:</span>
+        <span class="status-value" id="available-recipes">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Category:</span>
+        <span class="status-value" id="current-category">All</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY para móviles - SOLO BOTÓN VOLVER, SIN X -->
+  <div id="recipe-overlay" class="recipe-overlay hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="overlay-header">
+      <button id="overlay-back" class="overlay-back-btn" aria-label="Back to the list">← Back</button>
+      <!-- Eliminado el botón de cerrar -->
+    </div>
+    <div id="overlay-content" class="overlay-content" tabindex="0"></div>
+  </div>
+</div>
+
+
+  <div id="sound-hub-panel" class="sound-hub-hidden" aria-hidden="true">
+  <div class="sound-hub-container">
+    <!-- Cabecera con título y botón de cerrar -->
+    <div class="sound-hub-header">
+      <h2 class="sound-hub-title">Audio Settings</h2>
+      <button id="sound-hub-close" class="sound-hub-close-btn" aria-label="Cerrar panel de sonido">
+        <span class="sound-hub-close-icon">✕</span>
+      </button>
+    </div>
+    
+    <!-- Contenido del panel -->
+    <div class="sound-hub-content">
+      <!-- Control de Música -->
+      <div class="sound-control-group">
+        <div class="sound-control-header">
+          <span class="sound-control-icon">♫</span>
+          <h3 class="sound-control-title">Music</h3>
+          <span id="music-percent" class="sound-percent">100%</span>
+        </div>
+        
+        <div class="sound-slider-container">
+          <input type="range" id="music-slider" class="sound-slider" 
+                 min="0" max="100" value="100" step="1" 
+                 aria-label="Control de volumen de música">
+          <div class="sound-slider-track">
+            <div id="music-slider-fill" class="sound-slider-fill"></div>
+          </div>
+        </div>
+        
+        <div class="sound-buttons-row">
+          <button id="music-test-btn" class="sound-test-btn">Test</button>
+          <button id="music-mute-btn" class="sound-mute-btn">Mute</button>
+        </div>
+      </div>
+      
+      <!-- Control de Efectos de Sonido -->
+      <div class="sound-control-group">
+        <div class="sound-control-header">
+          <span class="sound-control-icon">🔊</span>
+          <h3 class="sound-control-title">Sound Effects</h3>
+          <span id="sfx-percent" class="sound-percent">100%</span>
+        </div>
+        
+        <div class="sound-slider-container">
+          <input type="range" id="sfx-slider" class="sound-slider" 
+                 min="0" max="100" value="100" step="1" 
+                 aria-label="Control de volumen de efectos de sonido">
+          <div class="sound-slider-track">
+            <div id="sfx-slider-fill" class="sound-slider-fill"></div>
+          </div>
+        </div>
+        
+        <div class="sound-buttons-row">
+          <button id="sfx-test-btn" class="sound-test-btn">Test</button>
+          <button id="sfx-mute-btn" class="sound-mute-btn">Mute</button>
+        </div>
+      </div>
+      
+    </div>
+    
+    <!-- Pie del panel con botón de guardar -->
+    <div class="sound-hub-footer">
+      <button id="sound-save-btn" class="sound-save-btn">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+  <!-- HUD / Shop / Auction / modal markup preserved exactly (no inline scripts) -->
+  <div id="game-hud" class="hud-hidden">
+
+    <div class="corner-box">
+      <!-- Reloj del mundo. La hora la manda el backend (/api/world/time); aquí
+           solo se pinta. Ver gf-ciclo-dia.js. -->
+      <div class="clock-stack" id="hud-reloj" title="Hora del mundo">
+        <span class="clock-icon" id="hud-reloj-icono">☀</span>
+        <span class="clock-time" id="hud-reloj-hora">--:--</span>
+      </div>
+
+      <!-- Contenedor izquierdo (con GL) -->
+      <div class="coin-stack left-stack">
+        <img src="./Game/Source/moneda de oro.png" alt="Moneda GL" class="main-img" />
+        <span class="info-text" id="info-text-left">0</span>
+      </div>
+
+      <!-- Contenedor derecho (sin GL) -->
+      <div class="coin-stack right-stack">
+        <img src="./Game/Source/moneda de plata.png" alt="Otra moneda" class="main-img" />
+        <span class="info-text" id="info-text-right">0</span>
+      </div>
+
+      <!-- (2026-10-20) La moneda de bronce (gf-bronce.js): 1 de plata = 1000. -->
+      <div class="coin-stack bronze-stack" title="Bronze">
+        <img src="./Game/Source/moneda de bronce.png" alt="Bronze coin" class="main-img" />
+        <span class="info-text" id="info-text-bronce">0</span>
+      </div>
+
+      <!-- Botón (se mantiene a la derecha) -->
+      <button class="inner-btn" tabindex="-1" id="toggle-hud-btn" aria-label="Toggle HUD">
+        <img src="./Game/Source/hud/ojo.png" alt="Botón interno" />
+        <span class="label-badge quests-label">Hide</span>
+      </button>
+    </div>
+
+
+
+    <div class="round-buttons" id="round-buttons-container">
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/hud/panel.png" alt="Dashboard" />
+        <span class="label-badge">Dashboard</span>
+      </button>
+      <button class="round-btn round-btn--mail" tabindex="-1" id="mail-btn">
+        <img src="./Game/Source/hud/correo.png" alt="Mail" />
+        <span class="label-badge">Mail</span>
+        <!-- Badge de notificación: se muestra/oculta y actualiza desde Phaser -->
+        <span class="notif-badge" id="mail-notif-badge" style="display:none">0</span>
+      </button>
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/hud/musica.png" alt="Music" data-hide-on-error data-image-fallback />
+        <span style="display:none;font-size:20px;align-items:center;justify-content:center;width:100%;height:100%">🎵</span>
+        <span class="label-badge">Music</span>
+      </button>
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/hud/transacciones.png" alt="Transactions" />
+        <span class="label-badge">Transactions</span>
+      </button>
+      <button class="round-btn round-btn--nft" tabindex="-1" id="nft-btn">
+        <img src="./Game/Source/hud/nft.png" alt="NFT" data-hide-on-error data-image-fallback />
+        <span class="nft-fallback" style="display:none;font-size:18px;align-items:center;justify-content:center;width:100%;height:100%">🖼️</span>
+        <span class="label-badge">NFT</span>
+      </button>
+      <button class="round-btn" tabindex="-1" id="skills-btn">
+        <img src="./Game/Source/hud/habilidades.png" alt="Skills" />
+        <span class="label-badge">Skills</span>
+      </button>
+      <button class="round-btn" tabindex="-1" id="store-btn">
+        <img src="./Game/Source/hud/tienda.png" alt="Store" />
+        <span class="label-badge">Store</span>
+      </button>
+      <!-- AMISTADES. En el HTML va el ÚLTIMO y en pantalla sale el TERCERO,
+           justo debajo de Mail: lo coloca el `order` del CSS. El motivo está
+           arriba — tiendajuego.js engancha varios de estos botones por su
+           índice en la NodeList, así que meterlo en medio del HTML los
+           desplazaría a todos. La chapa con el número de solicitudes y
+           privados sin leer la pone gf-amigos.js. -->
+      <button class="round-btn round-btn--friends" tabindex="-1" id="friends-btn">
+        <img src="./Game/Source/hud/amigos.png" alt="Friends" />
+        <span class="label-badge">Friends</span>
+      </button>
+      <!-- LANDS. Igual que Amistades: en el HTML va el ÚLTIMO y en pantalla
+           sale el PRIMERO, encima de Dashboard, por el `order: 0` del CSS.
+           El motivo es el mismo y está explicado arriba — tiendajuego.js
+           engancha botones por su índice en la NodeList, así que meterlo en
+           medio correría todos los demás.
+
+           Tiene DOS iconos: la parcela cuando lleva a la isla y la parcela con
+           la flecha de vuelta cuando ya estás en ella. Los cambia gf-lands.js,
+           que es también quien decide a dónde lleva según la escena. -->
+      <button class="round-btn round-btn--lands" tabindex="-1" id="lands-btn"
+              aria-label="Ir a mis parcelas">
+        <img src="./Game/Source/hud/lands.png" alt="Lands" />
+        <span class="label-badge">Lands</span>
+      </button>
+      <!-- (2026-10-26) EL MAPA DEL MUNDO (gf-mapa-mundo.js; también la tecla M).
+           El último del HTML por lo mismo que Lands (los índices de la
+           NodeList); en pantalla sale justo debajo de Lands (`order: 0`). -->
+      <button class="round-btn round-btn--mapa" tabindex="-1" id="map-btn"
+              aria-label="World map (M)">
+        <img src="./Game/Source/hud/mapa.png" alt="Map" />
+        <span class="label-badge">Map</span>
+      </button>
+    </div>
+  </div>
+
+  <button id="open-chat-btn" class="chat-open-btn hidden" tabindex="0" aria-label="Abrir chat">
+    <img src="./Game/Source/hud/chat.png" alt="Abrir Chat" />
+  </button>
+
+  <div id="chat-panel" class="chat-hidden">
+    <div class="chat-messages" id="chat-messages"></div>
+    <!-- Fila de escritura: campo + botón de emojis. El selector se rellena
+         desde GameScene (_montarSelectorEmojis) para no meter JS en línea. -->
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Write your message..." maxlength="140" autocomplete="off" />
+      <button type="button" id="chat-emoji-btn" class="chat-emoji-btn" aria-label="Emojis" title="Emojis">&#128512;</button>
+      <!-- Traducir los mensajes de los demás: apagado → español → inglés.
+           Lo engancha gf-traductor.js (y es el mismo ajuste que el de los privados). -->
+      <button type="button" id="chat-trad-btn" class="chat-emoji-btn chat-trad-btn" aria-label="Translate messages" title="Translate messages (English ⇄ Spanish)">&#127760;</button>
+      <!-- Botón de enviar: en el móvil no siempre hay una tecla Enter cómoda, y
+           sin él la única forma de mandar el mensaje era el teclado. -->
+      <button type="button" id="chat-send-btn" class="chat-send-btn" aria-label="Send message" title="Send">Send</button>
+    </div>
+    <div id="chat-emoji-picker" class="chat-emoji-picker hidden" role="dialog" aria-label="Emoji picker"></div>
+  </div>
+  <!-- Burbuja de chat del jugador local (se posiciona via JS sobre el sprite) -->
+  <div id="local-chat-bubble" class="player-chat-bubble" style="display:none;"></div>
+
+  <div class="hud-containerx2" id="hud-containerx2">
+    <img src="./Game/Source/Mochila2.png" class="hud-basex2" />
+    <img src="./Game/Source/tecla_i.png" class="hud-iconx2" />
+  </div>
+
+  <div id="game-ui-text">Coordinates : </div>
+
+  <div id="hudReputacion" class="hud-panel hidden">
+    <button id="cerrarReputacion" class="cerrar-hud">✕</button>
+    <h2>¡Reputación!</h2>
+    <div id="listaReputacion" class="lista-estadisticas"></div>
+  </div>
+
+  <div id="hudEstadisticas" class="hud-panel hidden">
+    <button id="cerrarEstadisticas" class="cerrar-hud">✕</button>
+    <h2>¡Estadísticas!</h2>
+    <div id="listaEstadisticas" class="lista-estadisticas"></div>
+  </div>
+
+  <div id="hudEstadisticas_1" class="hud-panel_1 hidden_1" role="dialog">
+    <button id="cerrarEstadisticas_1" class="cerrar-hud_1">✕</button>
+    <h2 class="hud-title_1">¡Libro de requerimientos!</h2>
+    <div class="hud-search_1">
+      <input id="searchInput_1" type="search" placeholder="Buscar apartado..." />
+    </div>
+    <div id="listaEstadisticas_1" class="lista-estadisticas_1"></div>
+    <div id="detalleEstadistica_1" class="detalle-estadistica_1 hidden_1" aria-live="polite">
+      <button id="volverLista_1" class="volver-btn_1">← Volver</button>
+      <div class="detalle-contenido_1">
+        <img id="detalleImg_1" alt="" />
+        <h3 id="detalleNombre_1"></h3>
+        <ul id="detalleRequisitos_1"></ul>
+      </div>
+    </div>
+  </div>
+
+    <!-- Loading Overlay HTML - Puedes ponerlo al inicio del body -->
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PANTALLA DE CARGA
+       ----------------------------------------------------------------------
+       Se conservan a propósito las clases `.loading-text`, `.loading-bar-fill`
+       y `.loading-bar-container`: son las que LoadingSystem.js busca con
+       querySelector para escribir el mensaje y mover el progreso. Todo lo demás
+       es nuevo y OPCIONAL — si algún día falta un elemento, LoadingSystem
+       sigue funcionando igual y la carga no se rompe.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div id="loading-overlay" style="display: none;">
+
+    <!-- Cielo nocturno: estrellas de píxel que parpadean a saltos. -->
+    <div class="gfl-cielo" aria-hidden="true">
+      <i style="--x:8%;  --y:14%; --t:0s"></i>   <i style="--x:19%; --y:31%; --t:1.4s"></i>
+      <i style="--x:27%; --y:9%;  --t:2.6s"></i> <i style="--x:36%; --y:23%; --t:0.7s"></i>
+      <i style="--x:44%; --y:6%;  --t:3.1s"></i> <i style="--x:57%; --y:18%; --t:1.9s"></i>
+      <i style="--x:63%; --y:33%; --t:0.3s"></i> <i style="--x:71%; --y:11%; --t:2.2s"></i>
+      <i style="--x:79%; --y:26%; --t:1.1s"></i> <i style="--x:88%; --y:16%; --t:3.4s"></i>
+      <i style="--x:93%; --y:37%; --t:0.9s"></i> <i style="--x:13%; --y:44%; --t:2.9s"></i>
+      <i style="--x:49%; --y:40%; --t:1.6s"></i> <i style="--x:84%; --y:46%; --t:0.5s"></i>
+      <span class="gfl-luna"></span>
+    </div>
+
+    <!-- ESCENA: una semilla que crece según avanza la carga.
+         La planta es el indicador de progreso de verdad: a 0 % hay una semilla
+         en la tierra y a 100 % está florecida. -->
+    <div class="gfl-escena" aria-hidden="true">
+
+      <span class="gfl-luciernaga" style="--d:0s;   --x:-64px"></span>
+      <span class="gfl-luciernaga" style="--d:2.3s; --x:52px"></span>
+      <span class="gfl-luciernaga" style="--d:4.1s; --x:-26px"></span>
+      <span class="gfl-luciernaga" style="--d:6.0s; --x:78px"></span>
+
+      <!-- `data-umbral` = a partir de qué punto de la carga (0..1) brota cada
+           parte. Los umbrales viven AQUÍ y en ningún sitio más: LoadingSystem
+           los lee de estos atributos, así que para retocar el crecimiento no
+           hay que tocar ni el CSS ni el JavaScript. -->
+      <div class="gfl-planta">
+        <i class="gfl-tallo"></i>
+        <i class="gfl-hoja gfl-hoja-a" data-umbral="0.20"></i>
+        <i class="gfl-hoja gfl-hoja-b" data-umbral="0.36"></i>
+        <i class="gfl-hoja gfl-hoja-c" data-umbral="0.54"></i>
+        <i class="gfl-hoja gfl-hoja-d" data-umbral="0.70"></i>
+        <i class="gfl-flor"           data-umbral="0.86"></i>
+        <i class="gfl-brillo"         data-umbral="0.97"></i>
+      </div>
+
+      <div class="gfl-suelo">
+        <i class="gfl-hierba gfl-hierba-1"></i>
+        <i class="gfl-hierba gfl-hierba-2"></i>
+        <i class="gfl-hierba gfl-hierba-3"></i>
+        <i class="gfl-hierba gfl-hierba-4"></i>
+      </div>
+    </div>
+
+    <!-- Panel inferior -->
+    <div class="gfl-panel" role="status" aria-live="polite">
+      <h1 class="gfl-titulo">Grassland<span>Forest</span></h1>
+
+      <p class="loading-text">Cargando...</p>
+
+      <div class="gfl-barra-fila">
+        <div class="loading-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="loading-bar-fill">
+            <i class="gfl-barra-brillo"></i>
+            <i class="gfl-barra-punta"></i>
+          </div>
+          <i class="gfl-barra-chispa gfl-chispa-1"></i>
+          <i class="gfl-barra-chispa gfl-chispa-2"></i>
+          <i class="gfl-barra-chispa gfl-chispa-3"></i>
+        </div>
+        <span class="gfl-pct"><b id="gf-load-pct">0</b>%</span>
+      </div>
+
+      <p class="gf-load-tip" id="gf-load-tip"></p>
+    </div>
+    <!-- Botón de cancelar opcional -->
+    <!-- <button id="loading-cancel-btn" style="display: none; margin-top:14px; padding:8px 12px; border-radius:6px; background:#333; color:#fff; border:none">Cancelar</button> -->
+  </div>
+
+  <!-- DASHBOARD rediseñado: perfil del jugador + mascota. Los nombres de
+       personaje y mascota nacen como "---" y solo pueden fijarse UNA vez
+       (regla aplicada también en el backend). Los ids originales
+       (character-name, apply-name, close-panel, logout-btn, language-select)
+       se conservan para no romper el código de las escenas. -->
+  <aside id="hub-panel_101" role="dialog" aria-hidden="true" aria-label="Player dashboard">
+    <div class="header_101 dash-header_101">
+      <div class="dash-avatar_101" aria-hidden="true"><img src="./Game/Source/config.png" alt="" data-hide-on-error></div>
+      <div class="dash-header-text_101">
+        <div class="title_101">DASHBOARD</div>
+        <div class="muted dash-subtitle_101">Profile, pet and preferences</div>
+      </div>
+      <button id="close-panel" class="dash-close_101" aria-label="Close panel">✕</button>
+    </div>
+
+        <!-- CATEGORÍAS DEL DASHBOARD  (2026-08-05)
+         Antes todo iba en una sola columna y no cabía nada más. Ahora hay dos
+         pestañas: lo de siempre en "General" y la cartera aparte, que necesita
+         mucho más espacio (saldo, envíos, actividad, ajustes de seguridad). -->
+    <div class="hub-cats_101" role="tablist">
+      <button type="button" class="hub-cat_101 active" data-cat="general" role="tab">⚙️ General</button>
+      <button type="button" class="hub-cat_101" data-cat="wallet" role="tab">👛 Wallet</button>
+      <button type="button" class="hub-cat_101" data-cat="canales" role="tab">📡 Channels</button>
+      <button type="button" class="hub-cat_101" data-cat="invites" role="tab">🎟️ Invites</button>
+    </div>
+
+    <!-- CANALES: 10 copias del mundo, 50 jugadores cada una. El canal lo asigna
+         el servidor al conectar (ver gf-canales.js); aquí solo se enseña y se
+         permite cambiarlo. -->
+    <!-- INVITACIONES (2026-10-11): enlace, código, wallets, totales y Discord.
+         La rellena gf-invitaciones.js al abrir la pestaña. -->
+    <div id="gfw-cat-invites" style="display:none">
+      <div id="gfi-cuerpo"></div>
+    </div>
+
+    <div id="gfw-cat-canales" style="display:none">
+      <div class="hub-row_101 dash-card_101">
+        <div class="gfc-cabecera">
+          <div>
+            <div class="hub-label_101" style="margin:0">You are in</div>
+            <div id="gfc-actual" class="gfc-actual">Connecting…</div>
+          </div>
+          <button type="button" id="gfc-refrescar" class="btn-primary dash-apply_101">Refresh</button>
+        </div>
+        <div class="dash-hint_101">
+          Players only see each other, share chat and appear in the same ranking
+          when they are on the same channel.
+        </div>
+        <div id="gfc-msg" class="gfc-msg" style="display:none"></div>
+        <div id="gfc-lista" class="gfc-lista"></div>
+      </div>
+    </div>
+
+    <div id="gfw-cat-general">
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="character-name">👤 Character name</label>
+      <div class="dash-input-row_101">
+        <input id="character-name" type="text" placeholder="Type your name..." autocomplete="off" />
+        <button id="apply-name" class="btn-primary dash-apply_101">Apply</button>
+      </div>
+      <div id="character-name-hint" class="dash-hint_101">⚠️ You can only choose it ONCE — think carefully.</div>
+    </div>
+
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="pet-name">🐶 Pet name</label>
+      <div class="dash-input-row_101">
+        <input id="pet-name" type="text" placeholder="Name your pet..." autocomplete="off" />
+        <button id="apply-pet-name" class="btn-primary dash-apply_101">Apply</button>
+      </div>
+      <div id="pet-name-hint" class="dash-hint_101">⚠️ You can only choose it ONCE — think carefully.</div>
+    </div>
+
+    <!-- COLOR DEL NOMBRE. Encima de Language a propósito: es una preferencia
+         de aspecto, y las de aspecto van antes que las de idioma en esta
+         columna. Los botones de la paleta los crea gf-nombre-color.js; aquí
+         solo está el hueco, para no meter doce botones a mano en el HTML. -->
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101">🎨 Name colour</label>
+      <div class="gfnc-fila">
+        <span class="gfnc-muestra" id="gfnc-muestra">Your name</span>
+        <input type="color" id="gfnc-libre" value="#ffffff"
+               aria-label="Pick a custom name colour" title="Custom colour" />
+        <button id="gfnc-reset" type="button" class="btn-ghost gfnc-reset">Default</button>
+      </div>
+      <div class="gfnc-paleta" id="gfnc-paleta"></div>
+      <div class="dash-hint_101">Everyone sees this colour on your name — above your
+        character and in the chat.</div>
+    </div>
+
+    <!-- Y el de la MASCOTA, justo debajo. Misma máquina: gf-nombre-color.js
+         monta las dos tarjetas desde la misma tabla, solo cambia el prefijo de
+         los ids (gfnc = personaje, gfnp = mascota). -->
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101">🐶 Pet name colour</label>
+      <div class="gfnc-fila">
+        <span class="gfnc-muestra" id="gfnp-muestra">Your pet</span>
+        <input type="color" id="gfnp-libre" value="#ffffff"
+               aria-label="Pick a custom pet name colour" title="Custom colour" />
+        <button id="gfnp-reset" type="button" class="btn-ghost gfnc-reset">Default</button>
+      </div>
+      <div class="gfnc-paleta" id="gfnp-paleta"></div>
+      <div class="dash-hint_101">The colour of your pet's name, above its head.</div>
+    </div>
+
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="language-select">🌐 Language</label>
+      <select id="language-select" aria-label="Select language">
+        <option value="en-US">English (United States)</option>
+        <option value="en-PH">English (Philippine / Tagalog)</option>
+        <option value="es-419">Español (Latinoamérica)</option>
+        <option value="pt-BR">Português (Brasil)</option>
+        <option value="zh-CN">Chinese (简体中文)</option>
+        <option value="ko-KR">Korean (한국어 Hangul)</option>
+      </select>
+    </div>
+
+    <div class="hub-row_101 dash-card_101">
+      <div class="hub-label_101">🔐 Account</div>
+      <div class="dash-account-row_101">
+        <button id="logout-btn" class="btn-ghost">Sign out</button>
+        <button id="switch-account-btn" class="btn-ghost">Switch account</button>
+        <div class="muted"><span class="dash-session-dot_101"></span> Session active</div>
+      </div>
+    </div>
+
+    <div class="hub-footer_101">
+      <div class="muted">Grassland Forest</div>
+      <div class="muted">Version 1.0</div>
+    </div>
+      </div><!-- /gfw-cat-general -->
+
+    <!-- ── CATEGORÍA: WALLET ──────────────────────────────────────────────
+         La rellena gf-wallet-boot.js. Se deja vacía a propósito para que el
+         dashboard siga funcionando aunque el SDK no llegue a cargar. -->
+    <div id="gfw-cat-wallet" style="display:none;">
+      <div id="gfw-wallet-body">
+        <div class="hub-row_101"><div class="muted">Loading wallet…</div></div>
+      </div>
+    </div>
+
+</aside>
+
+
+
+
+</body>
+</html>

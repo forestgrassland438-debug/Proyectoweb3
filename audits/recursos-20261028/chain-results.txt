@@ -1,0 +1,23 @@
+This version of µWS is not compatible with your Node.js build:
+
+Error: Cannot find module '../binaries/uws_win32_x64_137.node'
+Require stack:
+- C:\Users\pc\.codex\tmp\grassland-resource-tests-20261028\node_modules\ganache\node_modules\@trufflesuite\uws-js-unofficial\src\uws.js
+- C:\Users\pc\.codex\tmp\grassland-resource-tests-20261028\node_modules\ganache\dist\node\core.js
+- C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\resource-chain-integration.cjs
+Falling back to a NodeJS implementation; performance may be degraded.
+
+
+Starting isolated MongoDB 7.0.14 replica set…
+PASS 100 concurrent Mongo claims award one node, including after expiry
+PASS the unmodified rr.txt.txt contract rejects minting above its global cap
+PASS an unfunded listing cannot charge a buyer
+PASS escrow transfers preserve a full table and do not record a burn
+PASS a delivery requires its actual buyer and ignores forged client quantities
+PASS lost-response retries cannot debit or transfer twice
+PASS repeated equal-size purchases and the remaining refund preserve all ten resource units
+PASS buyer, seller and both treasury balances conserve total monetary value
+PASS the contract owner can bypass caps through open migration; this requires an explicit operational warning
+Closed isolated Mongo client.
+Stopped isolated Mongo server.
+Stopped local EVM.

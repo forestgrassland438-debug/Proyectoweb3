@@ -1,0 +1,127 @@
+[
+  {
+    "file": "control-center.html",
+    "before_sha256": "73e24a7e95f802cd94e889851dc797d60455bca62aabfa97a655f8a39ef6cc8e",
+    "after_sha256": "250d0de27d8e849b0ebda895604dc6619797051ecee0c97cf3f02ae2e77301b9"
+  },
+  {
+    "file": "control-center.js",
+    "before_sha256": "fecf6c6ff481fcc7d723d9fe14e9b1611be95e9c04e0058c00a54c33b34c9dd5",
+    "after_sha256": "3fc1e78260020f659c331018fe553651106bc730081704b2ebea46da1d254795"
+  },
+  {
+    "file": "CraftingHub.js",
+    "before_sha256": "a13d6a66e4f389f329aa3317e429fb8aecf0323060755b21a672e8e8da1ede6a",
+    "after_sha256": "a9be9c73a042ef5b4eb70dec0a3f1b3f2104ae8b9baccd2d764de45c9b2fe82f"
+  },
+  {
+    "file": "economia.html",
+    "before_sha256": "f4a482a1aa8bff2d53bb7221920c9d98bb6746589f5c81cccd58b6465e6e6ce5",
+    "after_sha256": "9eb480dd5b768a1d38cbff50b97131274bfaf281fa2959a738d88c40675a0965"
+  },
+  {
+    "file": "economia.js",
+    "before_sha256": "2d9943f034efe1af50e21ab9b24aaf286c414d351c31757190fce1226a26667b",
+    "after_sha256": "bcad7671b1d0e63ef4d032660d3cdf9468e9814180cd9edac1590b1b9f30fe51"
+  },
+  {
+    "file": "economia2.js",
+    "before_sha256": "8a80236c2451016c06cf3ecc8c049cd56df52ad66c7a61b704e23dba368e0be3",
+    "after_sha256": "0d5ff06d715f8df3af136498601c65d8aa897f5bb3fdb10cd104fc235cdea45b"
+  },
+  {
+    "file": "gf-economia.js",
+    "before_sha256": "6229e3954f8aa4c8c6271ef608119a23040eff4a9f68b70b8adc7c9311fd5b90",
+    "after_sha256": "66ade9054170f0f908bfb32772c4b3130547de8ff0b72c3d9713aa4191c1ec90"
+  },
+  {
+    "file": "gf-graficos.js",
+    "before_sha256": "5233e592e1b79db7431cf7d3e260ca30091580233a95d38e3bf0698029b4382c",
+    "after_sha256": "542879aed93b2883830b0c24ccb9470e5a3a8b8d21339cf2e6d98cd90559d804"
+  },
+  {
+    "file": "gf-mascota.js",
+    "before_sha256": "4d5ba49a7a839e821a53099af3b513ba760463cb291c14bc26c0fa179df29a89",
+    "after_sha256": "3c64a47a028afa98786299e7696c83f65bbea7d8948570771482d7726482006f"
+  },
+  {
+    "file": "gf-precio-panel.js",
+    "before_sha256": "768f244d2efcd50a4d7bfc3917ab954b1657bfcd0eb18b1ae1ce713aa91aca89",
+    "after_sha256": "e2410b6218cdb018fd98612833f4a8923766b81f7709ea97551864621c88d2c0"
+  },
+  {
+    "file": "gf-salvaje.js",
+    "before_sha256": "fac44b366439dc41f6bc556a1f28bcb2b3b9587bdbb16224e696d4a2c9716621",
+    "after_sha256": "76688f22247267681403675cbf9dba997df637e78eeae905804e87c9b1c02153"
+  },
+  {
+    "file": "gf-servicios.js",
+    "before_sha256": "114206c91bfd5800725b22136bc0880c2b3a3a06bd73602cb89e72ea2defd794",
+    "after_sha256": "e4c0ddfd449115635c3acd8b908e3cf49a5f2b2437278fc868aced3a00b83eee"
+  },
+  {
+    "file": "index.html",
+    "before_sha256": "decf74a9998a351ea4f19bc106f196e32ed1be149a860696b7a530fc7197cea7",
+    "after_sha256": "0b8896ce8f1ec50eadf66b15ae255b89a63612fc158b4c02279dc473d13eee5e"
+  },
+  {
+    "file": "market.html",
+    "before_sha256": "f2c464e28d3f6471a7fb7f5c9d9aa64a116ac6196dc850b4d96e5a7fb12c87e4",
+    "after_sha256": "13c00eeddb9dfc60a0cad58cca094fdf57d71b68ecc04adb3bcd386a15951dff"
+  },
+  {
+    "file": "precios.html",
+    "before_sha256": "1347d6d68b2ab6e635f6785c4b4e2b2cc5d97fdca15ad82c6d613a2d77821bc4",
+    "after_sha256": "c26e161c745455d8f04763ab57fd9e463d93866e1a64a8fa8007ac9407fd2ecb"
+  },
+  {
+    "file": "Scenes\\GameScene.js",
+    "before_sha256": "baab8f92879a85db74005403e61a61115cb3a87f067c097c8a8d4400ad40e297",
+    "after_sha256": "14747efc175db472c1c9ffab2e91d16eba4122fc5344f09b7370e7cbd8ce76be"
+  },
+  {
+    "file": "styless.css",
+    "before_sha256": "593cc1b7ffeaa5e05ee7e8f1cc97f59c561236e85213017b48626cd283cccada",
+    "after_sha256": "00c2182d82bf4702d0c518e782ca2908894c44bc1ded48ad68db9378c749b683"
+  },
+  {
+    "file": "tienda_sistema.js",
+    "before_sha256": "e190a70112297e80562f9663de1f3662840688e9f0e53d92deec18eb4e4214d0",
+    "after_sha256": "7773a2a51f03d40639e7f8d5cf2859be9e22a2566d9b6902f1fcedf3e5e9c35f"
+  },
+  {
+    "file": "tools\\economia.test.cjs",
+    "before_sha256": "69d0132f52988cc264096458c9516555bd702143f7cfe848bed4a1d27b88f11d",
+    "after_sha256": "2ff7624ddc598f8ce70349a7e199517319cb26d543a0138866e7bda7543a8318"
+  },
+  {
+    "file": "tools\\economia2.test.cjs",
+    "before_sha256": "fe96046e4b1a6e5e8806fd9284ffa54d071f62559716025c090bf1f2b4c8c66a",
+    "after_sha256": "8c0067d97d7b7be4d4975765be3c24afcb1ab13b4041b4a336cf63caeef8f30c"
+  },
+  {
+    "file": "GUIA-ECONOMIA.md",
+    "before_sha256": null,
+    "after_sha256": "a4c4b860fb49f4ecad9aa9097842d5a2c4eb6220c870aa39da762c561cc568e7"
+  },
+  {
+    "file": "GUIA-ECONOMIA.html",
+    "before_sha256": null,
+    "after_sha256": "f965cc3d3a5d6ad238e9aef05e1bf83ea5bdebd0851ccc8e0521836ea8ee8450"
+  },
+  {
+    "file": "economia-supervisor.js",
+    "before_sha256": null,
+    "after_sha256": "0ba88b2c8129ba7b4d5c8bec272048bebfea1b705b75571118ba6cd47956b79a"
+  },
+  {
+    "file": "market-experience.css",
+    "before_sha256": null,
+    "after_sha256": "a113dbdf2ae6a6334627d59cb8d9cb7c4e983d7737116448f344f4e826dec6f8"
+  },
+  {
+    "file": "C:\\Users\\pc\\Desktop\\server2.js",
+    "before_sha256": "0f3152f62041700e5fd4cc7c736491b78fdced8f894deb62db85b9546b056ae0",
+    "after_sha256": "4e2ecfc11c794f8b9f181c46202ee6a6639dd9676a6463184b0e4f378b96b3fe"
+  }
+]

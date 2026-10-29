@@ -1,0 +1,35 @@
+/* Complements the existing blue palette and preserves the hand-built market. */
+html { scroll-padding-top: 150px; }
+body { background-attachment: fixed; }
+button, input, select, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #76d6b0; outline-offset: 3px; }
+button:disabled { cursor: wait; }
+.market-intro { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; padding: 28px; margin: 8px 0 24px; border: 1px solid var(--line-strong); border-radius: 20px; background: linear-gradient(115deg, #153c46e8, #142c49f0); box-shadow: 0 12px 32px #0003; position: relative; overflow: hidden; }
+.market-intro::after { content: '✦'; position: absolute; right: 220px; top: -55px; font-size: 240px; color: #76d6b009; pointer-events: none; }
+.market-intro small { display: block; text-transform: uppercase; letter-spacing: .17em; color: #8bdfbc; font-size: 11px; font-weight: 800; }
+.market-intro h1 { margin: 10px 0; font-size: clamp(23px, 3vw, 35px); letter-spacing: -.035em; line-height: 1.2; }
+.market-intro p { margin: 0; max-width: 610px; color: var(--text-muted); font-size: 14px; line-height: 1.65; }
+.market-intro-meta { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; z-index: 1; }
+.market-intro-meta span { border: 1px solid #76d6b033; color: #a5e1c8; padding: 7px 12px; border-radius: 30px; font-size: 12px; }
+.market-intro-meta button { background: #c1eadb; color: #10392c; border: 0; border-radius: 10px; min-height: 44px; padding: 10px 16px; font-weight: 800; cursor: pointer; }
+.grid { gap: 20px; align-items: stretch; }
+.ticket { min-width: 0; display: flex; flex-direction: column; border-radius: 16px; transition: transform .18s ease, box-shadow .18s ease; }
+.ticket:hover { transform: translateY(-3px); box-shadow: 0 14px 28px #0005; }
+.ticket h3 { overflow-wrap: anywhere; line-height: 1.5; min-height: 2.8em; }
+.ticket .seller-line { overflow-wrap: anywhere; }
+.ticket .price-row { margin-top: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ticket .price { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-width: 0; }
+.ticket .buy-group { display: flex; gap: 8px; flex-shrink: 0; margin-left: auto; }
+.ticket .buy-btn, .ticket .stats-btn { min-height: 44px; min-width: 44px; }
+.ticket .offer-link-btn { min-height: 40px; }
+.toolbar { gap: 12px; flex-wrap: wrap; }
+.search-box { min-width: min(100%, 220px); }
+.wallet-strip { flex-wrap: wrap; }
+.modal-backdrop { overflow-y: auto; overscroll-behavior: contain; }
+.modal-backdrop > div { max-height: min(90dvh, 850px); overflow-y: auto; overscroll-behavior: contain; }
+.modal-backdrop input, .modal-backdrop button { min-height: 44px; }
+.market-network { font-size: 12px; color: #a5e1c8; min-height: 1.4em; margin: -10px 0 18px; }
+.market-network[data-error="true"] { color: #ffb8a8; }
+@media(max-width:650px) { .market-intro { grid-template-columns: 1fr; padding: 22px 18px; gap: 18px; } .market-intro-meta { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: space-between; } .grid { gap: 12px; } .topbar-inner { gap: 14px; } }
+@media(max-width:390px) { .grid { grid-template-columns: 1fr; } .wallet-strip .chip { font-size: 12px; } }
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

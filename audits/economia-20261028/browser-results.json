@@ -1,0 +1,42 @@
+{
+  "panelCycles": 120,
+  "errors": [],
+  "samples": [
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "result": {
+        "resizeObservers": 1,
+        "mutationObservers": 1,
+        "overflow": false,
+        "graphs": 1
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": {
+        "resizeObservers": 1,
+        "mutationObservers": 1,
+        "overflow": false,
+        "graphs": 1
+      }
+    },
+    {
+      "viewport": {
+        "width": 320,
+        "height": 640
+      },
+      "result": {
+        "resizeObservers": 1,
+        "mutationObservers": 1,
+        "overflow": false,
+        "graphs": 1
+      }
+    }
+  ]
+}

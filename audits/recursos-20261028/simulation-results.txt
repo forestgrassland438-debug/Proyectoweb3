@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "benchmark": {
+    "requests": 1000000,
+    "batch": 1000,
+    "elapsedMs": 1084,
+    "reads": 8,
+    "peakRPC": 3,
+    "peakHeapBytes": 13397168,
+    "cache": {
+      "entries": 8,
+      "active": 0,
+      "queued": 0
+    }
+  },
+  "finals": [
+    {
+      "name": "1.000 jugadores · consumo 1.000 u/día",
+      "final": 100000
+    },
+    {
+      "name": "1.000.000 jugadores · consumo 5.000 u/día",
+      "final": 70468
+    },
+    {
+      "name": "1.000.000 jugadores · sin consumo",
+      "final": 100000
+    },
+    {
+      "name": "1.000.000 · consumo desde día 181",
+      "final": 70606
+    }
+  ]
+}

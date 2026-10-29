@@ -1,0 +1,1542 @@
+--- before/control-center.html
++++ after/control-center.html
+@@ -13,7 +13,7 @@
+   <script src="./admin-session.js?v=20261020"></script>
+   <script src="./admin-suite-i18n.js?v=20261028"></script>
+   <script defer src="./admin-suite.js?v=20261025"></script>
+-  <script defer src="./control-center.js?v=20261028"></script>
++  <script defer src="./control-center.js?v=20261028.3fc1e7826002"></script>
+ </head>
+ <body data-admin-hub>
+   <div class="cc-login" id="cc-gate">
+@@ -47,6 +47,7 @@
+         <section class="cc-metrics" id="cc-metrics" aria-label="Activity snapshot"></section>
+         <div class="cc-overview-grid"><section class="cc-chart-panel"><div class="cc-section-title"><div><span class="cc-eyebrow">Live backend data</span><h2>Account activity</h2></div><span class="cc-small">Activity snapshot</span></div><div id="cc-chart" class="cc-account-chart"></div><p class="cc-chart-note">Counts can overlap; these are snapshots, not a time series.</p></section><section class="cc-mission-focus"><span class="cc-eyebrow">Mission studio</span><span class="cc-focus-symbol" aria-hidden="true">✳</span><h2>Design, preview and manage daily adventures.</h2><div id="cc-mission-state" class="cc-mission-state"></div><button class="cc-button cc-primary" type="button" data-open-tool="misiones"><span>Open missions</span><span aria-hidden="true">↗</span></button></section></div>
+         <section class="cc-chart-panel" id="cc-rpc" aria-labelledby="cc-rpc-title" style="margin-bottom:34px"><div class="cc-section-title"><div><span class="cc-eyebrow">Blockchain · RPC</span><h2 id="cc-rpc-title">Chain reading</h2></div><span class="cc-small" id="cc-rpc-state">—</span></div><p class="cc-small" id="cc-rpc-note">The historical chain scan reads the chain block by block with the same RPC quota as the game. If the game shows “Bandwidth limit exceeded”, pause it.</p><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="cc-button" id="cc-rpc-pause" type="button"><span aria-hidden="true">⏸</span> Pause chain reading</button><button class="cc-button" id="cc-rpc-resume" type="button"><span aria-hidden="true">▶</span> Resume chain reading</button></div></section>
++        <section class="cc-chart-panel" style="margin-bottom:28px" aria-label="Economy operations"><div class="cc-section-title"><div><span class="cc-eyebrow">Economy operations</span><h2>Two treasuries. Protected working capital.</h2></div></div><p class="cc-small">Review automatic treasury policy, reward funding, top-ups and payments awaiting chain reconciliation.</p><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:16px"><button class="cc-button" type="button" data-open-tool="economia">Open economy supervisor ↗</button><a class="cc-button" href="./GUIA-ECONOMIA.html" target="_blank" rel="noopener">Economy operations guide ↗</a></div></section>
+         <section aria-labelledby="cc-tools-title"><div class="cc-section-title cc-tools-heading"><div><span class="cc-eyebrow">Your workspace</span><h2 id="cc-tools-title">All tools</h2></div><span class="cc-small">All twelve tools are available below.</span></div><div class="cc-tools-grid" id="cc-tools"></div></section>
+         <footer class="cc-footer"><span>GRASSLAND FOREST / CONTROL CENTER</span><span id="cc-updated">No data loaded</span></footer>
+       </main>
+--- before/control-center.js
++++ after/control-center.js
+@@ -26,7 +26,7 @@
+     { id:'climas', file:'climas.html', name:'World & weather', icon:'weather', group:'Game control', text:'Control weather, seasons and the world clock.' },
+     { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives', icon:'treasury', group:'Game control', text:'The circular-economy treasury (1.5% of every market fee and the exchange fees) and the coin drops for free and VIP players.' },
+     // (2026-10-26) Los dos tesoros, el precio del oro, la inflación y las compras con zkLTC.
+-    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Three treasuries, burns, the price index, inflation, death and crafting prices, the three coins and Gold purchases with zkLTC.' },
++    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups.' },
+     // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
+     { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
+     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
+--- before/CraftingHub.js
++++ after/CraftingHub.js
+@@ -773,10 +773,15 @@
+        lo que sale, con el índice de precios; ver gf-servicios.js). Si al final
+        no se entrega nada, vuelve (ver el finally de abajo). */
+     let cobroCrafteo=null, entregadoCrafteo=false;
++    if(!window.GFServicios){
++      this.showFeedback('The payment service is unavailable. Reopen the game before crafting.','error');return false;
++    }
+     if(window.GFServicios){
+       cobroCrafteo=await window.GFServicios.cobrar('craftear',recipe.resultItem,resultQty);
+       if(cobroCrafteo&&!cobroCrafteo.ok){this.showFeedback('❌ '+cobroCrafteo.message,'error');return;}
+     }
++    if(!cobroCrafteo||!cobroCrafteo.ok) return false;
++    if(this._destroyed||!this.scene){await window.GFServicios.devolver(cobroCrafteo.ref);return false;}
+     this._crafting=true;
+     // Aviso (en inglés) de que el crafteo empezó: la parte on-chain (consumir
+     // materiales / agregar el resultado) es asíncrona y puede tardar, así que
+@@ -932,7 +937,10 @@
+     } finally {
+       // (2026-10-28) No se entregó nada: lo cobrado por craftear vuelve (una vez; el servidor lo comprueba).
+       if(!entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&cobroCrafteo.bronce>0&&window.GFServicios){
+-        window.GFServicios.devolver(cobroCrafteo.ref);
++        await window.GFServicios.devolver(cobroCrafteo.ref);
++      }
++      if(entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&window.GFServicios?.confirmar){
++        await window.GFServicios.confirmar(cobroCrafteo.ref);
+       }
+       this._crafting=false;
+       // El estado del botón depende de si QUEDA cola, no de este crafteo.
+--- before/economia.html
++++ after/economia.html
+@@ -16,9 +16,10 @@
+   <script src="./admin-suite-i18n.js?v=20261028"></script>
+   <script defer src="./admin-suite.js?v=20261025"></script>
+   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC) y la 2.ª parte de la economía. -->
+-  <script defer src="./gf-graficos.js?v=20261028"></script>
+-  <script defer src="./economia.js?v=20261028"></script>
+-  <script defer src="./economia2.js?v=20261028"></script>
++  <script defer src="./gf-graficos.js?v=20261028.542879aed93b"></script>
++  <script defer src="./economia.js?v=20261028.bcad7671b1d0"></script>
++  <script defer src="./economia2.js?v=20261028.0d5ff06d715f"></script>
++  <script defer src="./economia-supervisor.js?v=20261028.0ba88b2c8129"></script>
+ </head>
+ <body>
+ <div class="tz-wrap">
+@@ -48,6 +49,24 @@
+     <div id="ec-notice" class="tz-notice" role="status" aria-live="polite" hidden></div>
+ 
+     <div id="ec-body">
++      <section class="tz-card" style="margin:14px 0" aria-labelledby="e3-title">
++        <div class="ec-titulo"><div><span class="tz-eyebrow">Automatic treasury policy</span><h2 id="e3-title">Economy supervisor</h2></div>
++          <button id="e3-refresh" type="button" class="tz-btn">Refresh supervisor</button></div>
++        <p class="tz-card-sub">Two active treasuries. The game treasury also holds the protected reserve. Pending service refunds and reserved monster drops cannot be burned.</p>
++        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0"><label><input id="e3-active" type="checkbox"> Supervisor automático</label><label><input id="e3-burn" type="checkbox"> Quema automática limitada</label><button id="e3-save" type="button" class="tz-btn">Guardar automatismo</button></div>
++        <div id="e3-state" class="ec-kpis" role="status"></div>
++        <p id="e3-policy" class="tz-card-sub"></p>
++        <form id="e3-transfer" class="tz-form"><h3>Fund monster rewards from game surplus</h3>
++          <div class="tz-fields"><label class="tz-field">Bronze<input class="tz-input" name="bronce" type="number" min="1" step="1" required></label>
++          <label class="tz-field">Reason<input class="tz-input" name="motivo" minlength="5" maxlength="200" required></label></div>
++          <button class="tz-btn" type="submit">Transfer to circular treasury</button></form>
++        <p id="e3-message" role="status"></p>
++        <h3>Service payments awaiting confirmation or review</h3>
++        <p class="tz-card-sub">Verify the item delivery and chain history before approving a refund. A browser failure report alone is insufficient.</p>
++        <div id="e3-reviews" class="tz-table-wrap"></div>
++        <p><a href="./GUIA-ECONOMIA.html" target="_blank" rel="noopener">Read the economy operations guide ↗</a></p>
++      </section>
++
+       <div class="ec-heroes">
+         <section class="tz-card" aria-labelledby="ec-circ-title">
+           <span class="tz-eyebrow">Player rewards</span>
+@@ -61,13 +80,6 @@
+           <h2 id="ec-juego-title">Game treasury</h2>
+           <div class="ec-big"><span id="ec-juego-saldo" data-no-translate>—</span> <small>bronze</small></div>
+           <div id="ec-juego-filas" class="ec-filas"></div>
+-        </section>
+-        <!-- (2026-10-28) El fondo de reserva: lo que se paga al morir (no va a la economía circular). -->
+-        <section class="tz-card" aria-labelledby="e2-res-title">
+-          <span class="tz-eyebrow">Out of circulation</span>
+-          <h2 id="e2-res-title">Reserve fund</h2>
+-          <div class="ec-big"><span id="e2-res-saldo" data-no-translate>—</span> <small>bronze</small></div>
+-          <div id="e2-res-filas" class="ec-filas"></div>
+         </section>
+       </div>
+       <div id="e2-aviso" class="tz-notice" role="status" aria-live="polite" hidden></div>
+@@ -99,7 +111,7 @@
+           <form id="e2-quemar" class="tz-form" novalidate>
+             <div class="tz-fields">
+               <label class="tz-field"><span>Treasury</span><select id="e2-q-tesoro" class="tz-input">
+-                <option value="circular">Circular-economy treasury</option><option value="juego">Game treasury</option><option value="reserva">Reserve fund</option></select></label>
++                <option value="circular">Circular-economy treasury</option><option value="juego">Game treasury</option></select></label>
+               <label class="tz-field"><span>Coin</span><select id="e2-q-moneda" class="tz-input">
+                 <option value="bronce">Bronze</option><option value="plata">Silver</option><option value="oro">Gold</option></select></label>
+               <label class="tz-field"><span>Amount</span><input id="e2-q-cantidad" class="tz-input" type="number" min="1" step="1" inputmode="numeric" autocomplete="off"></label>
+@@ -118,7 +130,7 @@
+ 
+       <section class="tz-card" aria-labelledby="e2-sup-title" style="margin-bottom:14px">
+         <div class="ec-titulo"><div><h2 id="e2-sup-title">Supply, burns and the price index</h2>
+-          <p class="tz-card-sub">Active money = players + circular treasury. Total supply = every coin, treasuries included. Net inflation subtracts the value of destroyed items (trash, expired drops): they can no longer be sold to the shop for new coins. Shop, death, smelting and crafting prices follow the price index.</p></div></div>
++          <p class="tz-card-sub">Active money = players + circular treasury, including reserved drops. Total supply also includes the game treasury. Monetary inflation measures active-money growth; destroyed items are shown separately and do not remove coins. Shop, death, smelting and crafting prices follow the daily index.</p></div></div>
+         <div id="e2-kpis" class="ec-kpis"></div>
+         <div class="ec-graficos">
+           <div><h3>Price index (1 = default prices)</h3><div id="e2-g-indice" class="tz-chart"></div></div>
+@@ -137,9 +149,9 @@
+               <label class="tz-field"><span>Sensitivity to net inflation (×)</span><input id="e2-c-sens" class="tz-input" type="number" min="0" max="5" step="0.05" inputmode="decimal"></label>
+               <label class="tz-field"><span>Maximum index change per day (%)</span><input id="e2-c-paso" class="tz-input" type="number" min="0.1" max="25" step="0.1" inputmode="decimal"></label>
+               <label class="tz-field"><span>Item demand effect, ± (%)</span><input id="e2-c-demanda" class="tz-input" type="number" min="0" max="50" step="1" inputmode="decimal"></label>
+-              <label class="tz-field"><span>Weight of destroyed items (%)</span><input id="e2-c-peso" class="tz-input" type="number" min="0" max="100" step="5" inputmode="decimal"></label>
+-            </div>
+-            <h3 class="e2-sub">Death (paid to the reserve fund)</h3>
++              <label class="tz-field"><span>Effect of item destruction on monetary inflation (disabled)</span><input id="e2-c-peso" class="tz-input" type="number" disabled title="Item destruction does not destroy coins" min="0" max="100" step="5" inputmode="decimal"></label>
++            </div>
++            <h3 class="e2-sub">Death (paid to the game treasury)</h3>
+             <div class="tz-fields">
+               <label class="tz-field"><span>First revive (silver, default price)</span><input id="e2-c-mbase" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
+               <label class="tz-field"><span>Each death in 24 h multiplies by</span><input id="e2-c-mmult" class="tz-input" type="number" min="1" max="5" step="0.1" inputmode="decimal"></label>
+@@ -163,19 +175,11 @@
+           </form>
+         </section>
+ 
+-        <section class="tz-card" aria-labelledby="e2-r-title">
+-          <h2 id="e2-r-title">Reserve fund: deposit or withdraw</h2>
+-          <form id="e2-res-ajuste" class="tz-form" novalidate>
+-            <label class="tz-field"><span>Operation</span><select id="e2-r-tipo" class="tz-input"><option value="ingreso">Deposit into the reserve fund</option><option value="retiro">Withdraw from the reserve fund</option></select></label>
+-            <label class="tz-field"><span>Amount (bronze)</span><input id="e2-r-cantidad" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
+-            <label class="tz-field"><span>Reason</span><input id="e2-r-motivo" class="tz-input" maxlength="120"></label>
+-            <div class="tz-actions"><button class="tz-btn tz-primary" type="submit">Apply</button><span id="e2-r-estado" class="tz-status" role="status" aria-live="polite"></span></div>
+-          </form>
+-        </section>
++
+ 
+         <section class="tz-card tz-span" aria-labelledby="e2-qh-title">
+           <h2 id="e2-qh-title">Burn history</h2>
+-          <p class="tz-card-sub">Coins burned from treasuries, monster coins nobody picked up in 5 minutes, items thrown in the trash bin and dropped items nobody picked up in 5 minutes. Last 30 days by source:</p>
++          <p class="tz-card-sub">Treasury coin burns and the reported value of destroyed items, by source. Unclaimed monster coins return to the circular treasury after five minutes; they are not burned.</p>
+           <div id="e2-quemas-res" class="tz-chips" data-no-translate></div>
+           <div id="e2-quemas" class="tz-table-wrap"></div>
+         </section>
+--- before/economia.js
++++ after/economia.js
+@@ -29,7 +29,7 @@
+     ['tienda', 'Game shop', '#3987e5'], ['p2p', 'P2P market', '#d95926'], ['viajes', 'Map travel', '#199e70'],
+     ['vip', 'VIP', '#c98500'], ['revivir', 'Revive potions', '#d55181'], ['admin', 'Admin', '#008300'],
+     // (2026-10-28) Lo que se cobra por fundir y craftear (economia2.js lo configura).
+-    ['servicios', 'Smelting & crafting', '#9085e9']
++    ['servicios', 'Smelting & crafting', '#9085e9'], ['muerte', 'Death payments', '#a68d7c']
+   ];
+   const SALUD = { sin_datos: ['Collecting data', '◌'], deflacion: ['Deflation', '▼'], estable: ['Stable', '✓'], caliente: ['Warming up', '!'], recalentada: ['Overheated', '▲'] };
+   const ESTADOS = { cotizada: 'Quoted', pagada: 'Paid · waiting', acreditada: 'Credited', fallida: 'Failed' };
+--- before/economia2.js
++++ after/economia2.js
+@@ -27,7 +27,7 @@
+   if (!ui || !session || !$('e2-quemar')) return;
+ 
+   const POR = { oro: 1000000, plata: 1000, bronce: 1 };
+-  const TESOROS = { circular: 'Circular-economy treasury', juego: 'Game treasury', reserva: 'Reserve fund' };
++  const TESOROS = { circular: 'Circular-economy treasury', juego: 'Game treasury' };
+   let datos = null, cargando = false, ocupado = false, sucio = false, cerrado = false;
+   root.GFEconomia2 = Object.freeze({ status: () => (ocupado ? 'busy' : sucio ? 'dirty' : '') });
+ 
+@@ -79,12 +79,6 @@
+   // ── PINTAR ────────────────────────────────────────────────────────────────
+   function pintar() {
+     const d = datos, tr = d.tesoros;
+-    $('e2-res-saldo').textContent = fmt(tr.reserva.saldo);
+-    filas($('e2-res-filas'), [
+-      ['From deaths (revives)', fmt(tr.reserva.ingresado.muerte || 0)], ['Deposited by admins', fmt(tr.reserva.ingresado.admin || 0)],
+-      ['Withdrawn', fmt(tr.reserva.retirado)], ['Burned', fmt(tr.reserva.quemado)],
+-      ['Death payments, 30 days', fmt(d.muerte.cobros30) + ' · ' + fmt(d.muerte.cobrado30) + ' ' + t('bronze')]
+-    ]);
+     const h = d.hoy || {};
+     $('e2-kpis').replaceChildren(
+       kpi('×' + fmt(d.indice, 4), 'Price index today', d.indiceAyer ? t('yesterday ×') + fmt(d.indiceAyer, 4) : ''),
+@@ -93,7 +87,7 @@
+       kpi(pct(h.inflacionTotal7, 3), 'Total supply inflation, 7 days', t('every coin that exists')),
+       kpi(fmt(h.masaActiva), 'Active money (bronze)'), kpi(fmt(h.masaTotal), 'Total supply (bronze)'),
+       kpi(fmt(h.quemadoObjetos7), 'Items destroyed, 7 days (bronze value)'),
+-      kpi(fmt(tr.circular.quemado + tr.juego.quemado + tr.reserva.quemado), 'Coins burned from treasuries'));
++      kpi(fmt(tr.circular.quemado + tr.juego.quemado), 'Coins burned from treasuries'));
+     if (!sucio) rellenarConfig(d.config);
+     pintarTablaMuerte();
+     $('e2-ejemplos').replaceChildren(...(d.ejemplosServicio || []).map(x => el('span', 'tz-chip',
+@@ -137,12 +131,12 @@
+   function proyectar() {
+     if (!datos) return;
+     const q = leerQuema(), h = datos.hoy || {}, tr = datos.tesoros;
+-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : q.tesoro === 'juego' ? tr.juego.saldo : tr.reserva.saldo;
++    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
+     const A = Number(h.masaActiva) || 0, S = Number(h.masaTotal) || 0;
+     const a7 = h.inflacionActiva7, s7 = h.inflacionTotal7, n7 = h.inflacionNeta7;
+     const A7 = a7 !== null && a7 !== undefined ? A / (1 + a7) : null;
+     const S7 = s7 !== null && s7 !== undefined ? S / (1 + s7) : null;
+-    const quemaObj = a7 !== null && a7 !== undefined && n7 !== null && n7 !== undefined ? a7 - n7 : 0;
++    const quemaObj = 0;
+     const A2 = A - (q.tesoro === 'circular' ? q.bronce : 0), S2 = S - q.bronce;
+     const a7b = A7 ? (A2 - A7) / A7 : null, s7b = S7 ? (S2 - S7) / S7 : null;
+     const n7b = a7b === null ? null : a7b - quemaObj;
+@@ -150,7 +144,8 @@
+     const oroHoy = Number(h.precioGwei) || 0;
+     const oroA = precioOroGwei(cfgOro, oroHoy, n7), oroB = precioOroGwei(cfgOro, oroHoy, n7b);
+     const idxA = indiceObjetivo(cfg, datos.indice, n7), idxB = indiceObjetivo(cfg, datos.indice, n7b);
+-    const pasa = q.bronce > saldo;
++    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
++    const pasa = q.bronce > (Number.isFinite(disponible) ? disponible : saldo);
+     const fila = (k, antes, despues, nota) => {
+       const r = el('div', 'e2-proy-fila');
+       r.append(el('span', '', t(k)), el('b', '', antes), el('span', 'e2-flecha', '→'), el('b', '', despues));
+@@ -163,7 +158,7 @@
+         saldo > 0 ? pct(q.bronce / saldo, 2) + ' ' + t('of the treasury balance') : t('the treasury is empty')),
+       fila('Net inflation, 7 days (drives prices)', pct(n7, 5), pct(n7b, 5), delta(n7, n7b)),
+       fila('Active money inflation, 7 days', pct(a7, 5), pct(a7b, 5), q.tesoro === 'circular' ? delta(a7, a7b)
+-        : t('Game and reserve funds are already out of circulation: burning them lowers the total supply, not the money players hold.')),
++        : t('Game treasury funds are already out of circulation: burning them lowers the total supply, not the money players hold.')),
+       fila('Total supply inflation, 7 days', pct(s7, 5), pct(s7b, 5), delta(s7, s7b)),
+       fila('Top-up Gold price, tomorrow (zkLTC)', zk(oroA.manana / 1e9), zk(oroB.manana / 1e9), t('target ') + zk(oroB.objetivo / 1e9) + ' zkLTC'),
+       fila('Shop price index, tomorrow', '×' + fmt(idxA.manana, 4), '×' + fmt(idxB.manana, 4), t('target ×') + fmt(idxB.objetivo, 4))
+@@ -177,8 +172,9 @@
+   $('e2-q-todo').addEventListener('click', () => {
+     if (!datos) return;
+     const q = leerQuema(), tr = datos.tesoros;
+-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : q.tesoro === 'juego' ? tr.juego.saldo : tr.reserva.saldo;
+-    $('e2-q-cantidad').value = String(Math.floor(saldo / (POR[q.moneda] || 1)));
++    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
++    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
++    $('e2-q-cantidad').value = String(Math.floor((Number.isFinite(disponible) ? disponible : saldo) / (POR[q.moneda] || 1)));
+     proyectar();
+   });
+   $('e2-quemar').addEventListener('submit', async ev => {
+@@ -192,12 +188,12 @@
+     if (!root.confirm(texto)) return;
+     ocupado = true; estado.textContent = t('Burning…'); $('e2-q-go').disabled = true;
+     try {
+-      const r = await session.request('/api/admin/economia/quemar', { method: 'POST', body: JSON.stringify({ tesoro: q.tesoro, moneda: q.moneda, cantidad: q.cantidad, motivo }) });
++      const r = await session.request('/api/admin/economia/quemar', { method: 'POST', body: JSON.stringify({ tesoro: q.tesoro, moneda: q.moneda, cantidad: q.cantidad, motivo, ref: root.crypto.randomUUID() }) });
+       estado.textContent = t('Burned: ') + fmt(r.bronce) + ' ' + t('bronze') + '.';
+       $('e2-q-cantidad').value = ''; $('e2-q-motivo').value = '';
+       ocupado = false; await cargar();
+     } catch (e) {
+-      estado.textContent = e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
++      estado.textContent = e && e.code === 'reserva_protegida' ? t('The protected reserve cannot be burned. Use only the available surplus.') : e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
+     } finally { ocupado = false; proyectar(); }
+   });
+ 
+@@ -259,23 +255,6 @@
+     finally { ocupado = false; }
+   });
+ 
+-  // ── EL FONDO DE RESERVA: meter o sacar ────────────────────────────────────
+-  $('e2-res-ajuste').addEventListener('submit', async ev => {
+-    ev.preventDefault();
+-    if (ocupado) return;
+-    const tipo = $('e2-r-tipo').value, bronce = Math.floor(Number($('e2-r-cantidad').value)), motivo = $('e2-r-motivo').value.trim();
+-    const estado = $('e2-r-estado');
+-    if (!(bronce >= 1)) { estado.textContent = t('Type an amount.'); return; }
+-    if (motivo.length < 3) { estado.textContent = t('Write a reason (3 characters or more).'); return; }
+-    ocupado = true; estado.textContent = t('Applying…');
+-    try {
+-      await session.request('/api/admin/tesoro-reserva/ajuste', { method: 'POST', body: JSON.stringify({ tipo, bronce, motivo }) });
+-      estado.textContent = t('Done.'); $('e2-r-cantidad').value = ''; $('e2-r-motivo').value = '';
+-      ocupado = false; await cargar();
+-    } catch (e) { estado.textContent = e && e.code === 'saldo_insuficiente' ? t('The reserve fund does not have that much.') : (e && e.message) || t('Could not apply.'); }
+-    finally { ocupado = false; }
+-  });
+-
+   // ── LOS GRÁFICOS ──────────────────────────────────────────────────────────
+   const vivos = {};
+   function grafico(id, op) {
+@@ -294,12 +273,12 @@
+       datos: { n: de('inflacionNeta7', 100), a: de('inflacionActiva7', 100), s: de('inflacionTotal7', 100) },
+       formato: v => (v > 0 ? '+' : '') + Number(v).toFixed(3) + '%', vacio: t('Inflation appears after the second day of data.') });
+     grafico('e2-g-tesoros', { etiqueta: t('Treasury balances'),
+-      series: [{ id: 'c', nombre: t('Circular'), color: '#3987e5' }, { id: 'j', nombre: t('Game'), color: '#d95926' }, { id: 'r', nombre: t('Reserve'), color: '#199e70' }],
+-      datos: { c: de('tesoroCircular'), j: de('tesoroJuego'), r: de('tesoroReserva') }, incluirCero: true,
++      series: [{ id: 'c', nombre: t('Circular'), color: '#3987e5' }, { id: 'j', nombre: t('Game'), color: '#d95926' }],
++      datos: { c: de('tesoroCircular'), j: serie.map(f => [f.dia, (Number(f.tesoroJuego) || 0) + (Number(f.tesoroReserva) || 0)]) }, incluirCero: true,
+       formato: v => fmt(v) + ' ' + t('bronze'), vacio: t('No treasury history yet.') });
+     grafico('e2-g-sumideros', { tipo: 'barras', etiqueta: t('Burns and sinks per day'), rangos: ['7d', '30d', 'todo'],
+       series: [{ id: 'qm', nombre: t('Coins burned'), color: '#d95926' }, { id: 'qo', nombre: t('Items destroyed'), color: '#9085e9' },
+-               { id: 'm', nombre: t('Deaths → reserve'), color: '#d55181' }, { id: 's', nombre: t('Smelting & crafting'), color: '#199e70' }],
++               { id: 'm', nombre: t('Deaths → game treasury'), color: '#d55181' }, { id: 's', nombre: t('Smelting & crafting'), color: '#199e70' }],
+       datos: { qm: de('quemadoMonedas'), qo: de('quemadoObjetos'), m: de('muerteBronce'), s: de('serviciosBronce') },
+       formato: v => fmt(v) + ' ' + t('bronze'), vacio: t('Nothing burned or collected yet.') });
+   }
+--- before/gf-economia.js
++++ after/gf-economia.js
+@@ -293,8 +293,10 @@
+   // ── EL PANEL ──────────────────────────────────────────────────────────────
+   function montarCompra(cont, scene, walletInfo) {
+     if (!cont) return;
++    if (cont._gfEconomiaDispose) cont._gfEconomiaDispose();
+     estilo();
+-    var vivo = function () { return !destruido && cont.isConnected; };
++    var cerrado = false, esperaConfirmacion = null;
++    var vivo = function () { return !cerrado && !destruido && cont.isConnected; };
+     var direccion = String((walletInfo && walletInfo.address) || (scene && (scene.address || scene.playerName)) || '');
+     var mio = null, ocupado = false, grafico = 'precio';
+     cont.innerHTML = '<div class="gfe-vacio">Loading the economy…</div>';
+@@ -356,18 +358,32 @@
+        (cada foto lleva la suya), acercar con la rueda o pellizcando, arrastrar
+        para moverse, rangos, ficha al pasar o tocar y tabla de datos. */
+     var vivoGrafico = null;
++    var observador = typeof MutationObserver === 'function' ? new MutationObserver(function () {
++      if (!cont.isConnected) desmontar();
++    }) : null;
++    if (observador) observador.observe(document.body, { childList: true, subtree: true });
++    function desmontar() {
++      if (cerrado) return;
++      cerrado = true;
++      clearTimeout(esperaConfirmacion);
++      if (observador) observador.disconnect();
++      if (vivoGrafico) vivoGrafico.destruir();
++      vivoGrafico = null; scene = null;
++      delete cont._gfEconomiaDispose;
++    }
++    cont._gfEconomiaDispose = desmontar;
+     function montarGrafico(d) {
+       if (vivoGrafico) { try { vivoGrafico.destruir(); } catch (e) {} vivoGrafico = null; }
+       var G = window.GFGraficos, caja = cont.querySelector('.gfe-grafico');
+       if (!G || !caja) return;
+       if (d.ahora) G.reloj.ajustar(d.ahora);
+       var serie = Array.isArray(d.serie) ? d.serie : [];
+-      var cuando = function (f) { var a = f.actualizado ? G.aMs(f.actualizado) : NaN; return isFinite(a) ? a : G.aMs(f.dia); };
++      var cuando = function (f) { return G.aMs(f.dia); };
+       var de = function (campo, por) {
+         return serie.filter(function (f) { return f[campo] !== null && f[campo] !== undefined && isFinite(Number(f[campo])); })
+           .map(function (f) { return [cuando(f), Number(f[campo]) * (por || 1)]; });
+       };
+-      var op = { idioma: 'en', tema: 'oscuro', alto: 190, izquierda: 56, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
++      var op = { idioma: 'en', tema: 'oscuro', alto: 230, izquierda: 62, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
+       if (grafico === 'inflacion') {
+         vivoGrafico = G.crear(caja, Object.assign(op, {
+           etiqueta: 'Inflation', referencia: { valor: 0, nombre: '0%' },
+@@ -580,7 +596,10 @@
+         return;
+       }
+       if (r && r.status === 202 && intento < 25) {
+-        setTimeout(function () { confirmar(id, hash, intento + 1); }, 4000);
++        clearTimeout(esperaConfirmacion);
++        esperaConfirmacion = setTimeout(function () { confirmar(id, hash, intento + 1).catch(function () {
++          if (vivo()) mensaje('Connection interrupted. Your payment remains in My top-ups.', '#ffb86b');
++        }); }, 4000);
+         return;
+       }
+       if (r && r.status === 202) { mensaje('The payment is still pending. Use “Check again” in a minute.', '#ffb86b'); refrescarMio().then(pintarPendientes); return; }
+@@ -596,6 +615,7 @@
+         if (el) { try { el.dispatchEvent(new Event('input')); } catch (e) {} }
+       });
+     });
++    return desmontar;
+   }
+ 
+   function destruir(e) { if (e && e.persisted) return; destruido = true; }
+--- before/gf-graficos.js
++++ after/gf-graficos.js
+@@ -45,15 +45,18 @@
+ 
+   /* ── EL RELOJ DEL SERVIDOR ─────────────────────────────────────────────── */
+   var desfase = 0, sincronizado = false;
++  var baseServidor = 0, basePulso = 0;
++  function pulso() { return root.performance && typeof root.performance.now === 'function' ? root.performance.now() : null; }
+   var reloj = {
+     /** `ahora` del servidor (ms). Se guarda la diferencia con el reloj del equipo. */
+     ajustar: function (ahoraServidor) {
+       var n = Number(ahoraServidor);
+       if (!isFinite(n) || n <= 0) return;
+       desfase = n - Date.now();
++      baseServidor = n; basePulso = pulso();
+       sincronizado = true;
+     },
+-    ahora: function () { return Date.now() + desfase; },
++    ahora: function () { var p = pulso(); return sincronizado && p !== null && basePulso !== null ? baseServidor + p - basePulso : Date.now() + desfase; },
+     sincronizado: function () { return sincronizado; },
+     /** Pide la hora a /api/tiempo (una vez basta; luego se va sumando). */
+     sincronizar: function (apiBase) {
+@@ -239,7 +242,9 @@
+       var out = {};
+       for (var k in nuevos) {
+         if (!Object.prototype.hasOwnProperty.call(nuevos, k)) continue;
+-        var l = (nuevos[k] || []).map(function (p) { return [aMs(Array.isArray(p) ? p[0] : p.t), Number(Array.isArray(p) ? p[1] : p.v)]; })
++        var l = (Array.isArray(nuevos[k]) ? nuevos[k].slice(-5000) : []).filter(function (p) { return p != null; }).map(function (p) {
++          var v = Array.isArray(p) ? p[1] : p.v;
++          return [aMs(Array.isArray(p) ? p[0] : p.t), v === null || v === undefined || v === '' ? null : Number(v)]; })
+           .filter(function (p) { return isFinite(p[0]) && (isFinite(p[1]) || p[1] === null); })
+           .sort(function (a, b) { return a[0] - b[0]; });
+         out[k] = l;
+@@ -257,7 +262,7 @@
+     }
+     function ponerRango(r) {
+       if (!extension) { pintar(); return; }
+-      var fin = op.tipo === 'barras' ? extension[1] : Math.max(extension[1], Math.min(reloj.ahora(), extension[1] + DIA));
++      var fin = extension[1];
+       if (r === 'todo' || !RANGOS[r]) vista = [extension[0], extension[1]];
+       else vista = [Math.max(extension[0], fin - RANGOS[r]), fin];
+       if (vista[1] - vista[0] < HORA) vista = [extension[0], extension[1]];
+@@ -307,7 +312,7 @@
+       if (svg) svg.remove();
+       svg = null; capaHover = null; ficha.hidden = true;
+       var vis = visibles();
+-      var hay = vis.some(function (s) { return (datos[s.id] || []).length; });
++      var hay = vis.some(function (s) { return (datos[s.id] || []).some(function (p) { return p[1] !== null && isFinite(p[1]); }); });
+       lienzo.querySelectorAll('.gfg-vacio').forEach(function (n) { n.remove(); });
+       if (!hay || !vista) {
+         var v = el('div', 'gfg-vacio', op.vacio); v.style.height = alto + 'px';
+@@ -322,9 +327,15 @@
+       var apilado = op.tipo === 'barras';
+       if (apilado) {
+         var sumas = {};
+-        vis.forEach(function (s) { (datos[s.id] || []).forEach(function (p) { if (p[0] < t0 - DIA || p[0] > t1 + DIA || !(p[1] > 0)) return; sumas[p[0]] = (sumas[p[0]] || 0) + p[1]; }); });
+-        for (var k in sumas) if (Object.prototype.hasOwnProperty.call(sumas, k)) max = Math.max(max, sumas[k]);
+         min = 0;
++        vis.forEach(function (s) { (datos[s.id] || []).forEach(function (p) {
++          if (p[0] < t0 - DIA || p[0] > t1 + DIA || p[1] === null || !isFinite(p[1])) return;
++          var bucket = sumas[p[0]] || (sumas[p[0]] = { positive: 0, negative: 0 });
++          if (p[1] >= 0) bucket.positive += p[1]; else bucket.negative += p[1];
++        }); });
++        for (var k in sumas) if (Object.prototype.hasOwnProperty.call(sumas, k)) {
++          max = Math.max(max, sumas[k].positive); min = Math.min(min, sumas[k].negative);
++        }
+         if (!isFinite(max)) max = 1;
+       } else {
+         vis.forEach(function (s) {
+@@ -362,7 +373,8 @@
+         var yy = Y(v);
+         if (yy < ARR - 1 || yy > alto - ABA + 1) return;
+         svg.appendChild(sv('line', { x1: IZQ, x2: ancho - DER, y1: yy, y2: yy, 'class': i === 0 ? 'gfg-eje' : 'gfg-rej' }));
+-        var tx = sv('text', { x: IZQ - 6, y: yy + 3.5, 'text-anchor': 'end' }); tx.textContent = fy(v, null);
++        var tx = sv('text', { x: IZQ - 6, y: yy + 3.5, 'text-anchor': 'end' });
++        var etiqueta = String(fy(v, null)); tx.textContent = etiqueta.length > 10 ? numeroCorto(v) : etiqueta;
+         svg.appendChild(tx);
+       });
+       // Eje x (UTC).
+@@ -418,7 +430,7 @@
+         }
+         g.appendChild(sv('path', { d: d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+         // Un único punto (sin línea que pintar): una marca pequeña.
+-        if (l.length === 1 && !s.escalon) g.appendChild(sv('circle', { cx: X(l[0][0]), cy: Y(l[0][1]), r: 4, fill: s.color }));
++        if (l.length === 1 && l[0][1] !== null) g.appendChild(sv('circle', { cx: X(l[0][0]), cy: Y(l[0][1]), r: 4, fill: s.color }));
+       });
+     }
+     function pintarBarras(g, vis, X, Y, t0, t1) {
+@@ -428,15 +440,16 @@
+       var paso = lista.length > 1 ? Math.min.apply(null, lista.slice(1).map(function (t, i) { return t - lista[i]; })) : DIA;
+       var anchoBarra = Math.max(2, Math.min(28, (X(t0 + paso) - X(t0)) * 0.72));
+       lista.forEach(function (t) {
+-        var base = 0;
++        var basePositiva = 0, baseNegativa = 0;
+         vis.forEach(function (s) {
+           var p = (datos[s.id] || []).find(function (q) { return q[0] === t; });
+-          var v = p ? Math.max(0, Number(p[1]) || 0) : 0;
++          var v = p ? Number(p[1]) || 0 : 0;
+           if (!v) return;
++          var base = v > 0 ? basePositiva : baseNegativa;
+           var ya = Y(base), yb = Y(base + v);
+           // 2 px de separación entre segmentos: se distinguen sin depender del color.
+-          g.appendChild(sv('rect', { x: X(t) - anchoBarra / 2, y: yb, width: anchoBarra, height: Math.max(1, ya - yb - 2), rx: 2, fill: s.color }));
+-          base += v;
++          g.appendChild(sv('rect', { x: X(t) - anchoBarra / 2, y: Math.min(ya, yb), width: anchoBarra, height: Math.max(1, Math.abs(ya - yb) - 2), rx: 2, fill: s.color }));
++          if (v > 0) basePositiva += v; else baseNegativa += v;
+         });
+       });
+     }
+@@ -622,6 +635,7 @@
+     }
+ 
+     function actualizar(nuevo) {
++      if (destruido) return;
+       nuevo = nuevo || {};
+       if (nuevo.series) {
+         series = nuevo.series.map(function (s, i) { return Object.assign({ color: PALETA[i % PALETA.length] }, s); });
+@@ -646,10 +660,19 @@
+       pintar: pintar,
+       rango: ponerRango,
+       destruir: function () {
++        if (destruido) return;
+         destruido = true;
+         clearTimeout(vigiaReloj);
+         if (vigia) vigia.disconnect();
+         lienzo.removeEventListener('wheel', alRueda);
++        lienzo.removeEventListener('pointerdown', alBajar);
++        lienzo.removeEventListener('pointermove', alMover);
++        lienzo.removeEventListener('pointerup', alSoltar);
++        lienzo.removeEventListener('pointercancel', alSoltar);
++        lienzo.removeEventListener('pointerleave', alSalir);
++        lienzo.removeEventListener('keydown', alTecla);
++        punteros.clear(); arrastre = pellizco = null;
++        datos = {}; series = []; geo = svg = capaHover = null;
+         raiz.remove();
+       }
+     };
+--- before/gf-mascota.js
++++ after/gf-mascota.js
+@@ -114,7 +114,7 @@
+       if (csrf) opts.headers['X-CSRF-Token'] = csrf;
+       opts.body = JSON.stringify(cuerpo || {});
+     }
+-    var timer = setTimeout(function () { controller.abort(); }, 15000);
++    var timer = setTimeout(function () { controller.abort(); }, ruta === '/api/economia/tienda' ? 180000 : 15000);
+     return fetch(origen + ruta, opts).then(function (r) {
+       return r.json().then(function (d) {
+         if (controller.signal.aborted) throw new Error('Solicitud cancelada');
+--- before/gf-precio-panel.js
++++ after/gf-precio-panel.js
+@@ -237,7 +237,7 @@
+     if (typeof document === 'undefined' || document.getElementById('gfpp-boton')) return;
+     var s = document.createElement('style');
+     s.id = 'gfpp-boton';
+-    s.textContent = '.detail-actions-simple .gf-precio-btn{margin-bottom:8px}' +
++    s.textContent = '.detail-actions-simple .gf-precio-btn{margin:0;background:#153e38;border:1px solid #679c87;box-shadow:none;font:600 13px/1.4 system-ui;letter-spacing:0;text-transform:none;min-height:44px}' +
+       '.mobile-action-section .gf-precio-btn{width:100%;margin:0 0 8px}' +
+       '.gf-precio-btn[disabled]{opacity:.5;cursor:not-allowed}';
+     (document.head || document.documentElement).appendChild(s);
+--- before/gf-salvaje.js
++++ after/gf-salvaje.js
+@@ -1570,6 +1570,8 @@
+         return;
+       }
+       aviso(scene, '🏆 You defeated the ' + m.def.nombre + '! +' + d.exp + ' XP', 'success');
++      if (d.tesoroEstado === 'sin_fondos') aviso(scene, 'The reward treasury needs funds. No Bronze was created or lost.', 'info');
++      if (d.tesoroEstado === 'tope_diario') aviso(scene, 'You reached today’s Bronze reward limit.', 'info');
+       var total = Number(d.expTotal);
+       if (Number.isFinite(total) && total > (Number(scene.nivel_exp) || 0)) {
+         scene.nivel_exp = total;
+--- before/gf-servicios.js
++++ after/gf-servicios.js
+@@ -12,16 +12,14 @@
+  *   GFServicios.cobrar(tipo, itemId, cantidad) → Promise<{ ok, bronce, ref } | { ok:false, error, message }>
+  *   GFServicios.devolver(ref)                  → Promise<bool>   (si el fundido o el crafteo no salió)
+  *
+- * `tipo`: 'fundir' | 'craftear'. Con un servidor de antes (404) no se cobra
+- * nada y no se bloquea nada. Si la respuesta se pierde, se pide la devolución
+- * con la misma referencia (el servidor solo devuelve lo que de verdad cobró).
++ * Un servicio sin cobro confirmado se bloquea. Un fallo pide revisión del
++ * recibo: el navegador nunca puede autorizar su propia devolución.
+  * ========================================================================== */
+ (function () {
+   'use strict';
+   if (window.GFServicios) return;
+ 
+   var precios = new Map();          // 'tipo|itemId|cantidad' -> { bronce, en }
+-  var sinServicio = false;
+ 
+   function api(ruta, cuerpo) {
+     if (window.GFMascota && typeof window.GFMascota.api === 'function') return window.GFMascota.api(ruta, cuerpo);
+@@ -39,13 +37,12 @@
+   function cantidadValida(n) { return Math.max(1, Math.min(999, Math.floor(Number(n) || 1))); }
+ 
+   function precio(tipo, itemId, cantidad) {
+-    if (sinServicio) return Promise.resolve(null);
+     var q = cantidadValida(cantidad), k = tipo + '|' + itemId + '|' + q;
+     var c = precios.get(k);
+     if (c && Date.now() - c.en < 60000) return Promise.resolve(c.bronce);
+     return api('/api/economia/servicio/precio?tipo=' + encodeURIComponent(tipo) + '&itemId=' + encodeURIComponent(itemId) + '&cantidad=' + q)
+       .then(function (r) {
+-        if (r.status === 404) { sinServicio = true; return null; }
++        if (!r || r.status === 404) return null;
+         var b = r.ok && r.datos ? Number(r.datos.bronce) : NaN;
+         if (!isFinite(b)) return null;
+         precios.set(k, { bronce: b, en: Date.now() });
+@@ -63,13 +60,13 @@
+   }
+ 
+   function cobrar(tipo, itemId, cantidad) {
+-    if (sinServicio) return Promise.resolve({ ok: true, bronce: 0, sinServicio: true });
+     var ref = nuevaRef();
+     return api('/api/economia/servicio', { tipo: tipo, itemId: itemId, cantidad: cantidadValida(cantidad), ref: ref })
+       .then(function (r) {
+         var d = r.datos || {};
+-        if (r.status === 404) { sinServicio = true; return { ok: true, bronce: 0, sinServicio: true }; }
+-        if (r.ok && d.ok) { adoptar(d.stats); return { ok: true, bronce: Number(d.bronce) || 0, ref: ref }; }
++        if (r.ok && d.ok && Number.isSafeInteger(d.bronce) && d.bronce > 0 && !d.devuelto) {
++          adoptar(d.stats); return { ok: true, bronce: d.bronce, ref: ref };
++        }
+         if (r.status === 409 && d.error === 'saldo_insuficiente') {
+           return { ok: false, error: 'saldo', bronce: d.bronce, message: d.message || ('You need ' + Number(d.bronce || 0).toLocaleString('en-US') + ' Bronze for this.') };
+         }
+@@ -83,5 +80,11 @@
+       });
+   }
+ 
+-  window.GFServicios = Object.freeze({ precio: precio, cobrar: cobrar, devolver: devolver });
++  function confirmar(ref) {
++    if (!ref) return Promise.resolve(false);
++    return api('/api/economia/servicio/confirmar', { ref: ref })
++      .then(function (r) { return !!(r && r.ok && r.datos && r.datos.ok); })
++      .catch(function () { return false; });
++  }
++  window.GFServicios = Object.freeze({ precio: precio, cobrar: cobrar, devolver: devolver, confirmar: confirmar });
+ })();
+--- before/index.html
++++ after/index.html
+@@ -13,7 +13,7 @@
+   <title>GRASSLAND FOREST</title>
+   <link rel="icon" href="favicon.png" type="image/png" />
+   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
+-  <link rel="stylesheet" href="styless.css?v=22.5.593cc1b7ffea" />
++  <link rel="stylesheet" href="styless.css?v=20261028.00c2182d82bf" />
+   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
+   <link rel="stylesheet" href="gf-hud.css?v=22.5.e34cb2881578" />
+ 
+@@ -136,7 +136,7 @@
+   <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
+   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
+        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
+-  <script src="./gf-salvaje.js?v=22.5.fac44b366439" defer></script>
++  <script src="./gf-salvaje.js?v=20261028.76688f222472" defer></script>
+   <script src="./gf-jefes.js?v=22.5.e24ed531dd1c" defer></script>
+   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
+        remolinos, nevada y luces de noche (lo montan las escenas de
+@@ -154,17 +154,17 @@
+   <script src="./gf-tirones.js?v=22.5.ccdc78818f1b" defer></script>
+   <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
+   <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25" defer></script>
+-  <script src="./gf-mascota.js?v=22.5.71f68ed8fe99" defer></script>
++  <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
+   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
+-  <script src="./gf-servicios.js?v=22.5.114206c91bfd" defer></script>
++  <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
+   <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
+   <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
+   <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
+   <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
+   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
+   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
+-  <script src="./gf-graficos.js?v=22.5.5233e592e1b7" defer></script>
+-  <script src="./gf-economia.js?v=22.5.6229e3954f8a" defer></script>
++  <script src="./gf-graficos.js?v=20261028.542879aed93b" defer></script>
++  <script src="./gf-economia.js?v=20261028.66ade9054170" defer></script>
+   <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
+   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
+   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
+@@ -219,7 +219,7 @@
+   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
+   <script src="./Scenes/tiendajuego.js?v=22.5.d24030e5f25b" defer></script>
+   <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
+-  <script src="./Scenes/GameScene.js?v=22.5.baab8f92879a" defer></script>
++  <script src="./Scenes/GameScene.js?v=20261028.14747efc175d" defer></script>
+   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
+        ella o `class MinaScene extends GameScene` no encuentra la clase base.
+        Con `defer` los scripts se ejecutan en el orden del documento, asi que
+@@ -257,10 +257,10 @@
+   <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
+   <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
+   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
+-  <script src="./CraftingHub.js?v=22.5.a13d6a66e4f3" defer></script>
++  <script src="./CraftingHub.js?v=20261028.a9be9c73a042" defer></script>
+   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
+-  <script src="./gf-precio-panel.js?v=22.5.768f244d2efc" defer></script>
+-  <script src="./tienda_sistema.js?v=22.5.e190a7011229" defer></script>
++  <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
++  <script src="./tienda_sistema.js?v=20261028.7773a2a51f03" defer></script>
+   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
+   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
+   <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
+@@ -570,11 +570,11 @@
+                 
+                 <div class="detail-actions-simple">
+                   <!-- (2026-10-28) Historial y estadísticas de precio del objeto (gf-precio-panel.js). -->
++                  <button id="interact-button-pc" class="interact-btn-pc" type="button" disabled>
++                    <span class="action-icon" aria-hidden="true">🛒</span> Buy / Sell
++                  </button>
+                   <button id="price-history-button-pc" class="interact-btn-pc gf-precio-btn" type="button" disabled>
+-                    <span class="action-icon">📈</span> Price history
+-                  </button>
+-                  <button id="interact-button-pc" class="interact-btn-pc" disabled>
+-                    <span class="action-icon">🔍</span> Interact
++                    <span class="action-icon" aria-hidden="true">📈</span> Prices &amp; statistics
+                   </button>
+                 </div>
+               </div>
+--- before/market.html
++++ after/market.html
+@@ -2,7 +2,7 @@
+ <html lang="es">
+ <head>
+ <meta charset="UTF-8">
+-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
++<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>Mercado · Grassland Forest</title>
+ <meta name="description" content="Mercado P2P de Grassland Forest — compra y vende objetos con oro y plata.">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+@@ -718,6 +718,7 @@
+     .offer-actions button{ flex:1; }
+   }
+ </style>
++<link rel="stylesheet" href="./market-experience.css?v=20261028-v3">
+ </head>
+ <body>
+ 
+@@ -776,6 +777,10 @@
+     <main>
+       <!-- MERCADO -->
+       <section id="tab-market">
++        <div class="market-intro"><div><small>Grassland Forest · Player market</small><h1 id="market-intro-title">El bosque también comercia.</h1>
++          <p id="market-intro-copy">Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.</p></div>
++          <div class="market-intro-meta"><span id="market-fee-note">Comisión de venta: 5 %</span><button id="market-refresh" type="button">↻ Actualizar mercado</button></div></div>
++        <p id="market-network" class="market-network" role="status" aria-live="polite"></p>
+         <div class="toolbar">
+           <div class="search-box">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+@@ -962,8 +967,8 @@
+   <div class="toast-stack" id="toast-stack"></div>
+ 
+ <!-- (2026-10-28) Gráficos interactivos y el panel de estadísticas de precio (los mismos que en la tienda del juego). -->
+-<script src="./gf-graficos.js?v=22.5.5233e592e1b7"></script>
+-<script src="./gf-precio-panel.js?v=22.5.768f244d2efc"></script>
++<script src="./gf-graficos.js?v=20261028.542879aed93b"></script>
++<script src="./gf-precio-panel.js?v=20261028.e2410b6218cd"></script>
+ <script>
+ (function(){
+   "use strict";
+@@ -1183,6 +1188,11 @@
+ 
+   // Aplica el idioma a todo el DOM estático y re-renderiza lo dinámico
+   function applyLang(){
++    const english = LANG === 'en';
++    document.getElementById('market-intro-title').textContent = english ? 'The forest trades, too.' : 'El bosque también comercia.';
++    document.getElementById('market-intro-copy').textContent = english ? 'Find resources, compare prices and equip your next adventure. Every trade keeps its history.' : 'Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.';
++    document.getElementById('market-refresh').textContent = english ? '↻ Refresh market' : '↻ Actualizar mercado';
++    document.getElementById('market-fee-note').textContent = english ? 'Sales fee: 5%' : 'Comisión de venta: 5 %';
+     document.documentElement.lang = LANG;
+     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+     document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+@@ -1218,14 +1228,18 @@
+   // API HELPERS
+   // ══════════════════════════════════════════════════════════════════════
+   async function rawFetch(path, opts){
+-    const res = await fetch(CONFIG.API_BASE + path, Object.assign({
+-      credentials: 'include',
+-      headers: Object.assign({
+-        'Content-Type': 'application/json',
+-        'Accept': 'application/json'
+-      }, (opts && opts.headers) || {}, state.csrfToken ? {'X-CSRF-Token': state.csrfToken} : {})
+-    }, opts || {}));
+-    return res;
++    const controller = new AbortController();
++    const taskOptions = opts || {};
++    const timeout = setTimeout(() => controller.abort(), 90000);
++    try {
++      return await fetch(CONFIG.API_BASE + path, { ...taskOptions, credentials: 'include', signal: controller.signal,
++        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(taskOptions.headers || {}),
++          ...(state.csrfToken ? { 'X-CSRF-Token': state.csrfToken } : {}) } });
++    } catch (e) {
++      const status = document.getElementById('market-network');
++      if (status) { status.dataset.error = 'true'; status.textContent = LANG === 'en' ? 'Connection interrupted. Your last loaded data is still shown.' : 'Conexión interrumpida. Se conservan los últimos datos cargados.'; }
++      return new Response(JSON.stringify({ error: 'connection_error' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
++    } finally { clearTimeout(timeout); }
+   }
+   async function tryRefreshSession(){
+     try{
+@@ -1399,6 +1413,7 @@
+   // ══════════════════════════════════════════════════════════════════════
+   function toast(msg, isError){
+     const stack = document.getElementById('toast-stack');
++    document.querySelectorAll('.toast').forEach((old, i) => { if (i >= 3) old.remove(); });
+     const el = document.createElement('div');
+     el.className = 'toast' + (isError ? ' err' : '');
+     el.textContent = (isError ? '⚠️ ' : '✅ ') + msg;
+@@ -1421,8 +1436,8 @@
+     if(!ok){ showGate(); return; }
+ 
+     await fetchCsrfToken();
+-    await loadEverything();
+-    showApp();
++    try { await loadEverything(); showApp(); }
++    catch (e) { showGate(); document.getElementById('gate-msg').textContent = LANG === 'en' ? 'The market could not be loaded. Check your connection and try again.' : 'No se pudo cargar el mercado. Comprueba la conexión y vuelve a entrar.'; return; }
+ 
+     // Liquidaciones que quedaron a medias en otra sesión (red caída, pestaña
+     // cerrada a mitad…). Se reintentan en segundo plano, sin molestar.
+@@ -1446,33 +1461,46 @@
+   // CARGA DE DATOS
+   // ══════════════════════════════════════════════════════════════════════
+   async function loadEverything(){
+-    await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings(), loadHistory()]);
++    const loaded = await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings(), loadHistory()]);
++    if (loaded.slice(0, 3).includes(false)) throw new Error('market_unavailable');
+     applyLang(); // ahora que hay datos, re-renderiza todo con el idioma actual
+   }
+   async function loadCatalog(){
+     const res = await api('/api/marketplace/catalog');
+-    if(!res.ok) return;
++    if(!res.ok) return false;
+     const data = await res.json();
+     state.catalog = data.catalog || {};
+     state.categories = [{id:'todos', label:'Todos'}].concat(data.categories || []);
++    return true;
+   }
+   async function loadAccount(){
+     const res = await api('/api/marketplace/account');
+-    if(!res.ok) return;
++    if(!res.ok) return false;
+     const data = await res.json();
+     state.address = data.address; state.playerName = data.playerName;
+     state.oro = data.oro; state.plata = data.plata;
+     state.inventory = data.inventory || [];
+-  }
++    return true;
++  }
++  let listingRevision = 0;
+   async function loadListings(){
++    const revision = ++listingRevision;
+     const params = new URLSearchParams();
+     if(state.activeCategory && state.activeCategory !== 'todos') params.set('category', state.activeCategory);
+     if(state.search) params.set('search', state.search);
+     if(state.sort) params.set('sort', state.sort);
+     const res = await api('/api/marketplace/listings?' + params.toString());
+-    if(!res.ok) return;
++    if(!res.ok) {
++      const status = document.getElementById('market-network'); status.dataset.error = 'true';
++      status.textContent = LANG === 'en' ? 'The market could not be refreshed. Your last loaded data is still shown.' : 'No se pudo actualizar el mercado. Se conservan los últimos datos cargados.';
++      return false;
++    }
+     const data = await res.json();
++    if (revision !== listingRevision) return;
+     state.listings = data.listings || [];
++    document.getElementById('market-network').dataset.error = 'false';
++    document.getElementById('market-network').textContent = '';
++    return true;
+   }
+   async function loadMyListings(){
+     const res = await api('/api/marketplace/my-listings');
+@@ -1739,7 +1767,7 @@
+ 
+   document.getElementById('sell-confirm').addEventListener('click', async () => {
+     const item = state.sellCtx;
+-    if(!item) return;
++    if(!item || document.getElementById('sell-confirm').disabled) return;
+     const qty = Math.floor(Number(document.getElementById('sell-qty').value));
+     const price = Number(document.getElementById('sell-price').value);
+     const errEl = document.getElementById('sell-error');
+@@ -1790,7 +1818,7 @@
+     document.getElementById('buy-modal').classList.add('show');
+   }
+   function updateBuyTotal(){
+-    const l = state.buyCtx; if(!l) return;
++    const l = state.buyCtx; if(!l || document.getElementById('buy-confirm').disabled) return;
+     const qty = Number(document.getElementById('buy-qty').value) || 0;
+     document.getElementById('buy-total').innerHTML = `<span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(qty*l.pricePerUnit)}`;
+   }
+@@ -1800,7 +1828,7 @@
+   document.getElementById('buy-cancel').addEventListener('click', () => document.getElementById('buy-modal').classList.remove('show'));
+ 
+   document.getElementById('buy-confirm').addEventListener('click', async () => {
+-    const l = state.buyCtx; if(!l) return;
++    const l = state.buyCtx; if(!l || document.getElementById('buy-confirm').disabled) return;
+     const qty = Math.floor(Number(document.getElementById('buy-qty').value));
+     const errEl = document.getElementById('buy-error');
+     errEl.classList.remove('show');
+@@ -2358,7 +2386,28 @@
+     }catch(e){ toast(t('e_conn'), true); }
+   }
+ 
+-  boot();
++  let refreshingMarket = false;
++  document.getElementById('market-refresh').addEventListener('click', async () => {
++    if (refreshingMarket) return;
++    refreshingMarket = true; const b = document.getElementById('market-refresh'); b.disabled = true;
++    const status = document.getElementById('market-network');
++    try { const loaded = await Promise.all([loadListings(), loadAccount()]); if (loaded.includes(false)) throw new Error('market_unavailable'); renderMarket(); renderWallet(); status.dataset.error = 'false'; status.textContent = LANG === 'en' ? 'Market refreshed.' : 'Mercado actualizado.'; }
++    catch (e) { status.textContent = LANG === 'en' ? 'Connection interrupted. Try again.' : 'Conexión interrumpida. Vuelve a intentarlo.'; }
++    finally { b.disabled = false; refreshingMarket = false; }
++  });
++  document.addEventListener('keydown', e => {
++    const modals = Array.from(document.querySelectorAll('.modal-backdrop.show'));
++    const modal = modals[modals.length - 1]; if (!modal) return;
++    if (e.key === 'Escape') { e.preventDefault(); modal.classList.remove('show'); return; }
++    if (e.key !== 'Tab') return;
++    const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), input:not(:disabled), select, a[href], [tabindex="0"]')).filter(n => n.getClientRects().length);
++    if (!focusable.length) return;
++    const first = focusable[0], last = focusable[focusable.length - 1];
++    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
++    else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
++  });
++  window.addEventListener('pagehide', () => { clearTimeout(searchTimer); if (window.GFPrecioPanel) GFPrecioPanel.cerrar(); });
++  boot().catch(() => { showGate(); });
+ })();
+ </script>
+ </body>
+--- before/precios.html
++++ after/precios.html
+@@ -16,7 +16,7 @@
+   <script src="./admin-session.js?v=20261020"></script>
+   <script src="./admin-suite-i18n.js?v=20261028"></script>
+   <script defer src="./admin-suite.js?v=20261025"></script>
+-  <script defer src="./gf-graficos.js?v=20261028"></script>
++  <script defer src="./gf-graficos.js?v=20261028.542879aed93b"></script>
+   <script defer src="./precios.js?v=20261028"></script>
+ </head>
+ <body>
+--- before/Scenes\GameScene.js
++++ after/Scenes\GameScene.js
+@@ -30766,6 +30766,10 @@
+        lingote, con el índice de precios; ver gf-servicios.js). Si el horno no
+        llega a encenderse, se devuelve. */
+     let cobroHorno = null;
++    if (!window.GFServicios) {
++      this._avisoHorno('The payment service is unavailable. Reopen the game before smelting.');
++      this._hornoOcupado = false; this._pintarHorno(); return;
++    }
+     if (window.GFServicios) {
+       this._avisoHorno('⏳ Paying the smelting fee…');
+       cobroHorno = await window.GFServicios.cobrar('fundir', receta.resultado, 1);
+@@ -30826,6 +30830,7 @@
+         finAt: ahora + receta.segundos * 1000
+       };
+       await this._guardarHorno(this._hornoEstado);
++      if (cobroHorno && window.GFServicios.confirmar) await window.GFServicios.confirmar(cobroHorno.ref);
+       console.log(`🔥 Horno: ${ore.id} + ${coal.id} → ${receta.resultado} en ${receta.segundos}s`);
+       try { this.notifications && this.notifications.show(
+         `Smelting ${ore.name}… ready in ${Math.round(receta.segundos / 60) || 1} min`,
+--- before/styless.css
++++ after/styless.css
+@@ -2751,8 +2751,10 @@
+   height: 100%;
+   min-height: 0;
+   padding: 20px;
+-  justify-content: center;
++  justify-content: flex-start;
+   align-items: center;
++  overflow-y: auto;
++  overscroll-behavior: contain;
+ }
+ 
+ .detail-content-simple {
+@@ -2761,6 +2763,7 @@
+   align-items: center;
+   gap: 20px;
+   width: 100%;
++  flex: 0 0 auto;
+ }
+ 
+ .detail-header-simple {
+@@ -2813,7 +2816,10 @@
+ /* Botón de interactuar en PC */
+ .detail-actions-simple {
+   width: 100%;
+-  margin-top: 20px;
++  margin-top: 8px;
++  display: grid;
++  gap: 10px;
++  flex-shrink: 0;
+ }
+ 
+ .interact-btn-pc {
+--- before/tienda_sistema.js
++++ after/tienda_sistema.js
+@@ -2913,9 +2913,10 @@
+         if (this._cargandoPrecios) return this._cargandoPrecios;
+         const url = `${this._resolveApiBase()}/api/economia/precios`;
+         this._cargandoPrecios = (async () => {
++            let corte = null;
+             try {
+                 const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+-                const corte = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
++                corte = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+                 const r = await fetch(url, { credentials: 'include', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+                 if (corte) clearTimeout(corte);
+                 if (!r.ok) return false;
+@@ -2931,6 +2932,7 @@
+             } catch (e) {
+                 return false;
+             } finally {
++                if (corte) clearTimeout(corte);
+                 this._cargandoPrecios = null;
+             }
+         })();
+@@ -2948,7 +2950,7 @@
+                 if (!item._precioDefecto) item._precioDefecto = { buyPrice: item.buyPrice, sellPrice: item.sellPrice, currency: item.currency };
+                 const p = Object.prototype.hasOwnProperty.call(d.items, item.id) ? d.items[item.id] : null;
+                 const moneda = p && MONEDA[p.moneda];
+-                if (!p || !moneda) continue;
++                if (!p || !moneda || !Number.isSafeInteger(p.compra) || !Number.isSafeInteger(p.venta) || p.compra < 0 || p.venta < 0) continue;
+                 // Lo que la tienda no vende sigue sin venderse (los peces solo se le venden a ella).
+                 const compra = item._precioDefecto.buyPrice > 0 ? Math.max(0, Math.floor(Number(p.compra) || 0)) : 0;
+                 const venta = Math.max(0, Math.floor(Number(p.venta) || 0));
+@@ -3228,52 +3230,12 @@
+             throw new Error('Daily purchase limit exceeded');
+         }
+         
+-        this.setBalanceByCurrency(currency, balance - totalCost);
+-        // VERIFICACIÓN DEL COBRO (2026-08-03): comprobar que al jugador se le
+-        // descontó EXACTAMENTE el precio. Si el saldo no cuadra (porque algún
+-        // eslabón de setBalanceByCurrency no llegó a aplicarse), se corrige
+-        // aquí mismo antes de seguir con la compra.
+-        this._verificarMovimientoMonedas(currency, balance, -totalCost, `Compra de ${quantity}x ${item.name}`);
+-        if (fee > 0 && saldosConComision) this._aplicarSaldos(saldosConComision, `Comisión del tesoro: ${quantity}x ${item.name}`);
+-
+-        if (item.limiteDiario > 0) {
+-            this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
+-            this.saveDailyLimits();
+-        }
+-
+-        const transactionInfo = {
+-            type: 'compra',
+-            itemId: item.id,
+-            itemName: item.name,
+-            quantity,
+-            unitPrice,
+-            totalCost,
+-            currency,
+-            fee,                       // (2026-10-22) comisión del tesoro, en bronce
+-            ref: this._nuevaRef(),     // (2026-10-27) la operación en el registro de la tienda
+-            remainingGold: this.playerMoneda,
+-            remainingSilver: this.playerMonedaPlata,
+-            remainingBronze: this._saldoBronce()
+-        };
+-        this._registrarTienda({ ref: transactionInfo.ref, fase: 'inicio', op: 'compra', itemId: item.id, cantidad: quantity,
+-                                moneda: currency, precioUnidad: unitPrice, total: totalCost, fee,
+-                                saldoAntes: balance, saldoDespues: this.getBalanceByCurrency(currency) });
+-
+-        // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
+-        // aquí mismo, así que el modal quedaba trancado hasta que la
+-        // transacción blockchain confirmara (minutos en el peor caso). Ahora
+-        // la parte on-chain se ENCOLA en segundo plano (una compra tras otra,
+-        // para no pisar nonces ni el lock interno) y el jugador queda libre
+-        // para seguir comprando de inmediato. Si la transacción no confirma,
+-        // _runOnchainPurchase reembolsa el dinero automáticamente.
+-        this._enqueueOnchainPurchase(item, quantity, transactionInfo);
+-
+-        console.log('🛒 SHOP TRANSACTION (PURCHASE)', transactionInfo);
+-
+-        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — waiting for confirmation…`, 'info');
+-
+-        try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
+-        console.log(`✅ Purchase recorded: ${quantity}x ${item.name} for ${totalCost} ${this.getCurrencyLabel(currency)}`);
++        const ref = this._nuevaRef();
++        const copy = { ...item };
++        this._encolarTrabajoTienda(`Shop purchase: ${quantity}x ${item.id}`, async () => {
++            await this._operacionEconomicaTienda('compra', copy, quantity, ref);
++        });
++        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — payment and delivery are verified by the server.`, 'info');
+     }
+ 
+     // Tabla de seguimiento on-chain por producto: itemId → [ruta_tabla, límite de stack]
+@@ -5735,143 +5697,42 @@
+     }
+ 
+     async _ventaEnCadena(item, cantidad, tabla, soltar, ref) {
+-        const currency    = this.getItemCurrency(item);
+-        const unitGross   = Number(item.sellPrice) || 0;
+-        const [tipoOnchain, limite] = tabla;
+-
+-        let recuento = null;
+-        const antes = this.getItemCountInInventory(item.id);
+-
+-        try {
+-            /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
+-
+-               Ese argumento acaba en `quitarDeFactura({ tipo })`, que lo compara
+-               con el tipo de la factura del contrato para no quemar la factura
+-               equivocada. Cuando aquí iba el literal 'slots' la comparación
+-               fallaba SIEMPRE y la respuesta era "esa factura ya no estaba" — o
+-               sea: te pagaban, el objeto desaparecía de la pantalla, en la
+-               cadena seguía intacto, y al volver al mapa reaparecía. */
+-            recuento = await this.ejecutarDivisionRemove(tipoOnchain, item.id, limite, cantidad);
+-        } catch (err) {
+-            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+-            recuento = null;
+-        } finally {
+-            // Ya no están en vuelo: la tienda puede volver a ofrecerlas si la
+-            // venta no salió, o dejar de contarlas si salió.
+-            soltar();
+-        }
+-
+-        const despues       = this.getItemCountInInventory(item.id);
+-        const porInventario = Math.max(0, antes - despues);
+-
+-        /* CUÁNTAS SE PAGAN. Se prefiere lo que dice la cadena (`confirmadas`);
+-           la resta del inventario queda solo de respaldo para cuando el
+-           recuento no llega, porque con la cola esa resta puede incluir lo que
+-           haya hecho otro trabajo. Nunca más de lo pedido. */
+-        const confirmadas = (recuento && Number.isFinite(recuento.confirmadas))
+-            ? recuento.confirmadas
+-            : porInventario;
+-        const vendidas   = Math.max(0, Math.min(cantidad, confirmadas));
+-        const yaGastadas = (recuento && Number.isFinite(recuento.yaGastadas)) ? recuento.yaGastadas : 0;
+-
+-        /* "YA ESTABA GASTADO" NO SE PAGA. La factura ya no estaba en la cadena:
+-           el hueco iba retrasado y se ha cuadrado, pero ahora mismo no ha salido
+-           nada de la cadena. Pagarlo sería crear dinero. Se le dice al jugador
+-           para que no parezca que le han robado el objeto. */
+-        if (yaGastadas > 0) {
+-            this.showNotification?.(
+-                `ℹ️ ${yaGastadas}x ${item.name} had already been spent elsewhere. ` +
+-                `Your inventory was corrected and they were not paid.`,
+-                'info'
+-            );
+-        }
+-
+-        if (vendidas <= 0) {
+-            /* CON EL MOTIVO. "No se confirmó" a secas no le dice al jugador si
+-               es que se le cayó la red, si el contrato no encuentra su factura o
+-               si la transacción se quedó esperando — y sin eso no puede ni
+-               decidir si reintentar ni contarlo bien. */
+-            const motivo = (recuento && recuento.motivo) || this._ultimoMotivoFallo;
+-            const porQue = motivo ? ` (${motivo})` : '';
+-            if (yaGastadas <= 0) {
+-                this.showNotification?.(
+-                    `⚠️ ${item.name} was not sold: the blockchain did not confirm it${porQue}. Nothing was charged or paid.`,
+-                    'error'
+-                );
+-            }
+-            console.warn(`⚠️ Venta no confirmada: 0/${cantidad} ${item.id}`,
+-                         motivo || '(sin motivo apuntado)');
+-            if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
+-                                             precioUnidad: unitGross, confirmadas: 0, yaGastadas, pagadoBronce: 0,
+-                                             error: String(motivo || 'not confirmed on-chain').slice(0, 200) });
+-            this._refrescarDisponibles();
+-            return;
+-        }
+-
+-        const grossPrice = unitGross * vendidas;
+-        /* (2026-10-22) LA COMISIÓN ES LA DEL TESORO: el 1,5 %, en bronce (antes
+-           era la `comision` de cada objeto, del 2 al 10 %, y se perdía). Lo que
+-           no llega a una moneda entera de la del objeto se paga en plata y
+-           bronce. Con el servidor de antes (sin bronce ni tesoro), sin comisión. */
+-        const factor = currency === 'silver' ? 1000 : currency === 'bronze' ? 1 : 1000000;
+-        const commission = (await this._servidorAlDia()) ? this._comisionBronce(item, vendidas, 'venta') : 0;
+-        const netoBronce = Math.max(0, grossPrice * factor - commission);
+-        const finalPrice = Math.floor(netoBronce / factor);
+-        const resto = netoBronce - finalPrice * factor;
+-        const restoPlata = currency === 'silver' || currency === 'bronze' ? 0 : Math.floor(resto / 1000);
+-        const restoBronce = resto - restoPlata * 1000;
+-
+-        const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+-        this.setBalanceByCurrency(currency, saldoAntes + finalPrice);
+-        // VERIFICACIÓN: el dinero tiene que haberse abonado exactamente.
+-        this._verificarMovimientoMonedas(currency, saldoAntes, finalPrice, `Venta de ${vendidas}x ${item.name}`);
+-        this._sumarMoneda('silver', restoPlata, `Venta de ${vendidas}x ${item.name} (cambio)`);
+-        this._sumarMoneda('bronze', restoBronce, `Venta de ${vendidas}x ${item.name} (cambio)`);
+-        if (commission > 0) this._informarComision('venta', item, vendidas);
+-        // (2026-10-27) Lo pagado, en bronce (precio menos la comisión), al registro de la tienda.
+-        if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
+-                                         precioUnidad: unitGross, fee: commission, confirmadas: vendidas, yaGastadas,
+-                                         pagadoBronce: netoBronce, saldoAntes: saldoAntes, saldoDespues: this.getBalanceByCurrency(currency),
+-                                         error: vendidas < cantidad ? `only ${vendidas} of ${cantidad} confirmed` : '' });
+-
+-        const transactionInfo = {
+-            type: 'venta',
+-            itemId: item.id,
+-            itemName: item.name,
+-            quantity: vendidas,
+-            unitPrice: unitGross,
+-            totalGain: finalPrice,
+-            grossPrice,
+-            fee: commission,
+-            currency,
+-            remainingGold: this.playerMoneda,
+-            remainingSilver: this.playerMonedaPlata
+-        };
+-        console.log('🛒 SHOP TRANSACTION (SALE)', transactionInfo);
+-
+-        if (vendidas < cantidad) {
+-            const perdidas = cantidad - vendidas - yaGastadas;
+-            if (perdidas > 0) {
+-                this.showNotification?.(
+-                    `⚠️ Only ${vendidas} of ${cantidad} ${item.name} were confirmed on-chain. ` +
+-                    `You were paid for ${vendidas}; the rest are still yours.`,
+-                    'error'
+-                );
+-            }
+-        }
+-
+-        this.addToHistorial('venta', item, vendidas, finalPrice);
+-        this.showTransactionAnimation('venta', item, vendidas, finalPrice, commission);
+-        this.updateMonedaDisplay?.();
+-        this.updateHistorialDisplay?.();
+-        this.updateMobileHistorialDisplay?.();
+-        this._refrescarDisponibles();
+-
+-        // Por el delegador: con la tienda ya cerrada no hace nada (ver _escenaViva).
+-        try { this.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
+-        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} + ${restoPlata} SL + ${restoBronce} BR (treasury fee: ${commission} BR)`);
+-    }
+-    
++        try { return await this._operacionEconomicaTienda('venta', { ...item }, cantidad, ref || this._nuevaRef()); }
++        finally { soltar(); }
++    }
++
++    async _operacionEconomicaTienda(op, item, cantidad, ref) {
++        if (!window.GFMascota?.api) throw new Error('The authoritative payment service is unavailable.');
++        const factor = { gold: 1000000, silver: 1000, bronze: 1 }[this.getItemCurrency(item)];
++        const r = await window.GFMascota.api('/api/economia/tienda', { op, itemId: item.id, cantidad,
++            precioBronce: Number(op === 'compra' ? item.buyPrice : item.sellPrice) * factor, ref });
++        const d = r && r.datos || {};
++        if (!r || !r.ok || !d.ok) {
++            if (d.error === 'precios_actualizados') await this._cargarPreciosServidor();
++            const why = d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
++                : d.revision ? 'Your operation is recorded for chain review. Do not repeat it; the control center has the receipt.'
++                : d.message || d.error || 'The server could not complete the trade.';
++            this.showNotification?.(why, 'error'); throw new Error(why);
++        }
++        if (d.stats) {
++            if (window.GFBronce?.adoptarStats) window.GFBronce.adoptarStats(d.stats);
++            this.playerMoneda = Number(d.stats.oro) || 0; this.playerMonedaPlata = Number(d.stats.plata) || 0;
++            if (window.playerStats) Object.assign(window.playerStats, d.stats);
++        }
++        if (op === 'compra' && item.limiteDiario > 0) {
++            this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + d.confirmadas;
++            this.saveDailyLimits();
++        }
++        this._confirmedPurchaseInvoices = [];
++        try { await this._persistConfirmedPurchase(item.id); }
++        catch (e) { this.showNotification?.('Your trade is confirmed on-chain. Inventory sync is pending; reopen the map to recover it.', 'info'); }
++        this.addToHistorial(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, this.getItemCurrency(item));
++        this.showTransactionAnimation(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, d.fee || 0);
++        this.updateMonedaDisplay?.(); this._refrescarDisponibles();
++        this.showNotification?.(`✓ ${d.confirmadas}x ${item.name}: payment and delivery confirmed.`, 'success');
++        return d;
++    }
++
+     // Mostrar animación de transacción
+     showTransactionAnimation(type, item, quantity, total, commission = 0) {
+         const notification = document.createElement('div');
+--- before/tools\economia.test.cjs
++++ after/tools\economia.test.cjs
+@@ -98,9 +98,16 @@
+       getBlock: async () => ({ timestamp: Math.floor((op.hora || Date.now()) / 1000) })
+     }
+   });
++  // New atomic credit path: exercise the actual transaction helper with a rollback-capable DB double.
++  ctx.PlayerStats.findOneAndUpdate = async (q, u) => {
++    if (u.$inc && u.$inc.oro) { stats.oro += u.$inc.oro; devueltos.push(['Ana', 'oro', u.$inc.oro]); }
++    return { ...stats };
++  };
++  require('./economy-mock-transactions.cjs')(ctx, Object.values(M), [stats]);
++  vm.runInContext(trozo(SRV, 'async function ecoTransaccion(', '\n}\n'), ctx);
+   // (2026-10-28) La economía, 2.ª parte: la foto del día usa el fondo de reserva, el índice de precios y la
+   // inflación neta. Sus funciones de verdad; lo demás, de mentira (sus pruebas: tools/economia2.test.cjs).
+-  Object.assign(ctx, { TesoroReserva: modelo(), TESORO_RESERVA_ID: 'reserva', eco2TrasFoto: async () => {},
++  Object.assign(ctx, { TesoroReserva: modelo(), TESORO_RESERVA_ID: 'reserva', eco2MigrarReserva: async () => {}, eco2TrasFoto: async () => {},
+     eco2Config: async () => ({ indiceActivo: true, sensibilidad: 0.6, pasoMax: 0.03, pesoObjetos: 1 }) });
+   vm.runInContext(['eco2IndiceObjetivo', 'eco2Masas', 'eco2Inflaciones'].map((n) => trozo(SRV, 'function ' + n + '(', '\n}\n')).join('\n'), ctx);
+   const fin = "console.log('✅ Economía:";
+@@ -227,3 +234,28 @@
+   assert.match(leer('index.html'), /<script src="\.\/gf-economia\.js\?v=[^"]+" defer><\/script>/);
+   assert.match(leer('control-center.js'), /\{ id:'economia', file:'economia\.html'/);
+ });
++
++test('cotizaciones concurrentes respetan el cupo reservado en Mongo', async () => {
++  const b = bloque();
++  const quotes = await Promise.all(Array.from({ length: 20 }, () => b.llamar('POST /api/currency/oro/cotizar', { oro: 30 })));
++  assert.equal(quotes.filter(r => r.st === 200).length, 10);
++  assert.equal(quotes.filter(r => r.st === 429).length, 10);
++  assert.equal(b.M.CompraOro._t.reduce((sum, q) => sum + q.oro, 0), 300);
++});
++
++test('si falla el libro de recargas no queda oro entregado sin recibo; reintentar acredita una vez', async () => {
++  const b = bloque();
++  const quote = await b.llamar('POST /api/currency/oro/cotizar', { oro: 10 });
++  const hash = '0x' + 'e'.repeat(64);
++  b.cadena[hash] = { from: YO, to: TESORO, valor: BigInt(quote.out.wei) };
++  const write = b.M.TesoroJuego.updateOne; let fail = true;
++  b.M.TesoroJuego.updateOne = async (q, u, options) => {
++    if (fail && u.$inc && u.$inc['zkltc.gwei']) { fail = false; throw new Error('injected_ledger_failure'); }
++    return write(q, u, options);
++  };
++  assert.equal((await b.llamar('POST /api/currency/oro/confirmar', { id: quote.out.id, txHash: hash })).st, 500);
++  assert.equal(b.stats.oro, 10);
++  assert.equal(b.M.CompraOro._t[0].estado, 'cotizada');
++  assert.equal((await b.llamar('POST /api/currency/oro/confirmar', { id: quote.out.id, txHash: hash })).st, 200);
++  assert.equal(b.stats.oro, 20);
++});
+--- before/tools\economia2.test.cjs
++++ after/tools\economia2.test.cjs
+@@ -74,9 +74,10 @@
+ function bloque(op = {}) {
+   const rutas = new Map(), apuntes = [], juego = [], devueltos = [];
+   const M = { TesoroReserva: modelo(), EconomiaQuema: modelo(), PrecioBase: modelo(op.precios || []), PrecioHist: modelo(), ServicioCobro: modelo() };
++  M.ServicioCobro.aggregate = async pipeline => pipeline[0]?.$match?.tipo ? op.ops || [] : [];
+   // Los valores por defecto del esquema (los pone mongoose al crear).
+   const crearCobro = M.ServicioCobro.create;
+-  M.ServicioCobro.create = (d) => crearCobro({ devuelto: false, ...d });
++  M.ServicioCobro.create = (d) => crearCobro({ devuelto: false, estado: 'cobrado', t: new Date(), ...d });
+   const Tesoro = modelo([{ _id: 'principal', saldo: 50000, reservado: 300 }]);
+   const TesoroJuego = modelo([{ _id: 'juego', saldo: 9000 }]);
+   const TesoroMov = modelo();
+@@ -91,12 +92,20 @@
+     _cero: () => ({ type: Number, default: 0 }),
+     Tesoro, TESORO_ID: 'principal', TesoroJuego, TESORO_JUEGO_ID: 'juego', TesoroMov,
+     TESORO_BRONCE_POR: { bronce: 1, plata: 1000, oro: 1000000 },
++    TESORO_COMISION_BPS: 500,
++    tesoroParteCircular: n => Math.floor(n * 150 / 500),
++    esFantasma: async () => false,
++    gfNivelDeJugador: async () => 50,
++    itemTipoOnChain: id => id,
++    ITEM_MAX_STACK: { Semillax: 50 },
++    mintGatherReward: async () => ({ id: 1 }),
++    burnItemOnChain: async (address, tipo, qty) => qty,
+     ITEM_TIPO_MAP: { Semillax: 'bolsa zanahorias', mineral_cobre: 'mineral_cobre', palo: 'palo', tomate_buena: 'tomate_buena' },
+     EconomiaDia: modelo([{ _id: '2026-10-27', indice: 1.02 }]),
+-    economiaFoto: async () => null, economiaConfig: async () => ({ precioBase: 0.001, sensibilidad: 0.8, pasoMax: 0.05 }),
++    economiaHoy: async () => null, economiaFoto: async () => null, economiaConfig: async () => ({ precioBase: 0.001, sensibilidad: 0.8, pasoMax: 0.05 }),
+     economiaApuntar: (x) => apuntes.push(x), _diaUTC: () => '2026-10-28',
+     _diaMenos: (d, n) => new Date(Date.parse(d + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10), _gwei: (g) => g / 1e9,
+-    TiendaOp: { aggregate: async () => op.ops || [] }, UserDailyProgress: { aggregate: async () => [] },
++    TiendaOp: { aggregate: async () => op.ops || [], updateOne: async () => ({ matchedCount: 1 }) }, UserDailyProgress: { aggregate: async () => [] },
+     gfNivelDeObjeto: () => 1, PlayerStats: stats,
+     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
+     apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+@@ -106,12 +115,13 @@
+     gfDevolverStat: async (n, s, c) => { devueltos.push([n, s, c]); const d = stats._t[0]; d[s] += c; return { ...d }; },
+     tesoroJuegoIngresar: async (origen, bronce, playerName, detalle) => { juego.push([origen, bronce]); }
+   });
++  require('./economy-mock-transactions.cjs')(ctx, [...Object.values(M), Tesoro, TesoroJuego, TesoroMov, stats]);
+   vm.runInContext(trozo('const TIENDA_PRECIOS = ', ';\n') + ';', ctx);
+   const fin = "console.log('✅ Economía (2.ª parte)";
+   vm.runInContext(trozo('// LA ECONOMÍA, 2.ª PARTE: QUEMAS, FONDO DE RESERVA', fin) +
+     '\nthis.f = { eco2PlanPago, eco2PrecioDinamico, eco2FactorDemanda, eco2IndiceObjetivo, eco2Inflaciones, eco2PrecioMuerte, eco2NormalizarConfig,' +
+     ' eco2BaseDe, eco2PrecioTienda, eco2ValorUnidad, eco2PrecioServicio, eco2RecalcularPrecios, eco2PreciosActuales, eco2PrecioAnteriorValido,' +
+-    ' gfMonstruoDaObjetos, eco2QuemarObjetos, tesoroQuemarCaducado, tesoroReservaIngresar, eco2Catalogo, eco2Config };' +
++    ' gfMonstruoDaObjetos, eco2QuemarObjetos, tesoroQuemarCaducado, tesoroReservaIngresar, eco2Catalogo, eco2Config, eco2MigrarReserva, ecoQuemarSeguro, ecoTransferirCircular, ecoSaldoDisponible, ecoTransaccion };' +
+     '\nthis.ponerIndice = (v) => { _eco2Indice = { valor: v, dia: "2026-10-28" }; };' +
+     '\nthis.GF_MISIONES_SOLO_MONEDAS = GF_MISIONES_SOLO_MONEDAS;', ctx);
+   const llamar = async (clave, body, query) => {
+@@ -149,7 +159,7 @@
+   assert.equal(inf.A, 1200); assert.equal(inf.S, 1300);
+   assert.equal(Math.round(inf.activa7 * 1000) / 1000, 0.2);
+   assert.equal(Math.round(inf.total7 * 1000) / 1000, 0.3);
+-  assert.equal(Math.round(inf.neta7 * 1000) / 1000, 0.17, 'el valor de lo destruido (30 de 1.000) la baja');
++  assert.equal(Math.round(inf.neta7 * 1000) / 1000, 0.2, 'destruir objetos no destruye monedas');
+ });
+ 
+ test('precios de la tienda: por defecto × índice × demanda, en enteros; vender nunca da más que comprar', { skip: !HAY }, () => {
+@@ -230,29 +240,32 @@
+   assert.equal(r.st, 200, JSON.stringify(r.out));
+   assert.equal(r.out.bronce, 1250);
+   assert.deepEqual(r.out.stats, { oro: 1, plata: 1, bronce: 50 }, '300 bronce + 1 plata rota - 1.250');
+-  assert.deepEqual(J(b.juego), [['servicios', 1250]]);
++  assert.equal(b.TesoroJuego._t[0].saldo, 10250);
++  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 1250);
+   const otra = await b.llamar('POST /api/economia/servicio', { tipo: 'fundir', itemId: 'mineral_cobre', cantidad: 1, ref: 'ref-fundir-1' });
+   assert.equal(otra.out.repetido, true, 'el mismo ref no cobra dos veces');
+   r = await b.llamar('POST /api/economia/servicio/devolver', { ref: 'ref-fundir-1' });
+-  assert.equal(r.out.ok, true); assert.equal(r.out.bronce, 1250);
+-  r = await b.llamar('POST /api/economia/servicio/devolver', { ref: 'ref-fundir-1' });
+-  assert.equal(r.out.ok, false, 'una sola vez');
+-  // Sin dinero: no se cobra nada.
+-  b.stats._t[0].oro = 0; b.stats._t[0].plata = 0; b.stats._t[0].bronce = 10;
+-  r = await b.llamar('POST /api/economia/servicio', { tipo: 'craftear', itemId: 'mineral_cobre', cantidad: 4, ref: 'ref-craft-sin' });
+-  assert.equal(r.st, 409); assert.equal(r.out.error, 'saldo_insuficiente');
++  assert.equal(r.st, 202, 'el navegador solicita revisión; no se autorreembolsa');
++  assert.equal(b.stats._t[0].bronce, 50);
++  r = await b.llamar('POST /api/admin/economia/servicios/revisar', { id: 'Ana:ref-fundir-1', accion: 'devolver', motivo: 'Fallo confirmado en la cadena' });
++  assert.equal(r.st, 200, JSON.stringify(r.out));
++  assert.equal(b.stats._t[0].bronce, 1300);
++  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0);
++  const again = await b.llamar('POST /api/admin/economia/servicios/revisar', { id: 'Ana:ref-fundir-1', accion: 'devolver', motivo: 'Fallo confirmado en la cadena' });
++  assert.equal(again.st, 409, 'solo devuelve una vez');
+ });
+ 
+ test('quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado', { skip: !HAY }, async () => {
+   const b = bloque();
+-  let r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'circular', moneda: 'plata', cantidad: 20, motivo: 'prueba' });
++  b.Tesoro._t[0].saldo = 150000;
++  let r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'circular', moneda: 'plata', cantidad: 20, motivo: 'prueba', ref: 'burn-test-001' });
+   assert.equal(r.st, 200, JSON.stringify(r.out));
+   assert.equal(r.out.bronce, 20000);
+-  assert.equal(b.Tesoro._t[0].saldo, 30000); assert.equal(b.Tesoro._t[0].quemado, 20000);
+-  r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'juego', moneda: 'oro', cantidad: 1, motivo: 'demasiado' });
+-  assert.equal(r.st, 409); assert.equal(r.out.error, 'saldo_insuficiente');
++  assert.equal(b.Tesoro._t[0].saldo, 130000); assert.equal(b.Tesoro._t[0].quemado, 20000);
++  r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'juego', moneda: 'oro', cantidad: 1, motivo: 'demasiado', ref: 'burn-test-002' });
++  assert.equal(r.st, 409); assert.equal(r.out.error, 'reserva_protegida');
+   r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'reserva', moneda: 'bronce', cantidad: 5, motivo: 'x' });
+-  assert.equal(r.out.error, 'motivo_requerido');
++  assert.equal(r.out.error, 'datos_invalidos');
+   r = await b.llamar('POST /api/admin/economia/quemar', { tesoro: 'otro', moneda: 'bronce', cantidad: 5, motivo: 'prueba' });
+   assert.equal(r.out.error, 'datos_invalidos');
+   assert.equal(b.M.EconomiaQuema._t.length, 1);
+@@ -262,13 +275,11 @@
+ test('fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema', { skip: !HAY }, async () => {
+   const b = bloque();
+   await b.f.tesoroReservaIngresar('muerte', 60000, 'Ana', 'revive');
+-  assert.equal(b.M.TesoroReserva._t[0].saldo, 60000);
+-  assert.equal(b.M.TesoroReserva._t[0].ingresado.muerte, 60000);
+-  assert.equal(b.TesoroMov._t[0].tesoro, 'reserva');
++  assert.deepEqual(J(b.juego), [['muerte', 60000]]);
++  assert.equal(b.M.TesoroReserva._t.length, 0, 'sin tercer tesoro activo');
+   await b.f.tesoroQuemarCaducado(300, { playerName: 'Ana', incentivo: { monstruo: 'lobo_salvaje' } });
+-  assert.equal(b.Tesoro._t[0].reservado, 0); assert.equal(b.Tesoro._t[0].quemado, 300); assert.equal(b.Tesoro._t[0].saldo, 50000, 'no vuelve al saldo');
+-  const q = b.M.EconomiaQuema._t.find((x) => x.origen === 'monedas_caducadas');
+-  assert.equal(q.bronce, 300);
++  assert.equal(b.Tesoro._t[0].reservado, 0); assert.equal(b.Tesoro._t[0].quemado || 0, 0); assert.equal(b.Tesoro._t[0].saldo, 50300, 'la recompensa no recogida vuelve al tesoro');
++  assert.equal(b.M.EconomiaQuema._t.length, 0, 'caducar el botín no destruye la reserva');
+ });
+ 
+ test('basura y suelo caducado: el valor de lo destruido (tienda, referencia o P2P), con tope', { skip: !HAY }, async () => {
+@@ -301,7 +312,7 @@
+   assert.match(SRV, /const BOTIN_CADUCA_MS = 5 \* 60 \* 1000;/);
+   assert.match(SRV, /const SUELO_CADUCA_MS = 5 \* 60 \* 1000;/);
+   assert.match(trozo("app.post('/api/monstruos/derrotado'", '\n});\n'), /!conNombre \|\| !gfMonstruoDaObjetos\(tipo\) \? 0/);
+-  assert.match(SRV, /if \(b\.incentivo && !b\.recogiendo\) tesoroQuemarCaducado\(b\.cantidad, b\);\n  \}\n  for \(const \[k, t\] of _monstruoUltimo\)/);
++  assert.match(SRV, /if \(b\.incentivo && !b\.recogiendo\) tesoroQuemarCaducado\(b\.cantidad, b\)/);
+   assert.match(SRV, /eco2QuemarObjetos\('suelo_caducado', \[\{ itemId: m\.itemId, cantidad: m\.cantidad \}\]/);
+   assert.match(trozo('function tesoroComisionTienda(', '\n}\n'), /eco2PrecioTienda\(itemId\)/);
+   assert.match(trozo('function gfEsperadoTienda(', '\n}\n'), /eco2PrecioTienda\(itemId\)/);
+@@ -312,3 +323,115 @@
+   assert.match(foto, /eco2Inflaciones\(/);
+   assert.match(foto, /economiaPrecioGwei\(cfg, ayer \? ayer\.precioGwei : 0, infPrecio\)/, 'el oro de recarga sigue la inflación neta');
+ });
++
++module.exports = { bloque, modelo, J };
++
++test('fallo de escritura: saldo, recibo y tesoro revierten juntos; reintentar no duplica', async () => {
++  const b = bloque();
++  b.TesoroMov._failNext = 'create';
++  const request = { tipo: 'craftear', itemId: 'palo', cantidad: 2, ref: 'craft-rollback-1' };
++  const before = J(b.stats._t[0]);
++  const failed = await b.llamar('POST /api/economia/servicio', request);
++  assert.equal(failed.st, 503);
++  assert.deepEqual(J(b.stats._t[0]), before);
++  assert.equal(b.M.ServicioCobro._t.length, 0);
++  assert.equal(b.TesoroJuego._t[0].saldo, 9000);
++  const ok = await b.llamar('POST /api/economia/servicio', request);
++  assert.equal(ok.st, 200, JSON.stringify(ok.out));
++  assert.equal(ok.out.bronce, 100, 'el mínimo se cobra por unidad, sin descuento por lotes');
++  const replay = await Promise.all(Array.from({ length: 20 }, () => b.llamar('POST /api/economia/servicio', request)));
++  assert.ok(replay.every(r => r.out.repetido));
++  assert.equal(b.stats._t[0].bronce, 200);
++  assert.equal(b.M.ServicioCobro._t.length, 1);
++  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 100);
++});
++
++test('migrar la tercera reserva conserva cada moneda y su configuración, una sola vez', async () => {
++  const b = bloque();
++  b.M.TesoroReserva._t.push({ _id: 'reserva', saldo: 123456, quemado: 99, config: { craftearMin: 75 } });
++  await Promise.all([b.f.eco2MigrarReserva(), b.f.eco2MigrarReserva()]);
++  assert.equal(b.TesoroJuego._t[0].saldo, 132456);
++  assert.equal(b.M.TesoroReserva._t[0].saldo, 0);
++  assert.equal(b.M.TesoroReserva._t[0].archivado, true);
++  assert.equal(b.TesoroJuego._t[0].economia2.craftearMin, 75);
++  await b.f.eco2MigrarReserva();
++  assert.equal(b.TesoroJuego._t[0].saldo, 132456);
++  assert.equal(b.TesoroMov._t.filter(r => r.origen === 'migracion_reserva_v1').length, 1);
++});
++
++test('transferir y quemar protegen el capital del juego y las devoluciones; no crean dinero', async () => {
++  const b = bloque();
++  b.TesoroJuego._t[0].saldo = 8000000;
++  b.TesoroJuego._t[0].retenidoServicios = 2000000;
++  await assert.rejects(() => b.f.ecoTransferirCircular(1000001, 'test', 'admin:fund-1'), /reserva_protegida/);
++  const before = b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo;
++  await b.f.ecoTransferirCircular(1000000, 'test', 'admin:fund-2');
++  assert.equal(b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo, before);
++  await b.f.ecoTransferirCircular(1000000, 'test', 'admin:fund-2');
++  assert.equal(b.TesoroJuego._t[0].saldo, 7000000);
++  await assert.rejects(() => b.f.ecoQuemarSeguro('juego', 'bronce', 1, 'test', 'admin:burn-1'), /reserva_protegida/);
++  await b.f.ecoQuemarSeguro('circular', 'bronce', 50000, 'test', 'admin:burn-2');
++  assert.equal(b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo, before - 50000);
++  await b.f.ecoQuemarSeguro('circular', 'bronce', 50000, 'test', 'admin:burn-2');
++  assert.equal(b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo, before - 50000);
++});
++
++test('diez mil cambios conservan valor y rechazan números inválidos sin saldos negativos', () => {
++  const { f } = bloque();
++  const value = x => x.oro * 1000000 + x.plata * 1000 + x.bronce;
++  let seed = 20261028;
++  const random = n => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed % n; };
++  for (let i = 0; i < 10000; i++) {
++    const s = { oro: random(25), plata: random(1000), bronce: random(2000) }, cost = random(26000000);
++    const result = f.eco2PlanPago(cost, s);
++    if (result) { assert.equal(value(result), value(s) - cost); assert.ok(Object.values(result).every(n => Number.isSafeInteger(n) && n >= 0)); }
++    else assert.ok(value(s) < cost);
++  }
++  for (const bad of [Infinity, NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) assert.equal(f.eco2PlanPago(bad, { oro: 1, plata: 0, bronce: 0 }), null);
++  assert.equal(f.eco2PlanPago(1, { oro: Infinity, plata: 0, bronce: 0 }), null);
++});
++
++test('autorreembolso, referencias alteradas y lotes inválidos no producen monedas', async () => {
++  const b = bloque();
++  const request = { tipo: 'craftear', itemId: 'palo', cantidad: 1, ref: 'ref-validation-1' };
++  assert.equal((await b.llamar('POST /api/economia/servicio', { ...request, cantidad: 1.2 })).st, 400);
++  assert.equal((await b.llamar('POST /api/economia/servicio', { ...request, itemId: 'inventado' })).st, 400);
++  assert.equal((await b.llamar('POST /api/economia/servicio', request)).st, 200);
++  assert.equal((await b.llamar('POST /api/economia/servicio', { ...request, cantidad: 2 })).st, 409);
++  const before = b.stats._t[0].bronce;
++  for (let n = 0; n < 5; n++) assert.equal((await b.llamar('POST /api/economia/servicio/devolver', { ref: request.ref })).st, 202);
++  assert.equal(b.stats._t[0].bronce, before);
++});
++
++test('tienda autoritativa: comprar y vender conservan cada bronce y el servidor cobra sus precios', async () => {
++  const b = bloque();
++  b.TesoroJuego._t[0].saldo = 10000000;
++  const value = () => b.stats._t[0].oro * 1000000 + b.stats._t[0].plata * 1000 + b.stats._t[0].bronce + b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo;
++  const before = value();
++  const buy = { op: 'compra', itemId: 'Semillax', cantidad: 2, precioBronce: 10000, ref: 'shop-authority-1' };
++  assert.equal((await b.llamar('POST /api/economia/tienda', { ...buy, precioBronce: 1 })).st, 409);
++  const paid = await b.llamar('POST /api/economia/tienda', buy);
++  assert.equal(paid.st, 200, JSON.stringify(paid.out));
++  assert.equal(paid.out.confirmadas, 2);
++  assert.equal(value(), before, 'compra: precio y comisión se transfieren, no desaparecen');
++  const balance = J(b.stats._t[0]);
++  assert.equal((await b.llamar('POST /api/economia/tienda', buy)).out.ok, true);
++  assert.deepEqual(J(b.stats._t[0]), balance, 'repetir no cobra ni entrega dos veces');
++  const sale = await b.llamar('POST /api/economia/tienda', { op: 'venta', itemId: 'Semillax', cantidad: 2, precioBronce: 5000, ref: 'shop-authority-2' });
++  assert.equal(sale.st, 200, JSON.stringify(sale.out));
++  assert.equal(sale.out.bronce, 9500);
++  assert.equal(value(), before, 'vender tampoco crea monedas');
++});
++
++test('tienda sin liquidez no quema objetos; una confirmación ambigua no se vuelve a ejecutar', async () => {
++  const b = bloque(); let burns = 0, mints = 0;
++  b.ctx.burnItemOnChain = async () => { burns++; return 1; };
++  const sale = await b.llamar('POST /api/economia/tienda', { op: 'venta', itemId: 'Semillax', cantidad: 1, precioBronce: 5000, ref: 'shop-funds-001' });
++  assert.equal(sale.st, 409); assert.equal(burns, 0);
++  b.ctx.mintGatherReward = async () => { mints++; return null; };
++  const request = { op: 'compra', itemId: 'Semillax', cantidad: 1, precioBronce: 10000, ref: 'shop-chain-001' };
++  assert.equal((await b.llamar('POST /api/economia/tienda', request)).st, 202);
++  assert.equal((await b.llamar('POST /api/economia/tienda', request)).st, 202);
++  assert.equal(mints, 1, 'no vuelve a emitir en un resultado ambiguo');
++  assert.equal(b.M.ServicioCobro._t.find(r => r.tipo === 'tienda_compra').estado, 'revision');
++});

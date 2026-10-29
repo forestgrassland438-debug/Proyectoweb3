@@ -1,0 +1,189 @@
+✔ el precio del oro: arranca en la base, sube con la inflación y como mucho un 5 % al día (22.3724ms)
+✖ comprar oro: cotiza, el pago se mira en la cadena y el oro se da UNA vez (23.884ms)
+✖ comprar oro: pendiente se vuelve a mirar, el tope diario manda y pagar de menos da solo lo pagado (11.48ms)
+✔ la comisión de los cambios: de menor a mayor (oro 1 %, plata 2 %, bronce 3 %) y el navegador cuenta lo mismo (17.048ms)
+✔ lo que va a cada tesoro, y sin monedas gratis (113.9917ms)
+✔ pagar en bronce: primero bronce; si no llega se rompe plata y luego oro, y el cambio vuelve (21.7132ms)
+✖ el índice de precios: sigue la inflación neta y como mucho ±pasoMax al día (14.7418ms)
+✔ precios de la tienda: por defecto × índice × demanda, en enteros; vender nunca da más que comprar (6.3156ms)
+✔ recalcular: el índice del día mueve la tienda y queda un punto en el historial (14.7838ms)
+✔ el panel cambia el precio por defecto (oro, plata o bronce) y solo ese objeto se rehace (16.2941ms)
+✔ la muerte: el precio del panel con el índice (30, 60, 120… hasta el tope) (6.8717ms)
+✖ fundir y craftear: precio justo con el índice, cobro con cambio, al tesoro del juego y devolución una vez (13.0883ms)
+✖ quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado (7.9485ms)
+✖ fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema (6.2403ms)
+✔ basura y suelo caducado: el valor de lo destruido (tienda, referencia o P2P), con tope (9.7652ms)
+✔ solo los jefes dan objetos; las misiones solo monedas (5.4178ms)
+✔ el servidor lo usa donde toca (muerte, botín, suelo, tienda, misiones, foto del día) (5.2133ms)
+✖ recargas: el historial trae el tx de cada una; la cartera del juego no se compra oro a sí misma (32.5543ms)
+✔ recargas: sin cartera en el panel, el zkLTC va a la del administrador (ADMIN_ADDRESSES) (8.1981ms)
+✖ reclamar con el tx: el pago casa con su cotización perdida y se da el oro UNA vez (12.9383ms)
+✔ reclamar con el tx: lo que NO vale (14.9296ms)
+✔ recoger del suelo: por debajo del nivel del objeto no se recoge lo de otro (y queda el intento) (12.0349ms)
+✔ soltar: suspendido o bloqueado no suelta nada (y queda el intento) (8.8497ms)
+✔ la configuración se acota: nada fuera de rango, nada que no sea número (12.1142ms)
+✔ la probabilidad: automática por free/VIP + nivel + suerte, manual fija, jefes al doble y nunca más del 75 % (5.4526ms)
+✔ la cantidad: una parte del saldo, nunca más que el tope ni que el propio saldo, y más para VIP y jefes (5.2623ms)
+✔ el panel (tesoro.js) calcula EXACTAMENTE lo mismo que el servidor (81.503ms)
+✔ la comisión de la tienda: el servidor cobra con SU tabla lo mismo que el navegador (325.8552ms)
+✔ POST /api/tesoro/comision: cuenta una sola vez por ref, valida y respeta el tope diario (11.7869ms)
+✔ el incentivo: sin nombre no hay, se reserva del saldo, la suerte sube sin premio y baja al cobrar, tope diario (8.4954ms)
+✔ el incentivo no sale si el tesoro no da para el pago mínimo (y la suerte sigue) (9.8099ms)
+✔ con un tesoro pequeño que llega al mínimo, el premio sale con el mínimo (5.2642ms)
+✖ pagar y devolver: el premio va a la moneda de bronce; si no hay stats o caduca, vuelve al saldo (5.4676ms)
+✔ al arrancar, lo reservado por el proceso anterior vuelve al saldo una sola vez (5.0477ms)
+✔ el panel: configurar normaliza y guarda; meter y sacar exigen motivo y saldo (6.5799ms)
+✔ los mapas por nivel: misma tabla y misma curva en el servidor y en el cliente (30.3151ms)
+✔ el mercado P2P cobra el 5 % y lo reparte: 1,5 % al tesoro circular y 3,5 % al del juego, en bronce (51.8218ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 28
+ℹ fail 9
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1991.7296
+
+✖ failing tests:
+
+test at tools\economia.test.cjs:134:1
+✖ comprar oro: cotiza, el pago se mira en la cadena y el oro se da UNA vez (23.884ms)
+  AssertionError [ERR_ASSERTION]: {"error":"internal_error"}
+  
+  500 !== 200
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia.test.cjs:150:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\economia.test.cjs:164:1
+✖ comprar oro: pendiente se vuelve a mirar, el tope diario manda y pagar de menos da solo lo pagado (11.48ms)
+  AssertionError [ERR_ASSERTION]: la mitad del dinero, la mitad del oro
+  
+  undefined !== 5
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia.test.cjs:175:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\economia2.test.cjs:137:1
+✖ el índice de precios: sigue la inflación neta y como mucho ±pasoMax al día (14.7418ms)
+  AssertionError [ERR_ASSERTION]: el valor de lo destruido (30 de 1.000) la baja
+  
+  0.2 !== 0.17
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia2.test.cjs:152:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0.2,
+    expected: 0.17,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\economia2.test.cjs:222:1
+✖ fundir y craftear: precio justo con el índice, cobro con cambio, al tesoro del juego y devolución una vez (13.0883ms)
+  AssertionError [ERR_ASSERTION]: {"error":"economia_no_disponible","message":"The operation could not be committed safely. Try again later."}
+  
+  503 !== 200
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia2.test.cjs:230:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 503,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\economia2.test.cjs:246:1
+✖ quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado (7.9485ms)
+  AssertionError [ERR_ASSERTION]: {"error":"ref_invalida"}
+  
+  400 !== 200
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia2.test.cjs:249:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\economia2.test.cjs:262:1
+✖ fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema (6.2403ms)
+  TypeError: Cannot read properties of undefined (reading 'saldo')
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\economia2.test.cjs:265:40)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)
+
+test at tools\recargas-y-suelo.test.cjs:117:1
+✖ recargas: el historial trae el tx de cada una; la cartera del juego no se compra oro a sí misma (32.5543ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  undefined !== 10
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\recargas-y-suelo.test.cjs:122:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 10,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\recargas-y-suelo.test.cjs:140:1
+✖ reclamar con el tx: el pago casa con su cotización perdida y se da el oro UNA vez (12.9383ms)
+  AssertionError [ERR_ASSERTION]: {"error":"internal_error"}
+  
+  500 !== 200
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\recargas-y-suelo.test.cjs:147:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\tesoro.test.cjs:357:1
+✖ pagar y devolver: el premio va a la moneda de bronce; si no hay stats o caduca, vuelve al saldo (5.4676ms)
+  ReferenceError: ecoTransaccion is not defined
+      at Object.tesoroPagar (evalmachine.<anonymous>:142:3)
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\tesoro.test.cjs:360:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)

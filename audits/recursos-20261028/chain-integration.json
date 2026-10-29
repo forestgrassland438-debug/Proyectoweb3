@@ -1,0 +1,17 @@
+{
+  "startedAt": "2026-10-29T05:42:11.043Z",
+  "environment": "local MongoDB replica set + local EVM",
+  "assertions": [
+    "100 concurrent Mongo claims award one node, including after expiry",
+    "the unmodified rr.txt.txt contract rejects minting above its global cap",
+    "an unfunded listing cannot charge a buyer",
+    "escrow transfers preserve a full table and do not record a burn",
+    "a delivery requires its actual buyer and ignores forged client quantities",
+    "lost-response retries cannot debit or transfer twice",
+    "repeated equal-size purchases and the remaining refund preserve all ten resource units",
+    "buyer, seller and both treasury balances conserve total monetary value",
+    "the contract owner can bypass caps through open migration; this requires an explicit operational warning"
+  ],
+  "completedAt": "2026-10-29T05:42:24.042Z",
+  "ok": true
+}

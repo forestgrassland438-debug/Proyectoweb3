@@ -1,0 +1,793 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+/// @title  InvoiceSystem — v2 (sync-ready, batch-read, gas-optimizado)
+/// @notice Añade getUserInventorySnapshot y getInvoicesSafe para sincronización
+///         de inventario en cliente sin múltiples llamadas RPC.
+///         Sigue siendo gas-friendly: unchecked loops, swap-remove, sin string duplicación.
+contract InvoiceSystem is Ownable, ReentrancyGuard {
+
+    // -------------------------------------------------------------------------
+    // ERRORS
+    // -------------------------------------------------------------------------
+    error ZeroAddress();
+    error ZeroAmount();
+    error InvalidManualIdLength();
+    error ManualIdAlreadyExists();
+    error ManualIdNotFound();
+    error TipoNotConfigured();
+    error ExceedsTipoLimit();
+    error InvoiceNotActive();
+    error Unauthorized();
+    error InsufficientQuantity();
+    error CannotRenounceOwnership();
+    error TransferAmountZero();
+    error TipoLimitZero();
+    error PerInvoiceLimitTooLow();
+    error InvoiceNotFound();
+    error SameInvoice();
+    error InvoiceWouldExceedPerInvoiceLimit();
+    /// @dev Protección anti-DoS en funciones de batch read.
+    error BatchTooLarge(uint256 requested, uint256 maxAllowed);
+    /// @dev La migración ya fue sellada; no se aceptan más importaciones.
+    error MigrationAlreadySealed();
+
+    // -------------------------------------------------------------------------
+    // CONSTANTES
+    // -------------------------------------------------------------------------
+    /// @dev Tamaño máximo de batch para lecturas masivas. Evita DoS en nodos RPC.
+    uint256 public constant MAX_BATCH_SIZE = 200;
+
+    // -------------------------------------------------------------------------
+    // STRUCTS
+    // -------------------------------------------------------------------------
+    struct Invoice {
+        uint256 id;
+        string  manualId;
+        address owner;
+        string  tipo;
+        uint256 cantidad;
+        bool    active;
+        uint256 createdAt;
+    }
+
+    struct TipoInfo {
+        uint256 limit;
+        uint256 perInvoiceLimit;
+        uint256 totalQuantity;
+        uint256 invoiceCount;
+        uint256 totalBurned;
+        bool    exists;
+    }
+
+    // -------------------------------------------------------------------------
+    // STORAGE
+    // -------------------------------------------------------------------------
+    uint256 private _invoiceCounter;
+
+    mapping(uint256  => Invoice)  private invoices;
+    mapping(bytes32  => uint256)  private _manualHashToId;
+
+    mapping(bytes32  => TipoInfo) private _tipoInfo;
+    mapping(bytes32  => string)   private _tipoNameByKey;
+
+    mapping(address  => uint256)  private _userActiveCount;
+    mapping(address  => uint256)  private _userTotalEverCount;
+    mapping(address  => mapping(bytes32 => uint256)) private _userTipoActiveCount;
+
+    // Lista de IDs activos por usuario (swap-remove para O(1) eliminación)
+    mapping(address  => uint256[]) private _userActiveInvoiceIds;
+    // index+1 → 0 significa "no está en lista"
+    mapping(uint256  => uint256)   private _userActiveInvoiceIndex;
+
+    // ── ADMINS ────────────────────────────────────────────────────────────
+    // Wallets con poderes operativos completos (además del owner).
+    // El owner sigue siendo el "super admin": solo él agrega/quita admins.
+    mapping(address  => bool) private _admins;
+
+    // ── MIGRACIÓN ─────────────────────────────────────────────────────────
+    // Una vez sellada, no se pueden importar más facturas (candado permanente
+    // para evitar inyección de estado tras completar la migración).
+    bool public migrationSealed;
+
+    // -------------------------------------------------------------------------
+    // EVENTS
+    // -------------------------------------------------------------------------
+    event InvoiceCreated(
+        uint256 indexed id,
+        string  manualId,
+        address indexed owner,
+        string  indexed tipo,
+        uint256 cantidad,
+        uint256 createdAt
+    );
+    event InvoiceQuantityIncreased(uint256 indexed id, uint256 increaseAmount, uint256 newCantidad);
+    event InvoiceQuantityDecreased(uint256 indexed id, uint256 decreaseAmount, uint256 newCantidad);
+    event InvoiceDeleted(uint256 indexed id, string manualId);
+    event InvoiceTransferred(
+        uint256 indexed originalId,
+        uint256 newId,
+        address indexed from,
+        address indexed to,
+        uint256 amount
+    );
+    event InvoiceQuantityMoved(uint256 indexed fromId, uint256 indexed toId, uint256 amount);
+    event TipoLimitSet(string tipo, uint256 limit, uint256 perInvoiceLimit);
+    event ManualIdFreed(string manualId);
+    event TipoDeprecated(string tipo);
+    event AdminAdded(address indexed admin);
+    event AdminRemoved(address indexed admin);
+    event InvoiceMigrated(uint256 indexed id, address indexed owner, string tipo, uint256 cantidad);
+    event MigrationSealed();
+
+    // -------------------------------------------------------------------------
+    // MODIFIERS
+    // -------------------------------------------------------------------------
+    modifier onlyInvoiceOwnerOrOwner(uint256 _id) {
+        Invoice storage inv = invoices[_id];
+        if (inv.owner != msg.sender && msg.sender != owner()) revert Unauthorized();
+        _;
+    }
+
+    /// @dev Permite ejecutar a owner o a cualquier wallet marcada como admin.
+    ///      Se usa en TODAS las funciones operativas (crear/aumentar/disminuir/
+    ///      transferir facturas, configurar tipos). La gestión de admins y el
+    ///      sellado de migración siguen siendo exclusivos del owner.
+    modifier onlyAdmin() {
+        if (msg.sender != owner() && !_admins[msg.sender]) revert Unauthorized();
+        _;
+    }
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCTOR
+    // -------------------------------------------------------------------------
+    constructor(address initialOwner) Ownable(initialOwner) {
+        if (initialOwner == address(0)) revert ZeroAddress();
+    }
+
+    function renounceOwnership() public override onlyOwner {
+        revert CannotRenounceOwnership();
+    }
+
+    // -------------------------------------------------------------------------
+    // ADMINS — gestión de wallets con poderes operativos completos
+    // -------------------------------------------------------------------------
+    /// @notice Marca una wallet como admin. Los admins pueden ejecutar todas las
+    ///         funciones operativas (crear/aumentar/disminuir/transferir facturas,
+    ///         configurar tipos), igual que el owner.
+    /// @dev    Solo el owner (super admin) puede agregar admins.
+    function addAdmin(address _admin) external onlyOwner nonReentrant {
+        if (_admin == address(0)) revert ZeroAddress();
+        _admins[_admin] = true;
+        emit AdminAdded(_admin);
+    }
+
+    /// @notice Quita el rol de admin a una wallet.
+    /// @dev    Solo el owner. El owner nunca pierde sus poderes por esta vía.
+    function removeAdmin(address _admin) external onlyOwner nonReentrant {
+        _admins[_admin] = false;
+        emit AdminRemoved(_admin);
+    }
+
+    /// @notice Devuelve true si `_who` es owner o admin.
+    function isAdmin(address _who) external view returns (bool) {
+        return _who == owner() || _admins[_who];
+    }
+
+    // -------------------------------------------------------------------------
+    // TIPOS / LIMITES
+    // -------------------------------------------------------------------------
+    function setLimit(
+        string calldata _tipo,
+        uint256 _limit,
+        uint256 _perInvoiceLimit
+    ) external onlyAdmin nonReentrant {
+        if (_limit == 0) revert TipoLimitZero();
+        if (_perInvoiceLimit == 0) revert PerInvoiceLimitTooLow();
+        bytes32 key = keccak256(bytes(_tipo));
+        TipoInfo storage info = _tipoInfo[key];
+        info.exists         = true;
+        info.limit          = _limit;
+        info.perInvoiceLimit = _perInvoiceLimit;
+        _tipoNameByKey[key] = _tipo;
+        emit TipoLimitSet(_tipo, _limit, _perInvoiceLimit);
+    }
+
+    function deprecateTipo(string calldata _tipo) external onlyAdmin nonReentrant {
+        bytes32 key = keccak256(bytes(_tipo));
+        if (!_tipoInfo[key].exists) revert TipoNotConfigured();
+        _tipoInfo[key].exists = false;
+        emit TipoDeprecated(_tipo);
+    }
+
+    // -------------------------------------------------------------------------
+    // CREAR FACTURA
+    // -------------------------------------------------------------------------
+    function createInvoice(
+        address _owner,
+        string calldata _tipo,
+        uint256 _cantidad,
+        string calldata _manualId
+    ) external onlyAdmin nonReentrant returns (uint256) {
+        if (_owner == address(0)) revert ZeroAddress();
+        // NOTA: _cantidad == 0 está PERMITIDO a propósito.
+        // Permite crear facturas "vacías" (p. ej. oro y plata, que todo jugador
+        // nuevo arranca en 0) para que tengan desde el inicio un id de factura y
+        // un manualId reservado, listos para incrementarse luego con
+        // increaseInvoiceQuantity. El antiguo `revert ZeroAmount()` impedía esto
+        // y dejaba oro/plata sin factura (invoiceId = null en la base de datos).
+        // El rechazo de cantidad 0 se mantiene en increase/transfer, donde sí
+        // carece de sentido.
+
+        bytes memory mB = bytes(_manualId);
+        if (mB.length == 0 || mB.length > 64) revert InvalidManualIdLength();
+
+        bytes32 manualHash = keccak256(bytes(_manualId));
+        if (_manualHashToId[manualHash] != 0) revert ManualIdAlreadyExists();
+
+        bytes32 tipoKey = keccak256(bytes(_tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+        if (!info.exists) revert TipoNotConfigured();
+        if (_cantidad > info.perInvoiceLimit) revert InvoiceWouldExceedPerInvoiceLimit();
+        if (info.totalQuantity + _cantidad > info.limit) revert ExceedsTipoLimit();
+
+        unchecked { _invoiceCounter++; }
+        uint256 id = _invoiceCounter;
+
+        invoices[id] = Invoice({
+            id:        id,
+            manualId:  _manualId,
+            owner:     _owner,
+            tipo:      _tipo,
+            cantidad:  _cantidad,
+            active:    true,
+            createdAt: block.timestamp
+        });
+
+        _manualHashToId[manualHash] = id;
+
+        unchecked {
+            _userActiveCount[_owner]++;
+            _userTotalEverCount[_owner]++;
+            _userTipoActiveCount[_owner][tipoKey]++;
+            info.totalQuantity += _cantidad;
+            info.invoiceCount++;
+        }
+
+        _addActiveInvoiceToUser(_owner, id);
+        emit InvoiceCreated(id, _manualId, _owner, _tipo, _cantidad, block.timestamp);
+        return id;
+    }
+
+    // -------------------------------------------------------------------------
+    // AUMENTAR / DISMINUIR
+    // -------------------------------------------------------------------------
+    function increaseInvoiceQuantity(
+        uint256 _id,
+        uint256 _increaseAmount
+    ) external onlyAdmin nonReentrant returns (uint256) {
+        if (_increaseAmount == 0) revert ZeroAmount();
+        Invoice storage inv = invoices[_id];
+        if (inv.id == 0) revert InvoiceNotFound();
+        if (!inv.active) revert InvoiceNotActive();
+
+        bytes32 tipoKey = keccak256(bytes(inv.tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+
+        uint256 newAmt = inv.cantidad + _increaseAmount;
+        if (newAmt > info.perInvoiceLimit) revert InvoiceWouldExceedPerInvoiceLimit();
+        if (info.totalQuantity + _increaseAmount > info.limit) revert ExceedsTipoLimit();
+
+        inv.cantidad = newAmt;
+        unchecked { info.totalQuantity += _increaseAmount; }
+
+        emit InvoiceQuantityIncreased(_id, _increaseAmount, newAmt);
+        return newAmt;
+    }
+
+    function decreaseInvoiceQuantity(
+        uint256 _id,
+        uint256 _decreaseAmount
+    ) external onlyAdmin nonReentrant returns (uint256) {
+        Invoice storage inv = invoices[_id];
+        if (inv.id == 0) revert InvoiceNotFound();
+        if (!inv.active) revert InvoiceNotActive();
+
+        uint256 actualDecrease = _decreaseAmount > inv.cantidad ? inv.cantidad : _decreaseAmount;
+
+        bytes32 tipoKey = keccak256(bytes(inv.tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+        if (info.totalQuantity < actualDecrease) revert InsufficientQuantity();
+
+        uint256 newCantidad;
+        unchecked { newCantidad = inv.cantidad - actualDecrease; }
+
+        unchecked {
+            info.totalQuantity -= actualDecrease;
+            info.totalBurned   += actualDecrease;
+        }
+
+        if (newCantidad == 0) {
+            string  memory manualId  = inv.manualId;
+            address ownerAddr        = inv.owner;
+
+            inv.active   = false;
+            inv.cantidad = 0;
+
+            unchecked { info.invoiceCount--; }
+            if (_userActiveCount[ownerAddr] > 0)              { unchecked { _userActiveCount[ownerAddr]--; } }
+            if (_userTipoActiveCount[ownerAddr][tipoKey] > 0) { unchecked { _userTipoActiveCount[ownerAddr][tipoKey]--; } }
+
+            delete _manualHashToId[keccak256(bytes(manualId))];
+            _removeActiveInvoiceFromUser(ownerAddr, _id);
+
+            emit InvoiceDeleted(_id, manualId);
+            emit ManualIdFreed(manualId);
+        } else {
+            inv.cantidad = newCantidad;
+            emit InvoiceQuantityDecreased(_id, actualDecrease, newCantidad);
+        }
+
+        return actualDecrease;
+    }
+
+    function deleteInvoice(uint256 _id) external onlyAdmin nonReentrant {
+        Invoice storage inv = invoices[_id];
+        if (inv.id == 0) revert InvoiceNotFound();
+        if (!inv.active) revert InvoiceNotActive();
+
+        bytes32 tipoKey  = keccak256(bytes(inv.tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+
+        uint256 amt = inv.cantidad;
+        if (info.totalQuantity < amt) revert InsufficientQuantity();
+
+        unchecked {
+            info.totalBurned   += amt;
+            info.totalQuantity -= amt;
+            info.invoiceCount--;
+        }
+
+        address ownerAddr = inv.owner;
+        string  memory manual = inv.manualId;
+
+        inv.active   = false;
+        inv.cantidad = 0;
+
+        if (_userActiveCount[ownerAddr] > 0)              { unchecked { _userActiveCount[ownerAddr]--; } }
+        if (_userTipoActiveCount[ownerAddr][tipoKey] > 0) { unchecked { _userTipoActiveCount[ownerAddr][tipoKey]--; } }
+
+        delete _manualHashToId[keccak256(bytes(manual))];
+        _removeActiveInvoiceFromUser(ownerAddr, _id);
+
+        emit InvoiceDeleted(_id, manual);
+        emit ManualIdFreed(manual);
+    }
+
+    // -------------------------------------------------------------------------
+    // TRANSFERENCIAS
+    // -------------------------------------------------------------------------
+    function transferInvoice(
+        address _fromOwner,
+        address _toOwner,
+        uint256 _id,
+        uint256 _amount,
+        string calldata _newManualId
+    ) external onlyAdmin nonReentrant returns (uint256) {
+        if (_toOwner == address(0)) revert ZeroAddress();
+        if (_amount == 0) revert TransferAmountZero();
+
+        bytes memory mB = bytes(_newManualId);
+        if (mB.length == 0 || mB.length > 64) revert InvalidManualIdLength();
+
+        bytes32 manualHashNew = keccak256(bytes(_newManualId));
+        if (_manualHashToId[manualHashNew] != 0) revert ManualIdAlreadyExists();
+
+        return _transferInvoiceInternal(_fromOwner, _toOwner, _id, _amount, _newManualId, manualHashNew);
+    }
+
+    function _transferInvoiceInternal(
+        address fromOwner,
+        address toOwner,
+        uint256 id,
+        uint256 amount,
+        string calldata newManualId,
+        bytes32 manualHashNew
+    ) internal returns (uint256) {
+        Invoice storage inv = invoices[id];
+        if (inv.id == 0) revert InvoiceNotFound();
+        if (!inv.active) revert InvoiceNotActive();
+        if (inv.owner != fromOwner) revert Unauthorized();
+        if (inv.cantidad < amount) revert InsufficientQuantity();
+
+        bytes32 tipoKey = keccak256(bytes(inv.tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+        if (!info.exists) revert TipoNotConfigured();
+        if (amount > info.perInvoiceLimit) revert InvoiceWouldExceedPerInvoiceLimit();
+
+        _decreaseSourceForTransfer(id, amount, fromOwner, tipoKey);
+        uint256 nid = _createInvoiceForTransfer(toOwner, inv.tipo, amount, newManualId, manualHashNew, tipoKey);
+
+        emit InvoiceTransferred(id, nid, fromOwner, toOwner, amount);
+        return nid;
+    }
+
+    function _decreaseSourceForTransfer(
+        uint256 id,
+        uint256 amount,
+        address fromOwner,
+        bytes32 tipoKey
+    ) internal {
+        Invoice storage inv = invoices[id];
+        TipoInfo storage info = _tipoInfo[tipoKey];
+
+        uint256 remaining;
+        unchecked { remaining = inv.cantidad - amount; }
+        inv.cantidad = remaining;
+
+        if (remaining == 0) {
+            string memory oldManual = inv.manualId;
+            inv.active = false;
+
+            unchecked { info.invoiceCount--; }
+            if (_userActiveCount[fromOwner] > 0)              { unchecked { _userActiveCount[fromOwner]--; } }
+            if (_userTipoActiveCount[fromOwner][tipoKey] > 0) { unchecked { _userTipoActiveCount[fromOwner][tipoKey]--; } }
+
+            delete _manualHashToId[keccak256(bytes(oldManual))];
+            _removeActiveInvoiceFromUser(fromOwner, id);
+
+            emit InvoiceDeleted(id, oldManual);
+            emit ManualIdFreed(oldManual);
+        } else {
+            emit InvoiceQuantityDecreased(id, amount, remaining);
+        }
+        // totalQuantity no cambia (mismo tipo, cantidad interna movida)
+    }
+
+    function _createInvoiceForTransfer(
+        address toOwner,
+        string memory tipoStr,
+        uint256 cantidad,
+        string calldata newManualId,
+        bytes32 manualHashNew,
+        bytes32 tipoKey
+    ) internal returns (uint256) {
+        unchecked { _invoiceCounter++; }
+        uint256 nid = _invoiceCounter;
+
+        invoices[nid] = Invoice({
+            id:        nid,
+            manualId:  newManualId,
+            owner:     toOwner,
+            tipo:      tipoStr,
+            cantidad:  cantidad,
+            active:    true,
+            createdAt: block.timestamp
+        });
+
+        _manualHashToId[manualHashNew] = nid;
+
+        unchecked {
+            _userActiveCount[toOwner]++;
+            _userTotalEverCount[toOwner]++;
+            _userTipoActiveCount[toOwner][tipoKey]++;
+            _tipoInfo[tipoKey].invoiceCount++;
+        }
+
+        _addActiveInvoiceToUser(toOwner, nid);
+        emit InvoiceCreated(nid, newManualId, toOwner, tipoStr, cantidad, block.timestamp);
+        return nid;
+    }
+
+    function transferQuantityBetweenInvoices(
+        uint256 fromId,
+        uint256 toId,
+        uint256 amount
+    ) external onlyAdmin nonReentrant {
+        if (fromId == toId) revert SameInvoice();
+        if (amount == 0) revert TransferAmountZero();
+
+        Invoice storage fromInv = invoices[fromId];
+        Invoice storage toInv   = invoices[toId];
+        if (fromInv.id == 0 || toInv.id == 0) revert InvoiceNotFound();
+        if (!fromInv.active || !toInv.active) revert InvoiceNotActive();
+        if (fromInv.cantidad < amount) revert InsufficientQuantity();
+
+        bytes32 fromKey = keccak256(bytes(fromInv.tipo));
+        bytes32 toKey   = keccak256(bytes(toInv.tipo));
+        if (fromKey != toKey) revert TipoNotConfigured();
+
+        TipoInfo storage info = _tipoInfo[fromKey];
+
+        uint256 newTo = toInv.cantidad + amount;
+        if (newTo > info.perInvoiceLimit) revert InvoiceWouldExceedPerInvoiceLimit();
+
+        unchecked { fromInv.cantidad -= amount; }
+        toInv.cantidad = newTo;
+
+        if (fromInv.cantidad == 0) {
+            string  memory manualId  = fromInv.manualId;
+            address ownerAddr        = fromInv.owner;
+            fromInv.active = false;
+
+            unchecked { info.invoiceCount--; }
+            if (_userActiveCount[ownerAddr] > 0)              { unchecked { _userActiveCount[ownerAddr]--; } }
+            if (_userTipoActiveCount[ownerAddr][fromKey] > 0) { unchecked { _userTipoActiveCount[ownerAddr][fromKey]--; } }
+
+            delete _manualHashToId[keccak256(bytes(manualId))];
+            _removeActiveInvoiceFromUser(ownerAddr, fromId);
+
+            emit InvoiceDeleted(fromId, manualId);
+            emit ManualIdFreed(manualId);
+        }
+
+        emit InvoiceQuantityMoved(fromId, toId, amount);
+    }
+
+    // -------------------------------------------------------------------------
+    // VIEWS — LECTURA INDIVIDUAL
+    // -------------------------------------------------------------------------
+    function getInvoice(uint256 _id) public view returns (Invoice memory) {
+        Invoice storage inv = invoices[_id];
+        if (inv.id == 0) revert InvoiceNotFound();
+        return inv;
+    }
+
+    function getInvoiceByManualId(string calldata _manualId) external view returns (Invoice memory) {
+        bytes32 manualHash = keccak256(bytes(_manualId));
+        uint256 id = _manualHashToId[manualHash];
+        if (id == 0) revert ManualIdNotFound();
+        return getInvoice(id);
+    }
+
+    /// @notice Busca una factura por manualId SIN revertir. Útil para verificaciones safe.
+    /// @return inv   La factura (campos en cero si no existe).
+    /// @return found true si la factura existe y está activa.
+    function getInvoiceByManualIdSafe(string calldata _manualId)
+        external view
+        returns (Invoice memory inv, bool found)
+    {
+        bytes32 manualHash = keccak256(bytes(_manualId));
+        uint256 id = _manualHashToId[manualHash];
+        if (id == 0) return (inv, false);
+        Invoice storage stored = invoices[id];
+        if (!stored.active) return (inv, false);
+        return (stored, true);
+    }
+
+    function getTipoStats(string calldata _tipo)
+        external view
+        returns (
+            uint256 totalQuantity,
+            uint256 limit,
+            uint256 perInvoiceLimit,
+            uint256 invoiceCount,
+            uint256 totalBurned,
+            bool    exists
+        )
+    {
+        bytes32 key  = keccak256(bytes(_tipo));
+        TipoInfo storage info = _tipoInfo[key];
+        totalQuantity  = info.totalQuantity;
+        limit          = info.limit;
+        perInvoiceLimit= info.perInvoiceLimit;
+        invoiceCount   = info.invoiceCount;
+        totalBurned    = info.totalBurned;
+        exists         = info.exists;
+    }
+
+    /// @notice Devuelve todos los IDs de facturas activas para `user`.
+    function getActiveInvoiceIds(address user) external view returns (uint256[] memory) {
+        return _userActiveInvoiceIds[user];
+    }
+
+    // -------------------------------------------------------------------------
+    // VIEWS — BATCH READ (nuevas funciones para sincronización de inventario)
+    // -------------------------------------------------------------------------
+
+    /// @notice Obtiene el snapshot completo de inventario de un usuario en UNA sola llamada.
+    ///         Reemplaza el patrón: getActiveInvoiceIds() + N × getInvoice(id).
+    ///         Diseñado para la escena de carga del juego.
+    /// @dev    El array resultante puede contener facturas inactivas si la lista interna
+    ///         no se saneó (raro), por lo que el cliente debe filtrar por `active == true`.
+    /// @param  user  Dirección del jugador.
+    /// @return result  Array de Invoice. Incluye solo facturas registradas en la lista del usuario.
+    function getUserInventorySnapshot(address user)
+        external view
+        returns (Invoice[] memory result)
+    {
+        uint256[] storage ids = _userActiveInvoiceIds[user];
+        uint256 len = ids.length;
+        result = new Invoice[](len);
+        for (uint256 i = 0; i < len; ) {
+            result[i] = invoices[ids[i]];
+            unchecked { i++; }
+        }
+    }
+
+    /// @notice Lectura batch de facturas por ID, SIN revertir en IDs inexistentes.
+    ///         Si un ID no existe, el elemento resultante tiene `id == 0` y `active == false`.
+    /// @dev    Límite de MAX_BATCH_SIZE elementos para evitar DoS.
+    /// @param  ids   Array de IDs a consultar.
+    /// @return result  Array de Invoice, mismo orden que `ids`.
+    function getInvoicesSafe(uint256[] calldata ids)
+        external view
+        returns (Invoice[] memory result)
+    {
+        uint256 len = ids.length;
+        if (len > MAX_BATCH_SIZE) revert BatchTooLarge(len, MAX_BATCH_SIZE);
+        result = new Invoice[](len);
+        for (uint256 i = 0; i < len; ) {
+            Invoice storage inv = invoices[ids[i]];
+            if (inv.id != 0) {
+                result[i] = inv;
+            }
+            // Si no existe, result[i] queda con todos los campos en cero (active=false, id=0)
+            unchecked { i++; }
+        }
+    }
+
+    /// @notice Verifica batch de slots de inventario en una sola llamada.
+    ///         Para cada par (slotId, manualId), devuelve si es válido y la cantidad canónica.
+    ///         Un slot es válido si: la factura existe, está activa Y el manualId coincide.
+    /// @dev    Límite de MAX_BATCH_SIZE por lado. Los arrays deben tener el mismo length.
+    /// @param  slotIds     IDs de factura guardados en los slots del cliente.
+    /// @param  slotManualIds  ManualIds guardados en los slots del cliente.
+    /// @return valid       true si el slot sigue siendo válido en blockchain.
+    /// @return canonicalQty  Cantidad real en blockchain (0 si inválido).
+    function batchVerifySlots(
+        uint256[] calldata slotIds,
+        string[]  calldata slotManualIds
+    )
+        external view
+        returns (bool[] memory valid, uint256[] memory canonicalQty)
+    {
+        uint256 len = slotIds.length;
+        if (len > MAX_BATCH_SIZE) revert BatchTooLarge(len, MAX_BATCH_SIZE);
+        // Ambos arrays deben tener la misma longitud; si no, fallamos silenciosamente
+        // usando min(len, slotManualIds.length) para evitar out-of-bounds.
+        uint256 minLen = len < slotManualIds.length ? len : slotManualIds.length;
+
+        valid        = new bool[](len);
+        canonicalQty = new uint256[](len);
+
+        for (uint256 i = 0; i < minLen; ) {
+            uint256 sid = slotIds[i];
+            if (sid == 0) {
+                unchecked { i++; }
+                continue;
+            }
+            Invoice storage inv = invoices[sid];
+            if (inv.id != 0 && inv.active) {
+                // Comparar manualId en bytes (más barato que string equality en Solidity)
+                if (keccak256(bytes(inv.manualId)) == keccak256(bytes(slotManualIds[i]))) {
+                    valid[i]        = true;
+                    canonicalQty[i] = inv.cantidad;
+                }
+            }
+            unchecked { i++; }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // MIGRACIÓN — "el bus": testnet (ciudad principal) → mainnet (clon)
+    // -------------------------------------------------------------------------
+    //
+    //  Dos contratos en redes distintas NO pueden leerse entre sí. La migración
+    //  se hace en dos tramos con un script off-chain de por medio:
+    //
+    //    1) ANDÉN DE SUBIDA (origen / testnet):
+    //       - totalInvoicesEver() da el id máximo emitido.
+    //       - Un script recorre ids 1..N en lotes de MAX_BATCH_SIZE con
+    //         getInvoicesSafe(ids) y arma la lista de facturas ACTIVAS.
+    //
+    //    2) ANDÉN DE BAJADA (destino / mainnet, este contrato clonado):
+    //       - El owner configura los tipos con setLimit(...) (mismos límites).
+    //       - Llama migrateInvoicesBatch(lotes) para reconstruir el estado.
+    //       - Al terminar, sealMigration() cierra el candado para siempre.
+    //
+    //  La importación reconstruye TODO el estado derivado: índice de manualId,
+    //  contadores por usuario y por tipo, listas activas y el contador global
+    //  de ids (para que las facturas nuevas no colisionen con las migradas).
+    // -------------------------------------------------------------------------
+
+    /// @notice Id más alto de factura emitido alguna vez. Define el rango 1..N
+    ///         que el script de migración debe recorrer en el origen.
+    function totalInvoicesEver() external view returns (uint256) {
+        return _invoiceCounter;
+    }
+
+    /// @notice Importa un lote de facturas desde el contrato de origen.
+    /// @dev    Solo owner y solo mientras la migración NO esté sellada.
+    ///         Idempotente: ignora ids ya presentes o manualIds ya tomados,
+    ///         así que reintentar un lote no duplica ni corrompe contadores.
+    ///         Los tipos deben estar configurados (setLimit) antes de importar.
+    ///         No migra `totalBurned` por tipo (historial de quemas): arranca en 0.
+    function migrateInvoicesBatch(Invoice[] calldata batch)
+        external onlyOwner nonReentrant
+    {
+        if (migrationSealed) revert MigrationAlreadySealed();
+        uint256 len = batch.length;
+        if (len > MAX_BATCH_SIZE) revert BatchTooLarge(len, MAX_BATCH_SIZE);
+        for (uint256 i = 0; i < len; ) {
+            _importOneInvoice(batch[i]);
+            unchecked { i++; }
+        }
+    }
+
+    function _importOneInvoice(Invoice calldata src) internal {
+        // El bus solo recibe pasajeros reales: id válido, activa y con dueño.
+        if (src.id == 0 || !src.active || src.owner == address(0)) return;
+        // Idempotencia: si el id ya existe aquí, no re-importar (evita doble conteo).
+        if (invoices[src.id].id != 0) return;
+
+        bytes32 manualHash = keccak256(bytes(src.manualId));
+        // Si el manualId ya está tomado en el destino, no colisionar.
+        if (_manualHashToId[manualHash] != 0) return;
+
+        bytes32 tipoKey = keccak256(bytes(src.tipo));
+        TipoInfo storage info = _tipoInfo[tipoKey];
+        if (!info.exists) revert TipoNotConfigured();
+
+        invoices[src.id] = Invoice({
+            id:        src.id,
+            manualId:  src.manualId,
+            owner:     src.owner,
+            tipo:      src.tipo,
+            cantidad:  src.cantidad,
+            active:    true,
+            createdAt: src.createdAt
+        });
+        _manualHashToId[manualHash] = src.id;
+
+        unchecked {
+            _userActiveCount[src.owner]++;
+            _userTotalEverCount[src.owner]++;
+            _userTipoActiveCount[src.owner][tipoKey]++;
+            info.totalQuantity += src.cantidad;
+            info.invoiceCount++;
+        }
+        _addActiveInvoiceToUser(src.owner, src.id);
+
+        // El contador global nunca queda por debajo del id más alto migrado.
+        if (src.id > _invoiceCounter) _invoiceCounter = src.id;
+
+        emit InvoiceMigrated(src.id, src.owner, src.tipo, src.cantidad);
+    }
+
+    /// @notice Cierra la migración de forma permanente. Tras esto, ninguna
+    ///         llamada a migrateInvoicesBatch es aceptada. Irreversible.
+    /// @dev    Solo owner. Ejecutar cuando toda la data haya sido importada.
+    function sealMigration() external onlyOwner {
+        migrationSealed = true;
+        emit MigrationSealed();
+    }
+
+    // -------------------------------------------------------------------------
+    // INTERNAL — Mantener lista activa por usuario (swap-remove O(1))
+    // -------------------------------------------------------------------------
+    function _addActiveInvoiceToUser(address user, uint256 id) internal {
+        _userActiveInvoiceIds[user].push(id);
+        _userActiveInvoiceIndex[id] = _userActiveInvoiceIds[user].length; // index+1
+    }
+
+    function _removeActiveInvoiceFromUser(address user, uint256 id) internal {
+        uint256 idxPlusOne = _userActiveInvoiceIndex[id];
+        if (idxPlusOne == 0) return; // ya removido
+
+        uint256 idx       = idxPlusOne - 1;
+        uint256 lastIndex = _userActiveInvoiceIds[user].length - 1;
+
+        if (idx != lastIndex) {
+            uint256 lastId = _userActiveInvoiceIds[user][lastIndex];
+            _userActiveInvoiceIds[user][idx] = lastId;
+            _userActiveInvoiceIndex[lastId]  = idx + 1; // actualizar índice del movido
+        }
+
+        _userActiveInvoiceIds[user].pop();
+        delete _userActiveInvoiceIndex[id];
+    }
+}

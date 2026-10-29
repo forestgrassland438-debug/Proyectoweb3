@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "errors": [],
+  "samples": [
+    {
+      "width": 1280,
+      "overflow": false,
+      "privateRowsCleared": true
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "privateRowsCleared": true
+    },
+    {
+      "width": 320,
+      "overflow": false,
+      "privateRowsCleared": true
+    }
+  ],
+  "iframeCycles": 30,
+  "requests": 60
+}

@@ -1,0 +1,34 @@
+✔ el precio del oro: arranca en la base, sube con la inflación y como mucho un 5 % al día (15.7658ms)
+✔ comprar oro: cotiza, el pago se mira en la cadena y el oro se da UNA vez (23.1314ms)
+✔ comprar oro: pendiente se vuelve a mirar, el tope diario manda y pagar de menos da solo lo pagado (11.0184ms)
+✔ la comisión de los cambios: de menor a mayor (oro 1 %, plata 2 %, bronce 3 %) y el navegador cuenta lo mismo (8.014ms)
+✔ lo que va a cada tesoro, y sin monedas gratis (35.6597ms)
+✔ cotizaciones concurrentes respetan el cupo reservado en Mongo (29.1252ms)
+✔ si falla el libro de recargas no queda oro entregado sin recibo; reintentar acredita una vez (12.8538ms)
+✔ pagar en bronce: primero bronce; si no llega se rompe plata y luego oro, y el cambio vuelve (18.8397ms)
+✔ el índice de precios: sigue la inflación neta y como mucho ±pasoMax al día (6.1476ms)
+✔ precios de la tienda: por defecto × índice × demanda, en enteros; vender nunca da más que comprar (6.0914ms)
+✔ recalcular: el índice del día mueve la tienda y queda un punto en el historial (16.3519ms)
+✔ el panel cambia el precio por defecto (oro, plata o bronce) y solo ese objeto se rehace (11.7589ms)
+✔ la muerte: el precio del panel con el índice (30, 60, 120… hasta el tope) (8.315ms)
+✔ fundir y craftear: precio justo con el índice, cobro con cambio, al tesoro del juego y devolución una vez (16.7143ms)
+✔ quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado (9.323ms)
+✔ fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema (6.322ms)
+✔ basura y suelo caducado: el valor de lo destruido (tienda, referencia o P2P), con tope (10.708ms)
+✔ solo los jefes dan objetos; las misiones solo monedas (5.7723ms)
+✔ el servidor lo usa donde toca (muerte, botín, suelo, tienda, misiones, foto del día) (5.2898ms)
+✔ fallo de escritura: saldo, recibo y tesoro revierten juntos; reintentar no duplica (26.2697ms)
+✔ migrar la tercera reserva conserva cada moneda y su configuración, una sola vez (10.746ms)
+✔ transferir y quemar protegen el capital del juego y las devoluciones; no crean dinero (12.646ms)
+✔ diez mil cambios conservan valor y rechazan números inválidos sin saldos negativos (124.0638ms)
+✔ autorreembolso, referencias alteradas y lotes inválidos no producen monedas (5.9865ms)
+✔ tienda autoritativa: comprar y vender conservan cada bronce y el servidor cobra sus precios (9.4972ms)
+✔ tienda sin liquidez no quema objetos; una confirmación ambigua no se vuelve a ejecutar (6.9137ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 540.4177

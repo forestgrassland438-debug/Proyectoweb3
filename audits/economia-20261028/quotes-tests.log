@@ -1,0 +1,38 @@
+✔ el precio del oro: arranca en la base, sube con la inflación y como mucho un 5 % al día (29.5842ms)
+✔ comprar oro: cotiza, el pago se mira en la cadena y el oro se da UNA vez (32.816ms)
+✔ comprar oro: pendiente se vuelve a mirar, el tope diario manda y pagar de menos da solo lo pagado (15.3804ms)
+✔ la comisión de los cambios: de menor a mayor (oro 1 %, plata 2 %, bronce 3 %) y el navegador cuenta lo mismo (10.4411ms)
+✔ lo que va a cada tesoro, y sin monedas gratis (47.2736ms)
+✔ pagar en bronce: primero bronce; si no llega se rompe plata y luego oro, y el cambio vuelve (28.3209ms)
+✔ el índice de precios: sigue la inflación neta y como mucho ±pasoMax al día (6.2424ms)
+✔ precios de la tienda: por defecto × índice × demanda, en enteros; vender nunca da más que comprar (6.5877ms)
+✔ recalcular: el índice del día mueve la tienda y queda un punto en el historial (39.5831ms)
+✔ el panel cambia el precio por defecto (oro, plata o bronce) y solo ese objeto se rehace (15.3711ms)
+✔ la muerte: el precio del panel con el índice (30, 60, 120… hasta el tope) (11.7402ms)
+✔ fundir y craftear: precio justo con el índice, cobro con cambio, al tesoro del juego y devolución una vez (23.3231ms)
+✔ quemar: de cada tesoro, en oro/plata/bronce, sin pasarse del saldo, y queda apuntado (11.3529ms)
+✔ fondo de reserva y monedas caducadas: la muerte entra en la reserva; lo que nadie recoge se quema (6.0714ms)
+✔ basura y suelo caducado: el valor de lo destruido (tienda, referencia o P2P), con tope (13.166ms)
+✔ solo los jefes dan objetos; las misiones solo monedas (6.0385ms)
+✔ el servidor lo usa donde toca (muerte, botín, suelo, tienda, misiones, foto del día) (6.0412ms)
+✔ fallo de escritura: saldo, recibo y tesoro revierten juntos; reintentar no duplica (12.7465ms)
+✔ migrar la tercera reserva conserva cada moneda y su configuración, una sola vez (6.0062ms)
+✔ transferir y quemar protegen el capital del juego y las devoluciones; no crean dinero (9.3496ms)
+✔ diez mil cambios conservan valor y rechazan números inválidos sin saldos negativos (106.6448ms)
+✔ autorreembolso, referencias alteradas y lotes inválidos no producen monedas (7.6247ms)
+✔ tienda autoritativa: comprar y vender conservan cada bronce y el servidor cobra sus precios (8.4587ms)
+✔ tienda sin liquidez no quema objetos; una confirmación ambigua no se vuelve a ejecutar (7.6427ms)
+✔ recargas: el historial trae el tx de cada una; la cartera del juego no se compra oro a sí misma (47.9363ms)
+✔ recargas: sin cartera en el panel, el zkLTC va a la del administrador (ADMIN_ADDRESSES) (13.1364ms)
+✔ reclamar con el tx: el pago casa con su cotización perdida y se da el oro UNA vez (18.8729ms)
+✔ reclamar con el tx: lo que NO vale (16.1146ms)
+✔ recoger del suelo: por debajo del nivel del objeto no se recoge lo de otro (y queda el intento) (10.3666ms)
+✔ soltar: suspendido o bloqueado no suelta nada (y queda el intento) (7.9702ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 727.7809
