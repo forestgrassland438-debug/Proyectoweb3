@@ -45,7 +45,7 @@ test('encrypted writes fail closed without crypto while explicit preferences sur
 });
 test('late encrypted writes cannot resurrect removed settings or overwrite a newer write',async()=>{
  const encryptions=[];const f=fixture({crypto:{subtle:{generateKey:async()=>({}),encrypt(){const d=deferred();encryptions.push(d);return d.promise}},getRandomValues:a=>a}});
- const v=new f.api.SecureVault();await v._init();const old=v.set('k',{v:1},{persist:true});await flush();const newer=v.set('k',{v:2},{persist:true});await flush();
+ const v=new f.api.SecureVault();await v._init();v.persistentKey=true;/* Persistent key supplied by this isolated race fixture. */const old=v.set('k',{v:1},{persist:true});await flush();const newer=v.set('k',{v:2},{persist:true});await flush();
  encryptions[1].resolve(new Uint8Array([2]).buffer);assert.equal(await newer,true);const kept=f.storage.get('__perf_vault_k');
  encryptions[0].resolve(new Uint8Array([1]).buffer);assert.equal(await old,false);assert.equal(f.storage.get('__perf_vault_k'),kept);
  const late=v.set('removed',{v:3},{persist:true});await flush();v.removePersisted('removed');encryptions[2].resolve(new Uint8Array([3]).buffer);assert.equal(await late,false);assert.equal(f.storage.has('__perf_vault_removed'),false);

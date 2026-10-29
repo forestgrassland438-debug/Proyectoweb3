@@ -157,7 +157,8 @@ test('el bronce: una cuenta que ya tenía monedas no recibe los 1000 de bienveni
 
 test('el VIP cuenta con la hora del servidor', { skip: !HAY }, () => {
   assert.match(SRV, /return res\.json\(\{ ok: true, \.\.\.estado, planes: VIP_PLANES, ahora: Date\.now\(\) \}\);/);
-  assert.match(SRV, /stats: buildStatsResponse\(cobrado\), planes: VIP_PLANES, ahora: Date\.now\(\) \}\);/);
+  // Purchase and reconciliation now share the durable job's VIP descriptor.
+  assert.match(SRV, /planes:VIP_PLANES,ahora:Date\.now\(\)/);
   const v = leer('gf-vip.js');
   assert.match(v, /function ahora\(\) \{ return Date\.now\(\) \+ desfase; \}/);
   assert.match(v, /if \(Number\.isFinite\(srv\) && srv > 0\) desfase = srv - Date\.now\(\);/);

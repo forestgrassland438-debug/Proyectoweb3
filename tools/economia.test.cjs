@@ -216,7 +216,12 @@ test('lo que va a cada tesoro, y sin monedas gratis', { skip: !HAY }, () => {
   assert.match(SRV, /await tesoroJuegoIngresar\('tienda', juego, gp\.playerName,/);
   // Viaje del mapa, VIP y el elixir de revivir: al tesoro del juego.
   assert.match(SRV, /await tesoroJuegoIngresar\('viajes', e\.precio, gp\.playerName, 'mapa ' \+ id\);/);
-  assert.match(SRV, /await tesoroJuegoIngresar\('vip', precio \* \(TESORO_BRONCE_POR\[moneda\] \|\| 0\), gp\.playerName,/);
+  // VIP is now charged and reserved atomically with its durable job, rather
+  // than credited to the treasury after an uncertain mint/refund callback.
+  assert.match(SRV, /payment:\{stat,amount:r\.precio\[stat\],bronze:r\.precio\[stat\]\*TESORO_BRONCE_POR\[stat\]\}/);
+  const authority=leer('backend-gameplay/crafting-authority.cjs');
+  assert.match(authority,/origin=r\.kind==='vip'\?'vip':'servicios'/);
+  assert.match(authority,/\['ingresado\.\'\+origin\]:fee/);
   assert.match(SRV, /if\(cfg\.revive\)await tesoroJuegoIngresar\('revivir',cost\*TESORO_BRONCE_POR\.plata,gp\.playerName,itemId\+' x'\+qty\);/);
   // Los cambios: al circular.
   assert.ok((SRV.match(/await tesoroCircularIngresar\('cambio', fee(X)?\.bronce,/g) || []).length >= 2);

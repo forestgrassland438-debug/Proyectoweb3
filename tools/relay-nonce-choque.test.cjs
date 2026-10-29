@@ -288,53 +288,29 @@ test('misma clave idem: se repite lo ya contestado... salvo que nunca llegara a 
   assert.deepEqual(r.llamadas, [1, 2]);
 });
 
-// ── applyStatOnChain ────────────────────────────────────────────────────────
-function stat({ cadena, fallos = 1 }) {
-  const enviados = [];
-  let leidas = 0;
-  const c = {
-    console: quiet, setTimeout: inmediato, STAT_CHAIN_FLOOR: 1, clampStat: (_s, v) => v,
-    relayerWallet: { address: '0x1dda' },
-    provider: { async getTransactionCount() { return 100 + enviados.length; } },
-    reintentarRPC: (fn) => fn(),
-    readInvoiceQty: async () => cadena[Math.min(leidas++, cadena.length - 1)],
-    ensureStatTipo: async () => {}
-  };
-  vm.createContext(c);
-  vm.runInContext(declaration('applyStatOnChain') + '\nthis.applyStatOnChain = applyStatOnChain;', c);
-  let restantes = fallos;
-  const contrato = {
-    async decreaseInvoiceQuantity(id, delta) {
-      if (restantes-- > 0) throw errNonce('nonce too low');
-      enviados.push(['-', id, delta]); return { async wait() {} };
-    },
-    async increaseInvoiceQuantity(id, delta) {
-      if (restantes-- > 0) throw errNonce('nonce too low');
-      enviados.push(['+', id, delta]); return { async wait() {} };
-    }
-  };
-  return { c, contrato, enviados };
+// The former blind nonce retry has been replaced by a durable signed intent.
+// EVM/Mongo recovery and concurrent-worker behavior are integration-tested in
+// audit-gemini-craft-integration.cjs; these cases verify the public wrapper.
+function statWrapper(results) {
+  const calls=[],expanded=[];
+  const c={STAT_CHAIN_FLOOR:1,Math,Number,clampStat:(_s,v)=>v,
+    authoritativeStatJournal:{apply:async(...args)=>{calls.push(args);return results.shift();}},
+    ensureStatTipo:async(...args)=>expanded.push(args)};
+  vm.createContext(c);vm.runInContext(declaration('applyStatOnChain')+';this.apply=applyStatOnChain;',c);
+  return {c,calls,expanded};
 }
-
-test('el cobro que pierde el choque se relee y se manda otra vez', async () => {
-  const { c, contrato, enviados } = stat({ cadena: [3917, 3917] });
-  const r = await c.applyStatOnChain(contrato, 'plata', 5, 3889, 1n);
-  assert.deepEqual(JSON.parse(JSON.stringify(r)), { ok: true, chainQty: 3889 });
-  assert.deepEqual(enviados, [['-', 5, 28]]);
+test('stats use the shared durable intent with an absolute target and canonical numeric invoice',async()=>{
+ const {c,calls}=statWrapper([{ok:true,chainQty:3889}]),contract={};const r=await c.apply(contract,'plata','5',3889.1,1n);
+ assert.equal(r.ok,true);assert.deepEqual(calls,[[contract,'plata',5,3889,1n]]);
+});
+test('a pending signed stats intent is not replaced or expanded after an uncertain response',async()=>{
+ const original={ok:false,chainQty:null,pending:true,error:'ExceedsTipoLimit response from old request'};
+ const {c,calls,expanded}=statWrapper([original]);assert.equal(await c.apply({},'oro',5,100,1n),original);
+ assert.equal(calls.length,1);assert.equal(expanded.length,0);
+});
+test('only a rejected unsigned stats capacity preflight may expand and retry once',async()=>{
+ const {c,calls,expanded}=statWrapper([{ok:false,pending:false,error:'ExceedsTipoLimit'},{ok:true,chainQty:100}]);
+ assert.equal((await c.apply({},'oro',5,100,1n)).ok,true);assert.equal(calls.length,2);assert.equal(expanded.length,1);
+ assert.equal(expanded[0][3].minPerInvoice,100);
 });
 
-test('si al releer ya está en el valor pedido, no se manda nada más', async () => {
-  const { c, contrato, enviados } = stat({ cadena: [3917, 3889] });
-  const r = await c.applyStatOnChain(contrato, 'plata', 5, 3889, 1n);
-  assert.equal(r.ok, true);
-  assert.deepEqual(enviados, []);
-});
-
-test('otros errores del cobro siguen su camino de siempre', async () => {
-  const { c, enviados } = stat({ cadena: [3917, 3917] });
-  const contrato = { async decreaseInvoiceQuantity() { throw new Error('execution reverted: algo'); } };
-  const r = await c.applyStatOnChain(contrato, 'plata', 5, 3889, 1n);
-  assert.equal(r.ok, false);
-  assert.match(r.error, /execution reverted/);
-  assert.deepEqual(enviados, []);
-});

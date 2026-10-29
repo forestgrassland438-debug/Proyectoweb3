@@ -225,7 +225,7 @@ test('relay polling bounds invalid attempts and delay values instead of polling 
 });
 test('reporter load ignores an older query and keeps the timeout active through the response body', async () => {
   const f = fixture(), requests = [];
-  for (const id of ['btnConnect', 'btnRefresh', 'btnWipe', 'btnSearch', 'q', 'fType', 'prevE', 'nextE', 'prevR', 'nextR', 'gateMsg', 'gate', 'panel', 'whoAddr', 'whoDot', 'rowsErrors', 'mUnique', 'mOccur', 'mTypes', 'mShown', 'emptyErrors', 'pageE', 'toast']) f.add(id);
+  for (const id of ['btnRelaySearch','qRelay','btnRelayClear', 'btnConnect', 'btnRefresh', 'btnWipe', 'btnSearch', 'q', 'fType', 'prevE', 'nextE', 'prevR', 'nextR', 'gateMsg', 'gate', 'panel', 'whoAddr', 'whoDot', 'rowsErrors', 'mUnique', 'mOccur', 'mTypes', 'mShown', 'emptyErrors', 'pageE', 'toast']) f.add(id);
   f.document.getElementById('fType').options = [{}]; f.context.fetch = (url, opts) => { const d = deferred(); requests.push({ ...d, url, opts }); return d.promise; };
   f.load('reporter.js'); requests[0].resolve(json({ address })); await flush(); assert.equal(requests.length, 2);
   f.document.getElementById('btnRefresh').emit('click'); assert.equal(requests.length, 3);

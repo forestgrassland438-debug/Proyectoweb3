@@ -1,0 +1,2 @@
+'use strict';const fs=require('node:fs'),acorn=require('acorn');const [file,...names]=process.argv.slice(2),source=fs.readFileSync(file,'utf8'),ast=acorn.parse(source,{ecmaVersion:'latest',locations:true});
+function walk(n){if(!n||typeof n!=='object')return;const name=n.type==='MethodDefinition'?n.key.name:n.id?.name;if(names.includes(name))console.log('\n'+name+' @'+n.loc.start.line+'\n'+source.slice(n.start,n.end));for(const x of Object.values(n))if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object')walk(x);}walk(ast);

@@ -64,11 +64,18 @@ test('recovery no vuelve a ejecutar una operación cuyo hash sigue sin receipt',
   let resent = 0;
   const tx = record({ createdAt: new Date(Date.now() - 600000), transactionId: 'fixture' });
   const c = relayFixture({ async getTransactionReceipt() { return null; } }, {
-    RelayedTransaction: { find() { return { async limit() { return [tx]; } }; } }
+    RelayedTransaction: { find() { return { select(){return this;},async limit() { return [tx]; } }; } }
   });
   c.manager.processTransactionFromQueue = async () => { resent++; };
   await c.manager.recoverPendingTransactions();
   assert.equal(resent, 0); assert.equal(tx.status, 'broadcasted');
+});
+
+test('recovery can only re-broadcast the verified persisted signature and rejects a mismatched hash',async()=>{
+ const wallet=ethers.Wallet.createRandom(),to='0x'+'b'.repeat(40),raw=await wallet.signTransaction({to,nonce:7,chainId:1337,gasLimit:21000n,gasPrice:1n,value:0n});let broadcasts=0;
+ const tx=record({rawTransaction:raw,txHash:ethers.keccak256(raw),nonce:7,contractAddress:to,transactionId:'persisted-native'});
+ const c=relayFixture({getTransactionReceipt:async()=>null,broadcastTransaction:async bytes=>{assert.equal(bytes,raw);broadcasts++;}},{relayerWallet:wallet,CHAIN_ID:1337,RelayedTransaction:{find(){return {select(){return this;},limit:async()=>[tx]};}}});
+ await c.manager.recoverPendingTransactions();assert.equal(broadcasts,1);tx.txHash='0x'+'c'.repeat(64);await c.manager.recoverPendingTransactions();assert.equal(broadcasts,1);
 });
 test('reprocesar un documento con hash solo reconcilia ese hash', async () => {
   const c = relayFixture({}); let checked = 0;
@@ -208,7 +215,7 @@ test('el nonce inicial no se inventa en cero ni rebaja una reserva concurrente',
     relayerWallet: { address: 'fixture' }, uuidv4: () => 'fixture', console: quiet,
     setTimeout, clearTimeout };
   vm.createContext(c); vm.runInContext(declaration('RelayerNonceManager') +
-    ';this.manager=Object.create(RelayerNonceManager.prototype);this.manager.currentNonce=9;this.manager.lock=false;this.manager.queue=[];', c);
+    ';this.manager=Object.create(RelayerNonceManager.prototype);this.manager.currentNonce=9;this.manager.lock=false;this.manager.pending=0;this.manager._tail=Promise.resolve();', c);
   await c.manager.init(); assert.equal(c.manager.currentNonce, 9);
   fail = true; c.manager.currentNonce = null;
   await c.manager.init(); assert.equal(c.manager.currentNonce, null);
@@ -223,7 +230,7 @@ function findNode(predicate, tree = ast) {
 }
 function joinFixture() {
   const callbacks = [], rooms = Object.create(null);
-  const c = { rooms, console: quiet, salaBase: r => r, salaConCanal: (r, channel) => r + '#c' + channel,
+  const c = { gfNivelMinimoSala:()=>0, rooms, console: quiet, salaBase: r => r, salaConCanal: (r, channel) => r + '#c' + channel,
     islaDeSala: () => null, anotarCambioDeSala() {}, purgarFantasmas() {},
     NOMBRE_SOULBOUND_VALIDO: /^[A-Za-z0-9_-]{1,40}$/,
     PlayerAuth: { findOne() { return { lean() { return new Promise(resolve => callbacks.push(resolve)); } }; } },
@@ -255,7 +262,7 @@ test('la purga recupera cachés de cuentas que abandonaron el juego', () => {
     GFBrawlMotor: { REGLAS: { CUENTA_MS: 1000, DURACION_MAX_MS: 10000 } }, brawlSoltarJugadores() {} };
   for (const name of ['plantSpamTracker','_gatherLastByPlayer','_verifierCooldown','_cuervoUltimo','_pescaUltimo',
     '_casillasUltimoEnvio','_pescaSesiones','_pvpEspadas','_cacheFantasma','_tradUso','_nftCacheJugador',
-    'chatHistory','_adminAddrCache','battleMatches','socketMatch']) c[name] = new Map();
+    'chatHistory','_adminAddrCache','battleMatches','socketMatch','_gfResetPuntos','_infoTablaCache','_falloTabla','_motivoTabla']) c[name] = new Map();
   c._pescaUltimo.set('old', now - 4000000); c._casillasUltimoEnvio.set('old', now - 4000000);
   c._pescaSesiones.set('old', { t0: now - 50000 }); c._pescaSesiones.set('active', { t0: now });
   c._pvpEspadas.set('old', { hasta: now - 1 }); c._pvpEspadas.set('active', { hasta: now + 10000 });

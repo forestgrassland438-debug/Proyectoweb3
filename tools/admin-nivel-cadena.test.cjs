@@ -135,20 +135,22 @@ test('la identidad en cadena: con `exacto` baja el nivel; sin él, solo sube y l
 
 test('el jugador conectado adopta lo que puso el administrador (gf-admin-ajuste.js)', () => {
   const escena = {
-    sys: { isActive: () => true }, nivel_exp: 3000, _lastExpSynced: 3000, moneda: 7, moneda_plata: 1, vidaPorcentaje: 50,
+    sys: { isActive: () => true }, nivel_exp: 3000, _lastExpSynced: 3000, moneda: 7, moneda_plata: 1, moneda_bronce: 0, vidaPorcentaje: 50,
     statsSync: { _pending: { exp: 3005, oro: 7, agua: 40 } }, notifications: { show(t) { escena.aviso = t; } },
     _nivelDesdeExp() { escena.recalculado = true; }, _aplicarNivelMascota(d) { escena.mascota = d.petLevel; }
   };
-  const win = { console: { log() {}, warn() {} }, setInterval() {}, playerStats: { exp: 3000, oro: 7 },
+  let cleared=0;const handlers=new Map();
+  const win = { console: { log() {}, warn() {} }, setInterval(){return 1;},clearInterval(){cleared++;},addEventListener:(name,handler)=>handlers.set(name,handler),playerStats: { exp: 3000, oro: 7 },
                 game: { scene: { scenes: [escena] } }, globalSocket: null };
   win.window = win;
   const ctx = vm.createContext(win);
   vm.runInContext(fs.readFileSync(path.join(BIN, 'gf-admin-ajuste.js'), 'utf8'), ctx);
-  ctx.GFAdminAjuste.aplicar({ stats: { exp: 11000, oro: 250 }, pet: { petLevel: 6, petExp: 2100 } });
+  ctx.GFAdminAjuste.aplicar({ stats: { exp: 11000, oro: 250, bronce: 42 }, pet: { petLevel: 6, petExp: 2100 } });
   assert.equal(escena.nivel_exp, 11000);
   assert.equal(escena._lastExpSynced, 11000, '_syncExp no la vuelve a mandar');
   assert.equal(escena.recalculado, true);
   assert.equal(escena.moneda, 250);
+  assert.equal(escena.moneda_bronce,42);
   assert.equal(escena.mascota, 6);
   assert.equal(win.playerStats.exp, 11000);
   assert.equal(win.playerStats.oro, 250);
@@ -157,6 +159,8 @@ test('el jugador conectado adopta lo que puso el administrador (gf-admin-ajuste.
   // Basura: no rompe ni toca nada.
   ctx.GFAdminAjuste.aplicar({ stats: { exp: -5, oro: 'x' } });
   assert.equal(escena.nivel_exp, 11000);
+  handlers.get('pagehide')({persisted:true});assert.equal(cleared,0);
+  handlers.get('pagehide')({persisted:false});assert.equal(cleared,1);
 });
 
 test('admin.html: Nivel, Exp y Nivel mascota cuentan como cambios en la cadena, y el bronce se puede editar', () => {
