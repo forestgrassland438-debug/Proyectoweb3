@@ -137,10 +137,14 @@
     .stat .v{font-size:20px}
     th,td{padding:9px 10px}
   }
+
+  /* Bounded rows, readable wallet groups and a copy action on every error. */
+  .tablewrap table{table-layout:fixed;min-width:0}.tablewrap td{min-width:0}.msg-main{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;max-height:3em;overflow-wrap:anywhere}.msg-sub{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.stack pre{max-height:300px;overflow:auto}.report-actions{display:flex;flex-direction:column;gap:8px}.report-count{font-variant-numeric:tabular-nums;color:var(--warn);font-weight:800}.report-kind{overflow-wrap:anywhere}.report-actors>div{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,2fr) auto;gap:8px;padding:8px 0;border-top:1px solid var(--line)}.report-actors code{font-size:11px;overflow-wrap:anywhere}.report-actors p{font-size:12px}.report-copy-dialog{width:min(94vw,700px);border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text)}.report-copy-dialog::backdrop{background:#000a}.report-copy-dialog textarea{width:100%;height:65vh;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:12px}
+  @media(max-width:760px){.tablewrap thead{display:none}.tablewrap tr{display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line);padding:12px;gap:6px}.tablewrap td{border:0;padding:3px;max-width:none}.tablewrap td.msg{grid-column:1/-1;grid-row:2;max-width:none}.report-actions{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}.when{grid-column:1/-1}.report-actors>div{grid-template-columns:1fr auto}.report-actors code{grid-column:1/-1;grid-row:2}.msg-sub{white-space:normal}}
 </style>
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261028"></script>
+<script src="./admin-suite-i18n.js?v=20261029.3ef1bce44e2e"></script>
 <script defer src="./admin-suite.js?v=20261025"></script>
 </head>
 <body>
@@ -181,7 +185,7 @@
       </div>
 
       <div class="toolbar">
-        <input id="q" type="search" placeholder="Search message, scene or file…" />
+        <input id="q" type="search" placeholder="Buscar mensaje, escena o cartera completa…" />
         <select id="fType"><option value="">All types</option></select>
         <button id="btnSearch" class="btn-ghost">Search</button>
         <div class="spacer"></div>
@@ -190,14 +194,7 @@
 
       <div class="tablewrap card">
         <table>
-          <thead><tr>
-            <th style="width:90px">Type</th>
-            <th>Message</th>
-            <th style="width:120px">Scene</th>
-            <th style="width:70px">Count</th>
-            <th style="width:150px">Last seen</th>
-            <th style="width:80px"></th>
-          </tr></thead>
+          <thead><tr><th style="width:100px">Tipo</th><th>Error, contexto y carteras</th><th style="width:80px">Veces</th><th style="width:120px">Última vez</th><th style="width:125px">Acciones</th></tr></thead>
           <tbody id="rowsErrors"></tbody>
         </table>
         <div id="emptyErrors" class="empty hidden">
@@ -226,15 +223,10 @@
         nonce clashes, timeouts, gas problems — the ones worth investigating.
       </p>
 
+      <div class="toolbar"><input id="qRelay" type="search" placeholder="Buscar error, jugador, cartera o función…"><button id="btnRelaySearch" class="btn-ghost" type="button">Buscar</button><button id="btnRelayClear" class="btn-danger" type="button">Limpiar toda la lista</button></div>
       <div class="tablewrap card">
         <table>
-          <thead><tr>
-            <th style="width:130px">Player</th>
-            <th style="width:190px">Contract · Function</th>
-            <th>Error</th>
-            <th style="width:70px">Retries</th>
-            <th style="width:150px">When</th>
-          </tr></thead>
+          <thead><tr><th style="width:120px">Función</th><th>Error, contexto y carteras</th><th style="width:80px">Veces</th><th style="width:120px">Última vez</th><th style="width:125px">Acciones</th></tr></thead>
           <tbody id="rowsRelay"></tbody>
         </table>
         <div id="emptyRelay" class="empty hidden">
@@ -254,6 +246,6 @@
 <div id="toast"></div>
 
 <script src="./vendor/ethers.umd.min.js?v=532950515fd2" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
-<script src="./reporter.js?v=17.3" defer></script>
+<script src="./reporter.js?v=20261029.ca6c190c3736" defer></script>
 </body>
 </html>

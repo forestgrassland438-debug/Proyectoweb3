@@ -191,7 +191,7 @@
     var run = ++revisionErrores;
     var q = $('q').value.trim();
     var t = $('fType').value;
-    var ruta = '/api/admin/client-errors?limit=' + POR_PAGINA + '&skip=' + estado.errores.skip +
+    var ruta = '/api/admin/client-errors?grouped=1&limit=' + POR_PAGINA + '&skip=' + estado.errores.skip +
                (q ? '&q=' + encodeURIComponent(q) : '') +
                (t ? '&type=' + encodeURIComponent(t) : '');
 
@@ -220,59 +220,7 @@
     var vacio = !d.items || !d.items.length;
     $('emptyErrors').classList.toggle('hidden', !vacio);
 
-    (d.items || []).forEach(function (it) {
-      var tr = document.createElement('tr');
-
-      var tdTipo = document.createElement('td');
-      var pill = document.createElement('span');
-      pill.className = 'pill'; pill.textContent = it.type || 'unknown';
-      tdTipo.appendChild(pill);
-      tr.appendChild(tdTipo);
-
-      // Mensaje + origen + traza plegable
-      var tdMsg = document.createElement('td');
-      tdMsg.className = 'msg';
-      var main = document.createElement('div');
-      main.className = 'msg-main'; main.textContent = it.message || '(no message)';
-      tdMsg.appendChild(main);
-
-      var origen = [it.file, it.line].filter(function (x) { return x && x !== 'unknown'; }).join(':');
-      if (origen) {
-        var sub = document.createElement('div');
-        sub.className = 'msg-sub'; sub.textContent = origen;
-        tdMsg.appendChild(sub);
-      }
-      if (it.stack) {
-        var det = document.createElement('details');
-        det.className = 'stack';
-        var sum = document.createElement('summary'); sum.textContent = 'Stack trace';
-        var pre = document.createElement('pre'); pre.textContent = it.stack;
-        det.appendChild(sum); det.appendChild(pre);
-        tdMsg.appendChild(det);
-      }
-      tr.appendChild(tdMsg);
-
-      tr.appendChild(td(it.scene || '—'));
-
-      var tdC = document.createElement('td');
-      var pc = document.createElement('span');
-      var n = it.count || 1;
-      pc.className = 'pill count' + (n >= 10 ? ' hot' : '');
-      pc.textContent = '×' + n;
-      tdC.appendChild(pc);
-      tr.appendChild(tdC);
-
-      tr.appendChild(td(cuando(it.lastSeen || it.timestamp), 'when'));
-
-      var tdB = document.createElement('td');
-      var b = document.createElement('button');
-      b.className = 'btn-ghost rowbtn'; b.textContent = 'Delete';
-      b.addEventListener('click', function () { borrarUno(it._id, b); });
-      tdB.appendChild(b);
-      tr.appendChild(tdB);
-
-      cuerpo.appendChild(tr);
-    });
+    renderReportRows(cuerpo, d.items || [], false);
 
     pintarPaginador('E', estado.errores);
   }
@@ -312,7 +260,7 @@
 
   async function cargarRelay() {
     var run = ++revisionRelay;
-    var d = await pedir('/api/admin/relay-failures?limit=' + POR_PAGINA + '&skip=' + estado.relay.skip);
+    var d = await pedir('/api/admin/relay-failures?grouped=1&limit=' + POR_PAGINA + '&skip=' + estado.relay.skip + '&q=' + encodeURIComponent($('qRelay').value.trim()));
     if (cerrado || run !== revisionRelay) return;
     estado.relay.total = d.total || 0;
 
@@ -324,29 +272,61 @@
     var vacio = !d.items || !d.items.length;
     $('emptyRelay').classList.toggle('hidden', !vacio);
 
-    (d.items || []).forEach(function (it) {
-      var tr = document.createElement('tr');
-      tr.appendChild(td(it.playerName || '—'));
-      tr.appendChild(td((it.contractName || '?') + ' · ' + (it.functionName || '?')));
-
-      var tdE = document.createElement('td');
-      tdE.className = 'msg';
-      var m = document.createElement('div');
-      m.className = 'msg-main'; m.textContent = it.error || '(no detail)';
-      tdE.appendChild(m);
-      if (it.txHash) {
-        var h = document.createElement('div');
-        h.className = 'msg-sub'; h.textContent = it.txHash;
-        tdE.appendChild(h);
-      }
-      tr.appendChild(tdE);
-
-      tr.appendChild(td(it.retryCount || 0));
-      tr.appendChild(td(cuando(it.createdAt), 'when'));
-      cuerpo.appendChild(tr);
-    });
+    renderReportRows(cuerpo, d.items || [], true);
 
     pintarPaginador('R', estado.relay);
+  }
+
+  async function copyReport(it) {
+    var value = JSON.stringify({ type: it.type, contract: it.contractName, function: it.functionName,
+      message: it.message || it.error, file: it.file, line: it.line, scene: it.scene, stack: it.stack,
+      occurrences: it.count, lastSeen: it.lastSeen, wallets: it.actors || [], walletCount: it.actorCount,
+      historicalReportedPlayer: it.historicalActor || null, sampleTransaction: it.txHash || null }, null, 2);
+    try { await navigator.clipboard.writeText(value); if (!cerrado) toast('Error copiado', 'good'); }
+    catch (_) {
+      if (cerrado) return;
+      var dialog = document.createElement('dialog'), area = document.createElement('textarea'), close = document.createElement('button');
+      dialog.className = 'report-copy-dialog'; area.readOnly = true; area.value = value; close.textContent = 'Cerrar';
+      close.addEventListener('click', function () { dialog.close(); }); dialog.addEventListener('close', function () { dialog.remove(); }, { once: true });
+      dialog.append(area, close); document.body.append(dialog); dialog.showModal(); area.focus(); area.select();
+    }
+  }
+  function renderReportRows(host, rows, relay) {
+    rows.forEach(function (it) {
+      var tr = document.createElement('tr'); tr.className = 'report-row';
+      var kind = td(relay ? (it.functionName || 'relay') : (it.type || 'unknown'), 'report-kind');
+      var content = document.createElement('td'); content.className = 'msg';
+      var main = document.createElement('div'); main.className = 'msg-main'; main.textContent = it.message || it.error || '(sin detalle)';
+      var context = document.createElement('div'); context.className = 'msg-sub';
+      context.textContent = relay ? (it.contractName || '') : [it.scene, it.file, it.line].filter(Boolean).join(' · ');
+      content.append(main, context);
+      var details = document.createElement('details'); details.className = 'stack';
+      var summary = document.createElement('summary'); summary.textContent = 'Ver detalle y carteras (' + (it.actorCount || 0) + ')';
+      var pre = document.createElement('pre'); pre.textContent = [it.message || it.error, it.stack, it.txHash].filter(Boolean).join('\n\n');
+      details.append(summary, pre);
+      var actors = document.createElement('div'); actors.className = 'report-actors';
+      (it.actors || []).forEach(function (actor) {
+        var row = document.createElement('div'), who = document.createElement('strong'), wallet = document.createElement('code'), count = document.createElement('span');
+        who.textContent = actor.playerName || 'Sin nombre'; wallet.textContent = actor.wallet || 'Sin cartera registrada'; count.textContent = '×' + actor.count;
+        row.append(who, wallet, count); actors.append(row);
+      });
+      if (it.historicalActor) { var legacy = document.createElement('p'); legacy.className = 'muted'; legacy.textContent = 'Nombre comunicado en registros antiguos: ' + it.historicalActor + '. No acredita una cartera autenticada.'; actors.append(legacy); }
+      if (it.actorCount > (it.actors || []).length) { var note = document.createElement('p'); note.textContent = 'Se muestran las primeras 20 carteras. Busca una dirección para filtrar sus registros.'; actors.append(note); }
+      details.append(actors); content.append(details);
+      var number = td('×' + (it.count || 1), 'report-count'), time = td(cuando(it.lastSeen || it.createdAt), 'when'), actions = document.createElement('td'); actions.className = 'report-actions';
+      var copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn-ghost rowbtn'; copy.textContent = 'Copiar error'; copy.addEventListener('click', function () { copyReport(it); }); actions.append(copy);
+      if (!relay) { var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn-ghost rowbtn'; remove.textContent = (it.count || 1) > 1 ? 'Borrar muestra' : 'Borrar'; remove.addEventListener('click', function () { borrarUno(it._id, remove); }); actions.append(remove); }
+      tr.append(kind, content, number, time, actions); host.append(tr);
+    });
+  }
+  async function clearRelay() {
+    if (!confirm('¿Limpiar toda la lista visible de fallos del relayer? El historial de transacciones y pagos se conserva.')) return;
+    $('btnRelayClear').disabled = true;
+    try {
+      await pedir('/api/admin/relay-failures/clear', { method: 'POST', body: JSON.stringify({ confirm: 'CLEAR' }) });
+      estado.relay.skip = 0; await cargarRelay(); toast('Lista limpiada; historial de auditoría conservado.', 'good');
+    } catch (e) { toast('No se pudo limpiar: ' + e.message, 'bad'); }
+    finally { $('btnRelayClear').disabled = false; }
   }
 
   // ── Paginación ─────────────────────────────────────────────────────────────
@@ -395,6 +375,9 @@
     $('btnConnect').addEventListener('click', conectar);
     $('btnRefresh').addEventListener('click', recargarTodo);
     $('btnWipe').addEventListener('click', borrarTodos);
+    $('btnRelayClear').addEventListener('click', clearRelay);
+    $('btnRelaySearch').addEventListener('click', function () { estado.relay.skip = 0; recargarTodo(); });
+    $('qRelay').addEventListener('keydown', function (e) { if (e.key === 'Enter') { estado.relay.skip = 0; recargarTodo(); } });
     $('btnSearch').addEventListener('click', function () {
       estado.errores.skip = 0; recargarTodo();
     });
@@ -429,9 +412,14 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
+  var unsubscribeSession = window.GFAdminSession?.subscribe(function(){
+    revisionErrores++;revisionRelay++;revisionCarga++;estado.admin=null;
+    $('rowsErrors').replaceChildren();$('rowsRelay').replaceChildren();
+    $('panel').classList.add('hidden');$('gate').classList.remove('hidden');
+  });
   window.addEventListener('pagehide', function (e) {
     if (e.persisted) return;
-    cerrado = true; clearTimeout(toastTimer);
+    cerrado = true; clearTimeout(toastTimer); if(unsubscribeSession)unsubscribeSession();
     peticiones.forEach(function (ctl) { ctl.abort(); }); peticiones.clear();
   });
 })();

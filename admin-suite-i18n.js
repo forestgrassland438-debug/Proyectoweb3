@@ -2,6 +2,16 @@
 (function (root) {
   'use strict';
   const pairs = `
+Resources & capacity|Recursos y capacidad
+Accounts & identity|Cuentas e identidad
+Read global table capacity, simulate gradual respawn and price adjustments, and preserve the owner’s limits.|Consulta la capacidad global de las tablas, simula reapariciones y precios graduales y conserva los límites del propietario.
+Private administrator directory: wallets, character names, available verified emails, login methods and recorded activity.|Directorio privado del administrador: carteras, nombres, correos verificados disponibles, métodos de acceso y actividad registrada.
+Game connections · this instance|Conexiones del juego · esta instancia
+Presence unavailable|Presencia no disponible
+One verified wallet. All administration tools.|Una cartera verificada. Todas las herramientas administrativas.
+All administration tools are available below.|Todas las herramientas administrativas están disponibles debajo.
+Copiar error|Copiar error
+
 Control center|Centro de control
 Game administration|Administración del juego
 Overview|Vista general

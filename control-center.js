@@ -29,6 +29,8 @@
     { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups.' },
     // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
     { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
+    { id:'recursos', file:'recursos.html', name:'Resources & capacity', icon:'prices', group:'Game control', text:'Read global table capacity, simulate gradual respawn and price adjustments, and preserve the owner’s limits.' },
+    { id:'cuentas', file:'cuentas.html', name:'Accounts & identity', icon:'players', group:'Moderation', text:'Private administrator directory: wallets, character names, available verified emails, login methods and recorded activity.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
     { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Moderation', text:'Review player reports and moderation cases.' },
     // (2026-10-27) Quién compró y vendió y si pagó, los fallos de la tienda y del P2P, el explorador del suelo y los intentos.
@@ -38,14 +40,14 @@
     { id:'reporter', file:'reporter.html', name:'Error monitoring', icon:'errors', group:'System', text:'Investigate client errors and relay failures.' }
   ];
   let verified = false, active = 'overview', frame = null, loading = false, dataLoading = false, snapshot = null;
-  let renewalTimer = null, frameTimer = null, retryTimer = null, requestRevision = 0;
+  let renewalTimer = null, frameTimer = null, retryTimer = null, presenceTimer = null, requestRevision = 0;
   let destroyed = false, wallet = null, account = '';
   root.GFAdminWorkspace = Object.freeze({ version:1 });
   const t = text => ui.t(text), short = a => a.slice(0,6)+'…'+a.slice(-4);
   function text(el, value) { el.textContent = value; }
   function message(value, isError = false) { text($('cc-gate-message'),t(value)); $('cc-gate-message').dataset.error = String(isError); }
   function gate(reason) {
-    verified = false; requestRevision++; clearTimeout(renewalTimer); clearTimeout(frameTimer); clearTimeout(retryTimer);
+    verified = false; requestRevision++; clearTimeout(renewalTimer); clearTimeout(frameTimer); clearTimeout(retryTimer); clearTimeout(presenceTimer);
     if (frame) { frame.remove(); frame = null; }
     $('cc-app').hidden = true; $('cc-gate').hidden = false; $('cc-tool-dirty').hidden = true;
     $('cc-account').textContent = ''; snapshot = null;
@@ -86,7 +88,7 @@
       account = data.address.toLowerCase(); verified = true;
       $('cc-gate').hidden = true; $('cc-app').hidden = false;
       $('cc-account').textContent = short(account); $('cc-account').title = account;
-      watchWallet(provider); armRenewal();
+      watchWallet(provider); armRenewal(); armPresence();
       const target = location.hash.slice(1);
       activate(tools.some(tool => tool.id === target) ? target : 'overview',false);
       refreshData();
@@ -162,7 +164,8 @@
     text($('cc-breadcrumb'),t(tool?.name || 'Overview'));
     const url = new URL(location.href); url.hash = id; history.replaceState(null,'',url.href);
     renderNavigation(); closeNav();
-    if (!tool) return;
+    if (!tool) { armPresence(); return; }
+    clearTimeout(presenceTimer);
     text($('cc-tool-name'),t(tool.name));
     const source = new URL(tool.file,location.href); source.searchParams.set('lang',ui.language); source.searchParams.set('theme',ui.theme);
     $('cc-original').href = source.href;
@@ -178,8 +181,24 @@
     $('cc-frame-host').append(frame);
     frameTimer = setTimeout(() => { if (current === frame && loading) text($('cc-frame-status'),t('Tool did not finish loading. Open its original page or retry.')); },20000);
   }
+  function armPresence() {
+    clearTimeout(presenceTimer);
+    if (!verified || destroyed || active !== 'overview' || document.visibilityState === 'hidden') return;
+    presenceTimer = setTimeout(async () => {
+      const revision = requestRevision;
+      try {
+        const data = await session.request('/api/admin/presencia');
+        if (destroyed || !verified || revision !== requestRevision) return;
+        snapshot = { ...(snapshot || {}), overview:{ ...(snapshot?.overview || {}), conectados:data.conectados, presencia:data.presencia } };
+        renderMetrics();
+      } catch (_) {
+        if (!destroyed && verified && snapshot?.overview) { snapshot.overview.conectados = null; snapshot.overview.presencia = null; renderMetrics(); }
+      } finally { armPresence(); }
+    },15000);
+  }
+  document.addEventListener('visibilitychange',armPresence);
   function renderMetrics() {
-    const d = snapshot?.overview, metrics = [ ['Total accounts',d?.totalCuentas,'players','Live backend data'],['Active in 24 hours',d?.activos24h,'overview','Activity snapshot'],['Online now',d?.conectados,'weather','Activity snapshot'],['New in 7 days',d?.nuevas7d,'collections','Live backend data'] ];
+    const d = snapshot?.overview, metrics = [ ['Total accounts',d?.totalCuentas,'players','Live backend data'],['Active in 24 hours',d?.activos24h,'overview','Activity snapshot'],['Online now',d?.conectados,'weather',d?.presencia ? 'Game connections · this instance' : 'Presence unavailable'],['New in 7 days',d?.nuevas7d,'collections','Live backend data'] ];
     const container = $('cc-metrics'); container.replaceChildren();
     metrics.forEach(([label,value,icon,caption]) => {
       const article = document.createElement('article'); article.className = 'cc-metric';
@@ -214,7 +233,7 @@
       const results = await Promise.allSettled([session.request('/api/admin/overview'),session.request('/api/admin/missions/days/granjero'),session.request('/api/admin/missions/days/guardian')]);
       if (destroyed || !verified || revision !== requestRevision) return;
       const failed = results.some(r => r.status === 'rejected');
-      snapshot = { overview:results[0].status === 'fulfilled' ? results[0].value : snapshot?.overview,
+      snapshot = { overview:results[0].status === 'fulfilled' ? results[0].value : snapshot?.overview ? { ...snapshot.overview, conectados:null, presencia:null } : null,
         days:{ granjero:results[1].status === 'fulfilled' ? results[1].value.days : snapshot?.days?.granjero, guardian:results[2].status === 'fulfilled' ? results[2].value.days : snapshot?.days?.guardian } };
       $('cc-data-notice').hidden = !failed;
       text($('cc-data-notice'),t(snapshot.overview ? 'Refresh failed. The previous snapshot is still displayed.' : 'Data could not be loaded.'));
@@ -297,7 +316,7 @@
     if (!verified) return;
     gate(reason === 'account_changed' ? 'The wallet account changed. Connect again.' : reason === 'signed_out' ? 'Signed out.' : 'Your session expired. Connect again.');
   });
-  root.addEventListener('pagehide',e => { if (e.persisted) return; destroyed = true; requestRevision++; clearTimeout(renewalTimer); clearTimeout(frameTimer); clearTimeout(retryTimer); unsubscribe(); wallet?.removeListener?.('accountsChanged',accountChanged); });
-  root.addEventListener('pageshow',e => { if (e.persisted && verified) { armRenewal(); session.request('/api/admin/whoami').catch(err => { if ([401,403].includes(err.status)) gate(authError(err)); }); } });
+  root.addEventListener('pagehide',e => { if (e.persisted) return; destroyed = true; requestRevision++; clearTimeout(renewalTimer); clearTimeout(frameTimer); clearTimeout(retryTimer); clearTimeout(presenceTimer); unsubscribe(); wallet?.removeListener?.('accountsChanged',accountChanged); });
+  root.addEventListener('pageshow',e => { if (e.persisted && verified) { armRenewal(); armPresence(); session.request('/api/admin/whoami').catch(err => { if ([401,403].includes(err.status)) gate(authError(err)); }); } });
   renderPreferences(); verify();
 })(window);

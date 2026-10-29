@@ -718,7 +718,7 @@
     .offer-actions button{ flex:1; }
   }
 </style>
-<link rel="stylesheet" href="./market-experience.css?v=20261028-v3">
+<link rel="stylesheet" href="./market-experience.css?v=20261029.e4c6c91cbcce">
 </head>
 <body>
 
@@ -781,6 +781,9 @@
           <p id="market-intro-copy">Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.</p></div>
           <div class="market-intro-meta"><span id="market-fee-note">Comisión de venta: 5 %</span><button id="market-refresh" type="button">↻ Actualizar mercado</button></div></div>
         <p id="market-network" class="market-network" role="status" aria-live="polite"></p>
+        <div class="market-quick-actions"><button id="market-open-sell" type="button">Vender inventario ↗</button><button id="market-open-mine" type="button">Mis publicaciones</button><button id="market-open-pending" type="button">Entregas pendientes <span id="market-pending-count">0</span></button></div>
+        <section id="market-pending-panel" class="market-pending-panel" hidden><div class="market-section-head"><h2 id="market-pending-title">Entregas pendientes</h2><button id="market-reconcile" type="button">Comprobar entregas</button></div><p id="market-pending-note">El recibo del servidor conserva tu entrega aunque cierres la página.</p><div id="market-pending-rows"></div></section>
+        <details id="market-resource-brief" class="market-resource-brief"><summary id="market-resource-title">Recursos del bosque · capacidad y reaparición</summary><div id="market-resource-rows"><p>Abre este apartado para consultar las tablas.</p></div></details>
         <div class="toolbar">
           <div class="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -792,8 +795,9 @@
             <option value="price_desc" data-i18n="sort_price_desc">Precio: mayor a menor</option>
           </select>
         </div>
+        <div class="market-filter-row"><label><span id="market-currency-label">Moneda</span><select id="market-currency"><option value="">Todas</option><option value="oro">Oro</option><option value="plata">Plata</option></select></label><button id="market-clear-filters" type="button">Limpiar filtros</button><div class="market-view-toggle" role="group" aria-label="Vista de publicaciones"><button id="market-view-grid" type="button" aria-label="Cuadrícula" aria-pressed="true">▦</button><button id="market-view-list" type="button" aria-label="Lista" aria-pressed="false">☷</button></div></div>
         <div class="chips-row" id="cat-chips"></div>
-        <div id="market-grid" class="grid"></div>
+        <div class="market-results"><span id="market-result-count" role="status"></span><span id="market-price-note">Precio por unidad · oro y plata</span></div><div id="market-grid" class="grid"></div><div class="market-pagination"><button id="market-previous" type="button" disabled>← Anterior</button><span id="market-page">1</span><button id="market-next" type="button" disabled>Siguiente →</button></div>
       </section>
 
       <!-- VENDER -->
@@ -1193,6 +1197,19 @@
     document.getElementById('market-intro-copy').textContent = english ? 'Find resources, compare prices and equip your next adventure. Every trade keeps its history.' : 'Encuentra recursos, compara precios y equipa tu próxima aventura. Cada operación conserva su historial.';
     document.getElementById('market-refresh').textContent = english ? '↻ Refresh market' : '↻ Actualizar mercado';
     document.getElementById('market-fee-note').textContent = english ? 'Sales fee: 5%' : 'Comisión de venta: 5 %';
+    document.getElementById('market-open-sell').textContent = english ? 'Sell inventory ↗' : 'Vender inventario ↗';
+    document.getElementById('market-open-mine').textContent = english ? 'My listings' : 'Mis publicaciones';
+    document.getElementById('market-pending-title').textContent = english ? 'Pending deliveries' : 'Entregas pendientes';
+    document.getElementById('market-reconcile').textContent = english ? 'Check deliveries' : 'Comprobar entregas';
+    document.getElementById('market-pending-note').textContent = english ? 'The server retains your delivery receipt even if you close this page.' : 'El servidor conserva tu recibo de entrega aunque cierres la página.';
+    document.getElementById('market-resource-title').textContent = english ? 'Forest resources · capacity and respawn' : 'Recursos del bosque · capacidad y reaparición';
+    document.getElementById('market-currency-label').textContent = english ? 'Currency' : 'Moneda';
+    document.getElementById('market-clear-filters').textContent = english ? 'Clear filters' : 'Limpiar filtros';
+    document.getElementById('market-price-note').textContent = english ? 'Per-unit price · Gold and Silver' : 'Precio por unidad · oro y plata';
+    document.getElementById('market-previous').textContent = english ? '← Previous' : '← Anterior';
+    document.getElementById('market-next').textContent = english ? 'Next →' : 'Siguiente →';
+    document.getElementById('market-open-pending').firstChild.textContent = english ? 'Pending deliveries ' : 'Entregas pendientes ';
+    const currencyOptions=document.getElementById('market-currency').options;currencyOptions[0].textContent=english?'All':'Todas';currencyOptions[1].textContent=english?'Gold':'Oro';currencyOptions[2].textContent=english?'Silver':'Plata';
     document.documentElement.lang = LANG;
     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
     document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
@@ -1214,9 +1231,11 @@
   // ══════════════════════════════════════════════════════════════════════
   // ESTADO
   // ══════════════════════════════════════════════════════════════════════
+  const marketRequests = new Set(), marketTimers = new Set();
+  let marketClosed = false;
   const state = {
     address: null, playerName: null, oro: 0, plata: 0,
-    csrfToken: null, catalog: {}, categories: [],
+    csrfToken: null, catalog: {}, categories: [], currency:'', page:1, hasMore:false, marketView:'grid', pendingDeliveries:[], buyRef:null,
     listings: [], inventory: [], myListings: [], history: [],
     limited: [], offersReceived: [], offersSent: [], isAdmin: false,
     activeTab: 'market', activeCategory: 'todos', search: '', sort: '',
@@ -1230,6 +1249,8 @@
   async function rawFetch(path, opts){
     const controller = new AbortController();
     const taskOptions = opts || {};
+    if(marketClosed)return new Response('{"error":"market_closed"}',{status:503});
+    marketRequests.add(controller);
     const timeout = setTimeout(() => controller.abort(), 90000);
     try {
       return await fetch(CONFIG.API_BASE + path, { ...taskOptions, credentials: 'include', signal: controller.signal,
@@ -1239,7 +1260,7 @@
       const status = document.getElementById('market-network');
       if (status) { status.dataset.error = 'true'; status.textContent = LANG === 'en' ? 'Connection interrupted. Your last loaded data is still shown.' : 'Conexión interrumpida. Se conservan los últimos datos cargados.'; }
       return new Response(JSON.stringify({ error: 'connection_error' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
-    } finally { clearTimeout(timeout); }
+    } finally { clearTimeout(timeout); marketRequests.delete(controller); }
   }
   async function tryRefreshSession(){
     try{
@@ -1300,14 +1321,14 @@
   }
   function addPending(job){
     const list = readPending();
-    const clave = `${job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
-    if (list.some(j => `${j.op}:${j.listingId}:${j.itemId}:${j.qty}` === clave)) return;
+    const clave = `${job.receiptId || job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
+    if (list.some(j => `${j.receiptId || j.op}:${j.listingId}:${j.itemId}:${j.qty}` === clave)) return;
     list.push(Object.assign({ at: Date.now() }, job));
     writePending(list);
   }
   function removePending(job){
-    const clave = `${job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
-    writePending(readPending().filter(j => `${j.op}:${j.listingId}:${j.itemId}:${j.qty}` !== clave));
+    const clave = `${job.receiptId || job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
+    writePending(readPending().filter(j => `${j.receiptId || j.op}:${j.listingId}:${j.itemId}:${j.qty}` !== clave));
   }
 
   /**
@@ -1316,7 +1337,7 @@
    */
   async function settleOnchain(op, listingId, itemId, qty, opciones){
     const silencioso = !!(opciones && opciones.silent);
-    const job = { op, listingId: String(listingId || ''), itemId, qty: Number(qty) || 0 };
+    const job = { op, listingId: String(listingId || ''), itemId, qty: Number(qty) || 0, receiptId:opciones?.receiptId || undefined };
     if (!job.listingId || !job.itemId || job.qty < 1) return false;
 
     if (!silencioso) toast(t('chain_working'));
@@ -1336,7 +1357,7 @@
       }
 
       // Errores definitivos: reintentar no arregla nada, así que no se guardan.
-      const definitivos = ['listing_not_found','not_listing_owner','item_mismatch',
+      const definitivos = ['legacy_listing_requires_review','market_receipt_required','not_settlement_owner','listing_not_found','not_listing_owner','item_mismatch',
                            'escrow_exceeds_listing','not_escrow_owner','nothing_in_escrow','exceeds_escrow'];
       if (definitivos.includes(data.error)){
         removePending(job);
@@ -1356,11 +1377,14 @@
 
   /** Reintenta en segundo plano lo que quedó pendiente de sesiones anteriores. */
   async function retryPendingSettlements(){
-    const list = readPending();
+    const list = readPending().filter(j => j.op === 'escrow' || j.receiptId);
+    await loadPendingDeliveries();
+    for(const row of state.pendingDeliveries) if(!list.some(j=>j.receiptId===row.receiptId))list.push({...row, silent:true});
     if (!list.length) return;
     console.log(`⛓️ Reintentando ${list.length} liquidación(es) pendiente(s)`);
     for (const job of list){
-      await settleOnchain(job.op, job.listingId, job.itemId, job.qty, { silent: true });
+      if(marketClosed)break;
+      await settleOnchain(job.op, job.listingId, job.itemId, job.qty, { silent: true, receiptId:job.receiptId });
     }
   }
 
@@ -1411,6 +1435,7 @@
   // ══════════════════════════════════════════════════════════════════════
   // TOASTS
   // ══════════════════════════════════════════════════════════════════════
+  function scheduleMarket(work,ms){ const id=setTimeout(()=>{marketTimers.delete(id);if(!marketClosed)work();},ms);marketTimers.add(id);return id; }
   function toast(msg, isError){
     const stack = document.getElementById('toast-stack');
     document.querySelectorAll('.toast').forEach((old, i) => { if (i >= 3) old.remove(); });
@@ -1418,7 +1443,7 @@
     el.className = 'toast' + (isError ? ' err' : '');
     el.textContent = (isError ? '⚠️ ' : '✅ ') + msg;
     stack.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transition='opacity .25s'; setTimeout(()=>el.remove(), 260); }, 2600);
+    scheduleMarket(() => { el.style.opacity = '0'; el.style.transition='opacity .25s'; scheduleMarket(()=>el.remove(),260); },2600);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1489,6 +1514,8 @@
     if(state.activeCategory && state.activeCategory !== 'todos') params.set('category', state.activeCategory);
     if(state.search) params.set('search', state.search);
     if(state.sort) params.set('sort', state.sort);
+    if(state.currency) params.set('currency', state.currency);
+    params.set('page',String(state.page));
     const res = await api('/api/marketplace/listings?' + params.toString());
     if(!res.ok) {
       const status = document.getElementById('market-network'); status.dataset.error = 'true';
@@ -1498,6 +1525,7 @@
     const data = await res.json();
     if (revision !== listingRevision) return;
     state.listings = data.listings || [];
+    state.hasMore = !!data.hasMore;
     document.getElementById('market-network').dataset.error = 'false';
     document.getElementById('market-network').textContent = '';
     return true;
@@ -1535,7 +1563,7 @@
       btn.className = 'cat-chip' + (state.activeCategory === cat.id ? ' active' : '');
       btn.textContent = catLabel(cat.id);
       btn.addEventListener('click', async () => {
-        state.activeCategory = cat.id;
+        state.activeCategory = cat.id; state.page = 1;
         renderCategoryChips();
         await loadListings();
         renderMarket();
@@ -1554,6 +1582,10 @@
 
   function renderMarket(){
     const grid = document.getElementById('market-grid');
+    grid.classList.toggle('market-list-view',state.marketView==='list');
+    document.getElementById('market-result-count').textContent = state.listings.length + (LANG==='en' ? ' listings on this page' : ' publicaciones en esta página');
+    document.getElementById('market-page').textContent = (LANG==='en' ? 'Page ' : 'Página ') + state.page;
+    document.getElementById('market-previous').disabled = state.page <= 1; document.getElementById('market-next').disabled = !state.hasMore;
     grid.innerHTML = '';
     if(state.listings.length === 0){
       grid.style.display = 'block';
@@ -1564,7 +1596,7 @@
     state.listings.forEach(l => {
       const nm = itemName(l.itemId, l.name);
       const card = document.createElement('div');
-      card.className = 'ticket';
+      card.className = 'ticket' + (l.chainReady === false ? ' market-awaiting' : '');
       card.innerHTML = `
         <div class="stamp">${escapeHtml(catLabel(l.category))}</div>
         <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
@@ -1573,10 +1605,11 @@
         <div class="seller-line">${t('seller',{name:`<button class="seller-link" data-owner="${escapeHtml(l.owner || l.ownerName)}">${escapeHtml(nombreVisible(l.ownerName, l.owner))}</button>`})}</div>
         <div class="price-row">
           <div class="price"><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(l.pricePerUnit)}</div>
-          <span class="buy-group"><button class="stats-btn" type="button" title="${escapeHtml(t('price_stats'))}" aria-label="${escapeHtml(t('price_stats'))}">📈</button>${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}</span>
+          <span class="buy-group"><button class="stats-btn" type="button" title="${escapeHtml(t('price_stats'))}" aria-label="${escapeHtml(t('price_stats'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 3v17h17M7 14l4-4 4 3 5-7"/></svg></button>${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}</span>
         </div>
         ${l.mine ? '' : `<button class="offer-link-btn chip-btn" style="width:100%;margin-top:8px;" data-id="${l.id}">${t('offer')}</button>`}`;
       card.querySelector('.stats-btn').addEventListener('click', () => openPriceStats(l.itemId, nm, iconUrl(l.icon)));
+      if(l.chainReady === false){ const pending=document.createElement('span'); pending.className='market-custody-note'; pending.textContent=LANG==='en'?'Custody awaiting confirmation':'Custodia pendiente de confirmar'; card.append(pending); for(const button of card.querySelectorAll('.buy-btn,.offer-link-btn'))button.disabled=true; }
       if(!l.mine){
         card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
         card.querySelector('.offer-link-btn').addEventListener('click', () => openOfferModal(l));
@@ -1631,6 +1664,13 @@
         </div>
         <button class="cancel-btn" data-id="${l.id}">${t('cancel')}</button>`;
       row.querySelector('.cancel-btn').addEventListener('click', () => cancelListing(l.id, row));
+      if(l.chainReady === false){
+        const note=document.createElement('small');note.textContent=LANG==='es'?'Custodia: '+l.chainStatus:'Custody: '+l.chainStatus;row.querySelector('.mylist-info').append(note);
+        if(['awaiting_escrow','processing'].includes(l.chainStatus)){
+          const resume=document.createElement('button');resume.className='cancel-btn';resume.textContent=LANG==='es'?'Completar depósito':'Complete deposit';
+          resume.onclick=async()=>{resume.disabled=true;try{await settleOnchain('escrow',l.id,l.itemId,l.qty);await loadMyListings();await loadAccount();renderMine();}finally{resume.disabled=false;}};row.append(resume);
+        }
+      }
       wrap.appendChild(row);
     });
   }
@@ -1792,6 +1832,7 @@
       // vendedor (se quema en el contrato) y queda en depósito del mercado.
       const nuevoId = await resolveNewListingId(data, item, qty, price);
       if (nuevoId) await settleOnchain('escrow', nuevoId, item.itemId, qty);
+      await loadAccount(); await loadPendingDeliveries();
 
       renderSell();
       await loadMyListings(); renderMine();
@@ -1804,7 +1845,7 @@
   // MODAL — comprar
   // ══════════════════════════════════════════════════════════════════════
   function openBuyModal(listing){
-    state.buyCtx = listing;
+    state.buyCtx = listing; state.buyRef = window.crypto?.randomUUID?.() || ('buy_'+Date.now().toString(36)+Math.random().toString(36).slice(2));
     document.getElementById('buy-item-icon').src = iconUrl(listing.icon);
     document.getElementById('buy-item-icon').onerror = function(){ this.src = FALLBACK_ICON; };
     document.getElementById('buy-item-name').textContent = itemName(listing.itemId, listing.name);
@@ -1837,7 +1878,7 @@
     const btn = document.getElementById('buy-confirm');
     btn.disabled = true; btn.textContent = t('buying');
     try{
-      const res = await api('/api/marketplace/buy/' + l.id, { method: 'POST', body: JSON.stringify({ qty }) });
+      const res = await api('/api/marketplace/buy/' + l.id, { method: 'POST', body: JSON.stringify({ qty, ref:state.buyRef }) });
       const data = await res.json();
       if(!res.ok){ errEl.textContent = translateApiError(data) || t('e_no_buy'); errEl.classList.add('show'); return; }
       state.oro = data.oro; state.plata = data.plata;
@@ -1848,7 +1889,8 @@
 
       // LIQUIDACIÓN ON-CHAIN: se acuñan al comprador las unidades que el
       // vendedor dejó en depósito al publicar.
-      await settleOnchain('deliver', l.id, l.itemId, qty);
+      await settleOnchain('deliver', l.id, l.itemId, qty, {receiptId:data.receiptId});
+      await loadAccount(); renderWallet(); renderSell(); await loadPendingDeliveries();
       await Promise.all([loadListings(), loadHistory()]);
       renderMarket(); renderHistory();
     }catch(e){ errEl.textContent = t('e_conn'); errEl.classList.add('show'); }
@@ -1859,6 +1901,10 @@
   function translateApiError(data){
     if(!data) return '';
     const map = {
+      market_escrow_pending: LANG==='en' ? 'Seller custody is not confirmed yet.' : 'El depósito del vendedor todavía no está confirmado.',
+      canonical_invoice_required: LANG==='en' ? 'Reconcile this item with the game inventory first.' : 'Primero sincroniza este objeto con el inventario del juego.',
+      legacy_listing_requires_review: LANG==='en' ? 'This older listing needs an administrator review.' : 'Esta publicación antigua necesita revisión del administrador.',
+      market_transfer_pending: LANG==='en' ? 'The server holds your delivery receipt. Check pending deliveries.' : 'El servidor conserva tu recibo. Consulta las entregas pendientes.',
       insufficient_funds: LANG==='en' ? "You don't have enough coins for this purchase" : 'No tienes suficientes monedas para esta compra',
       inventory_full: LANG==='en' ? 'Your inventory is full' : 'Tu inventario está lleno',
       insufficient_item_quantity: LANG==='en' ? "You don't have that quantity in that slot" : 'No tienes esa cantidad de ese objeto en ese espacio',
@@ -1900,7 +1946,9 @@
 
       // LIQUIDACIÓN ON-CHAIN: lo que quedaba en depósito vuelve al vendedor.
       if (publicacion) {
-        await settleOnchain('refund', id, publicacion.itemId, publicacion.qty);
+        if(data.receiptId)await settleOnchain('refund', id, publicacion.itemId, publicacion.qty, {receiptId:data.receiptId});
+        else await api('/api/inventory/reconcile',{method:'POST',body:JSON.stringify({itemId:publicacion.itemId})});
+        await loadAccount(); await loadPendingDeliveries();
       }
 
       await loadMyListings(); renderMine(); renderSell();
@@ -1937,12 +1985,12 @@
   document.getElementById('search-input').addEventListener('input', (e) => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(async () => {
-      state.search = e.target.value.trim();
+      state.search = e.target.value.trim(); state.page = 1;
       await loadListings(); renderMarket();
     }, 300);
   });
   document.getElementById('sort-select').addEventListener('change', async (e) => {
-    state.sort = e.target.value;
+    state.sort = e.target.value; state.page = 1;
     await loadListings(); renderMarket();
   });
 
@@ -2386,6 +2434,40 @@
     }catch(e){ toast(t('e_conn'), true); }
   }
 
+  async function loadPendingDeliveries(){
+    const response=await api('/api/marketplace/onchain/pending'); if(!response.ok || marketClosed)return;
+    const data=await response.json(); state.pendingDeliveries=data.rows || [];
+    document.getElementById('market-pending-count').textContent=state.pendingDeliveries.length;
+    const host=document.getElementById('market-pending-rows');host.replaceChildren();
+    if(!state.pendingDeliveries.length){const p=document.createElement('p');p.textContent=LANG==='en'?'No deliveries awaiting confirmation.':'No hay entregas pendientes de confirmar.';host.append(p);}
+    for(const row of state.pendingDeliveries){
+      const card=document.createElement('div');card.className='market-pending-row';
+      const title=document.createElement('strong'),note=document.createElement('small'),button=document.createElement('button');
+      title.textContent=itemName(row.itemId,row.itemId)+' × '+row.qty;note.textContent=row.status+' · '+(row.txHash || row.receiptId);
+      button.type='button';button.textContent=LANG==='en'?'Check delivery':'Comprobar entrega';
+      button.addEventListener('click',async()=>{button.disabled=true;try{await settleOnchain(row.op,row.listingId,row.itemId,row.qty,{receiptId:row.receiptId});await loadPendingDeliveries();await loadAccount();renderWallet();renderSell();}finally{button.disabled=false;}});
+      card.append(title,note,button);host.append(card);
+    }
+  }
+  document.getElementById('market-open-sell').addEventListener('click',()=>switchTab('sell'));
+  document.getElementById('market-open-mine').addEventListener('click',()=>switchTab('mine'));
+  document.getElementById('market-open-pending').addEventListener('click',()=>{const panel=document.getElementById('market-pending-panel');panel.hidden=!panel.hidden;if(!panel.hidden)loadPendingDeliveries().catch(()=>{});});
+  document.getElementById('market-reconcile').addEventListener('click',async e=>{e.currentTarget.disabled=true;try{await retryPendingSettlements();await loadPendingDeliveries();await loadAccount();renderWallet();renderSell();}finally{e.currentTarget.disabled=false;}});
+  document.getElementById('market-currency').addEventListener('change',async e=>{state.currency=e.target.value;state.page=1;await loadListings();renderMarket();});
+  document.getElementById('market-clear-filters').addEventListener('click',async()=>{clearTimeout(searchTimer);state.currency='';state.search='';state.sort='';state.activeCategory='todos';state.page=1;document.getElementById('market-currency').value='';document.getElementById('search-input').value='';document.getElementById('sort-select').value='';renderCategoryChips();await loadListings();renderMarket();});
+  for(const view of ['grid','list'])document.getElementById('market-view-'+view).addEventListener('click',()=>{state.marketView=view;for(const x of ['grid','list'])document.getElementById('market-view-'+x).setAttribute('aria-pressed',String(x===view));renderMarket();});
+  let paging=false;
+  for(const [id,delta] of [['market-previous',-1],['market-next',1]])document.getElementById(id).addEventListener('click',async()=>{if(paging)return;paging=true;const old=state.page;state.page=Math.max(1,state.page+delta);try{if(await loadListings()===false)state.page=old;renderMarket();}finally{paging=false;}});
+  let resourceReadAt=0,resourceWork=null;
+  document.getElementById('market-resource-brief').addEventListener('toggle',async e=>{
+    if(!e.currentTarget.open || resourceWork || Date.now()-resourceReadAt<15000)return;
+    resourceWork=(async()=>{try{
+      const response=await api('/api/economia/recursos');if(!response.ok)throw new Error('resources');const data=await response.json();if(marketClosed)return;
+      const host=document.getElementById('market-resource-rows');host.replaceChildren();
+      for(const r of data.rows || []){const card=document.createElement('div'),name=document.createElement('strong'),details=document.createElement('small');name.textContent=itemName(r.itemId,r.itemId);details.textContent=r.available&&r.configured?(r.occupancy.toFixed(1)+'% · '+r.respawnSeconds+' s · '+(LANG==='en'?'free capacity ':'capacidad libre ')+r.remaining):(LANG==='en'?'Reading unavailable':'Lectura no disponible');card.append(name,details);host.append(card);}resourceReadAt=Date.now();
+    }catch(_){document.getElementById('market-resource-rows').textContent=LANG==='en'?'Resource capacity could not be verified.':'No se pudo verificar la capacidad de los recursos.';}})().finally(()=>{resourceWork=null;});await resourceWork;
+  });
+
   let refreshingMarket = false;
   document.getElementById('market-refresh').addEventListener('click', async () => {
     if (refreshingMarket) return;
@@ -2406,7 +2488,7 @@
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
   });
-  window.addEventListener('pagehide', () => { clearTimeout(searchTimer); if (window.GFPrecioPanel) GFPrecioPanel.cerrar(); });
+  window.addEventListener('pagehide', e => { clearTimeout(searchTimer); if (window.GFPrecioPanel) GFPrecioPanel.cerrar(); if(e.persisted)return; marketClosed=true;marketRequests.forEach(c=>c.abort());marketRequests.clear();marketTimers.forEach(clearTimeout);marketTimers.clear(); });
   boot().catch(() => { showGate(); });
 })();
 </script>
