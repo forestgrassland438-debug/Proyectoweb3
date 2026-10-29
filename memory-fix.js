@@ -9,9 +9,19 @@
   if (window.__MEMFIX_LIFECYCLE_INSTALLED) return;
   window.__MEMFIX_LIFECYCLE_INSTALLED = true;
 
+  class WeakResourceRegistry {
+    constructor(){this.refs=new Map();this.keys=new WeakMap();this.finalizer=typeof FinalizationRegistry==='function'?new FinalizationRegistry(key=>this.refs.delete(key)):null;}
+    add(value){if(this.keys.has(value))return this;const key={};this.keys.set(value,key);this.refs.set(key,new WeakRef(value));this.finalizer?.register(value,key,key);return this;}
+    has(value){return this.keys.has(value);}
+    delete(value){const key=this.keys.get(value);if(!key)return false;this.keys.delete(value);this.finalizer?.unregister(key);return this.refs.delete(key);}
+    *[Symbol.iterator](){for(const [key,ref] of this.refs){const value=ref.deref();if(value)yield value;else this.refs.delete(key);}}
+    get size(){let n=0;for(const value of this)n++;return n;}
+    clear(){for(const key of this.refs.keys())this.finalizer?.unregister(key);this.refs.clear();this.keys=new WeakMap();}
+  }
+  const registry=()=>typeof WeakRef==='function'?new WeakResourceRegistry():new Set();
   const destroyed = new WeakSet();
-  const workers = window.__MEMFIX_CREATED_WORKERS = window.__MEMFIX_CREATED_WORKERS || new Set();
-  const audioContexts = window.__MEMFIX_AUDIO_CONTEXTS = window.__MEMFIX_AUDIO_CONTEXTS || new Set();
+  const workers = window.__MEMFIX_CREATED_WORKERS = window.__MEMFIX_CREATED_WORKERS || registry();
+  const audioContexts = window.__MEMFIX_AUDIO_CONTEXTS = window.__MEMFIX_AUDIO_CONTEXTS || registry();
 
   function safely(action) {
     try {

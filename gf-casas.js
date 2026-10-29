@@ -106,7 +106,7 @@
     try { await scene.savegg(); } catch (e) { console.warn('🏠 guardado antes de entrar:', e); }
     // El guardado puede terminar después del cierre o de un nuevo montaje.
     if (scene.__gfCasas !== propietaria || !scene.sys ||
-        (typeof scene.sys.isActive === 'function' && !scene.sys.isActive())) return;
+        (typeof scene.sys.isActive === 'function' && !scene.sys.isActive())) {scene._cambiandoEscena=false;return;}
     scene.saveTimer = 0;
 
     try { scene._ocultarHUD && scene._ocultarHUD(); } catch (e) {}
@@ -120,7 +120,7 @@
         soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: (scene.sys && scene.sys.settings && scene.sys.settings.key) || 'GameScene' });
     }
     try { scene.cleanupScene && scene.cleanupScene(); } catch (e) {}
-    scene.scene.start('LoadingScenegame');
+    try { scene.scene.start('LoadingScenegame'); } catch(e) {scene._cambiandoEscena=false;throw e;}
   }
 
   // ─────────────────────────────────────────── LAS PUERTAS EN EL PUEBLO

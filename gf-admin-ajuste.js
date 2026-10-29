@@ -27,7 +27,7 @@
   var STATS = ['vida', 'agua', 'comida', 'oro', 'plata', 'bronce', 'exp'];
   // El campo de la escena que lleva cada stat (los mismos que usa GameScene).
   var CAMPO = { vida: 'vidaPorcentaje', agua: 'aguaPorcentaje', comida: 'comidaPorcentaje',
-                oro: 'moneda', plata: 'moneda_plata' };
+                oro: 'moneda', plata: 'moneda_plata', bronce: 'moneda_bronce' };
 
   var socket = null, oyente = null;
 
@@ -102,8 +102,10 @@
     s.on('admin:ajuste', oyente);
   }
 
-  setInterval(enlazar, 1000);
+  var timer=setInterval(function(){if(!document.hidden)enlazar();},1000);
+  function destruir(){clearInterval(timer);timer=null;if(socket && oyente)socket.off('admin:ajuste',oyente);socket=oyente=null;}
+  global.addEventListener('pagehide',function(e){if(!e.persisted)destruir();});
   enlazar();
+  global.GFAdminAjuste = { aplicar: aplicar, destruir: destruir };
 
-  global.GFAdminAjuste = { aplicar: aplicar };
 })(window);

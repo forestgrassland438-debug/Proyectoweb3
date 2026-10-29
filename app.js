@@ -568,6 +568,10 @@
   // píxeles físicos (×2 o ×3 en un teléfono). Ese salto se veía como un tirón
   // de zoom durante la carga. Naciendo ya con la resolución definitiva no hay
   // salto. El factor es el mismo que usa el gestor de resize (ver _gameSize).
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(root.navigator?.userAgent || '')) {
+    root.GF_DPR_TECHO_DISPOSITIVO = 2;
+    if (!root.GF_MAX_DPR) root.GF_MAX_DPR = 2;
+  }
   var BOOT_DPR = Math.max(1, Math.min(
     Math.floor(Math.max(1, root.devicePixelRatio || 1)),
     Math.max(1, root.GF_MAX_DPR || Infinity)

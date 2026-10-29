@@ -297,8 +297,8 @@
     scene.__gfMuerte = st;
     montado = st;
 
-    st.timer = setInterval(revisar, REVISION_MS);
-    st.quitarOyente = mascota().alCambiar(function () { revisar(); pintar(); });
+    st.timer = setInterval(function(){if(montado===st)revisar();}, REVISION_MS);
+    st.quitarOyente = mascota().alCambiar(function () { if(montado===st){revisar();pintar();} });
 
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);

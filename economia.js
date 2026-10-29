@@ -427,9 +427,9 @@
   });
 
   // Al cambiar el ancho de la página se vuelven a dibujar los gráficos (no los datos).
-  let anchoPintado = 0, vigiaReloj = 0;
+  let anchoPintado = 0, vigiaReloj = 0, resizeObserver=null;
   if (typeof root.ResizeObserver === 'function') {
-    new root.ResizeObserver(() => {
+    resizeObserver = new root.ResizeObserver(() => {
       clearTimeout(vigiaReloj);
       vigiaReloj = setTimeout(() => {
         const w = $('ec-ingresos').clientWidth;
@@ -437,7 +437,7 @@
         anchoPintado = w;
         pintarIngresos(datos.serieJuego || []); pintarEconomia(datos.economia);
       }, 150);
-    }).observe($('ec-body'));
+    }); resizeObserver.observe($('ec-body'));
   }
   // (2026-10-27) Buscar y filtrar las recargas.
   $('ec-c-form').addEventListener('submit', ev => {
@@ -447,6 +447,6 @@
   });
   $('ec-connect').addEventListener('click', () => verificar(true));
   $('ec-refresh').addEventListener('click', () => cargar());
-  root.addEventListener('pagehide', ev => { if (ev.persisted) return; cerrado = true; clearInterval(reloj); if (peticion) peticion.abort(); });
+  root.addEventListener('pagehide', ev => { if (ev.persisted) return; cerrado = true; clearInterval(reloj);clearTimeout(vigiaReloj);resizeObserver?.disconnect(); if (peticion) peticion.abort(); });
   verificar(false);
 })(window);

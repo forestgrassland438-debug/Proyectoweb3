@@ -59,6 +59,7 @@
     b: { nombre: 'Piercing thrust', espera: 4500, alcance: 2.1, dano: 1.5, arco: 0.55 },
     n: { nombre: 'Guard', espera: 12000, guardia: true }
   };
+  Object.values(ESPADAS).forEach(Object.freeze);Object.freeze(ESPADAS);Object.values(PODERES).forEach(Object.freeze);Object.freeze(PODERES);
   var CLAVE_LS = 'gf_espada';
   var menuReloj = null;
   function efectos(scene) {
@@ -474,6 +475,8 @@
       api('/api/player/sword-power', { ability: 'guard' }).then(function (r) {
         if (scene.__gfEspada !== st || !r.ok) { if (scene.__gfEspada === st) st.poderEn.n = 0; return; }
         var p = scene.player;
+        if (!p || !p.scene || !p.active) return;
+        if (st.escudo) st.escudo.destroy();
         var escudo = scene.add.ellipse(p.x, p.y - 14, 58, 66, 0x7fb8e8, 0.12).setStrokeStyle(2, 0xc8eeff, 0.85).setDepth((p.depth || p.y) + 1);
         st.escudo = escudo; st.guardiaHasta = scene.time.now + 3000;
       }).catch(function () { if (scene.__gfEspada === st) st.poderEn.n = 0; });

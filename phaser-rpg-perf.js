@@ -761,11 +761,23 @@
     async _initialize() {
       try {
         if (_crypto?.subtle) {
-          const key = await _crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-          if (!this._destroyed) { this.sessionKey = key; this.encryptionEnabled = true; }
+          let key=await _crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+          this.persistentKey=false;
+          if(global.indexedDB){
+            try{key=await new Promise((resolve,reject)=>{
+              const request=global.indexedDB.open('gf-performance-vault',1);
+              request.onupgradeneeded=()=>request.result.createObjectStore('keys');
+              request.onerror=()=>reject(request.error);
+              request.onsuccess=()=>{const db=request.result,tx=db.transaction('keys','readwrite'),store=tx.objectStore('keys'),get=store.get('aes-gcm'),candidate=key;let selected;
+                get.onsuccess=()=>{selected=get.result || candidate;if(!get.result)store.put(candidate,'aes-gcm');};
+                tx.oncomplete=()=>{db.close();resolve(selected);};tx.onabort=tx.onerror=()=>{db.close();reject(tx.error || new Error('vault_key_unavailable'));};
+              };
+            });this.persistentKey=true;}catch(_){/* Memory-only when persistent CryptoKey storage is unavailable. */}
+          }
+          if(!this._destroyed){this.sessionKey=key;this.encryptionEnabled=true;}
         }
-      } catch (e) { /* Encrypted persistence fails closed; explicit preferences may use v1. */ }
-      if (!this._destroyed) this.initialized = true;
+      }catch(_){}
+      if(!this._destroyed)this.initialized=true;
     }
     _init() { return this._initPromise; }
     _remember(key, value) {
@@ -790,11 +802,11 @@
           return true;
         }
         await this._initPromise;
-        if (!current() || !this.encryptionEnabled || !this.sessionKey) return false;
+        if (!current() || !this.encryptionEnabled || !this.sessionKey || !this.persistentKey) return false;
         const iv = _crypto.getRandomValues(new Uint8Array(12));
         const ct = await _crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.sessionKey, _strToU8(json));
         if (!current()) return false;
-        localStorage.setItem(this.PREFIX + key, JSON.stringify({ v: 2, iv: _bufToB64(iv.buffer), ct: _bufToB64(ct), timestamp: Date.now() }));
+        localStorage.setItem(this.PREFIX + key, JSON.stringify({ v: 3, iv: _bufToB64(iv.buffer), ct: _bufToB64(ct), timestamp: Date.now() }));
         return true;
       } catch (e) { return false; }
       finally { if (this._writes.get(key) === ticket) this._writes.delete(key); }
@@ -811,7 +823,7 @@
         if (!payload || typeof payload !== 'object') return undefined;
         let value;
         if (payload.v === 1 && opts.allowPlaintext === true) value = payload.data;
-        else if (payload.v === 2) {
+        else if (payload.v === 2 || payload.v === 3) {
           await this._initPromise;
           if (this._destroyed || epoch !== this._epoch || !this.sessionKey) return undefined;
           if (typeof payload.iv !== 'string' || typeof payload.ct !== 'string') return undefined;
@@ -836,7 +848,7 @@
       try { Object.keys(localStorage).forEach(key => { if (key.startsWith(this.PREFIX)) localStorage.removeItem(key); }); } catch (e) {}
     }
     destroy() { this._destroyed = true; this.clearMemory(); this.sessionKey = null; this.encryptionEnabled = false; }
-    getStats() { return { memItems: this.store.size, initialized: this.initialized, encryptionEnabled: this.encryptionEnabled }; }
+    getStats() { return { memItems: this.store.size, initialized: this.initialized, encryptionEnabled: this.encryptionEnabled, persistentKey: !!this.persistentKey }; }
   }
 
   // ── SMART TEXTURE CACHE ───────────────────────────────────────────────────
@@ -1512,23 +1524,17 @@
       this.stats.framesProcessed++;
       this.updateCounter++;
 
-      const arr   = Array.from(this.targets.entries());
-      const total = arr.length;
-      if (!total) return;
-
-      if (this.optimizedUpdate && total > 100) {
-        const chunk = Math.ceil(total / 3);
-        const start = (this.updateCounter % 3) * chunk;
-        const end   = Math.min(start + chunk, total);
-        for (let i = start; i < end; i++) {
-          this._processTarget(arr[i][1], left, right, top, bot);
-          this.stats.totalChecked++;
-        }
-      } else {
-        for (const [, data] of arr) {
-          this._processTarget(data, left, right, top, bot);
-          this.stats.totalChecked++;
-        }
+      const total=this.targets.size;
+      const chunk=this.optimizedUpdate && total>100 ? Math.ceil(total/3) : total;
+      let budget=chunk;
+      if (!this._targetIterator) this._targetIterator=this.targets.values();
+      // A live iterator avoids copying every registered target on every frame.
+      // Process at most one pass, even when a callback adds more targets.
+      while(budget-- > 0 && this.targets.size){
+        let next=this._targetIterator.next();
+        if(next.done){this._targetIterator=this.targets.values();next=this._targetIterator.next();}
+        if(next.done)break;
+        this._processTarget(next.value,left,right,top,bot);this.stats.totalChecked++;
       }
     }
 
@@ -1588,7 +1594,7 @@
       this.stats.visibilityChanges++;
     }
 
-    destroy() { if (this._destroyed) return; this._destroyed = true; this.enabled = false; this.eventManager.destroy(); for (const target of [...this.targets.keys()]) this.remove(target); this.scene = null; }
+    destroy() { if (this._destroyed) return; this._destroyed = true; this.enabled = false; this._targetIterator=null; this.eventManager.destroy(); for (const target of [...this.targets.keys()]) this.remove(target); this.scene = null; }
 
     getStats() {
       return { ...this.stats, totalTargets: this.targets.size, enabled: this.enabled, optimizedUpdate: this.optimizedUpdate };

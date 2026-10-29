@@ -350,7 +350,9 @@
                 fragShader: fuente(conTaps) });
       }
       onPreRender() {
-        if (!V) return;
+        var values=this._gfValues || (montado && montado.valores);
+        if (!values) return;
+        var V=values;
         var w = this.renderer ? this.renderer.width : 1;
         var h = this.renderer ? this.renderer.height : 1;
         var p = V.pulso || 0;
@@ -499,24 +501,24 @@
     peso = Math.max(0, Math.min(1, peso));
     if (st.forzado && LOOKS[st.forzado]) { look = LOOKS[st.forzado]; peso = 1; }
 
-    var d = {
-      focoDe: mezclar(base.enfoque[0], look.enfoque[0], peso),
-      focoA:  mezclar(base.enfoque[1], look.enfoque[1], peso),
-      radio:  mezclar(base.enfoque[2], look.enfoque[2], peso),
-      vinEn:  mezclar(base.vineta[0],  look.vineta[0],  peso),
-      vinF:   mezclar(base.vineta[1],  look.vineta[1],  peso),
-      tinR:   mezclar(base.tinte[0],   look.tinte[0],   peso),
-      tinG:   mezclar(base.tinte[1],   look.tinte[1],   peso),
-      tinB:   mezclar(base.tinte[2],   look.tinte[2],   peso),
-      tinF:   mezclar(base.tinte[3],   look.tinte[3],   peso),
-      sat:    mezclar(base.ajuste[0],  look.ajuste[0],  peso),
-      con:    mezclar(base.ajuste[1],  look.ajuste[1],  peso),
-      bri:    mezclar(base.ajuste[2],  look.ajuste[2],  peso),
-      destello:   mezclar(base.extras[0], look.extras[0], peso),
-      grano:      mezclar(base.extras[1], look.extras[1], peso),
-      aberracion: mezclar(base.extras[2], look.extras[2], peso),
-      vinR: 0.04, vinG: 0.04, vinB: 0.07
-    };
+    var d = st.destino || {};d.focoDe = mezclar(base.enfoque[0], look.enfoque[0], peso);
+    d.focoA = mezclar(base.enfoque[1], look.enfoque[1], peso);
+    d.radio = mezclar(base.enfoque[2], look.enfoque[2], peso);
+    d.vinEn = mezclar(base.vineta[0],  look.vineta[0],  peso);
+    d.vinF = mezclar(base.vineta[1],  look.vineta[1],  peso);
+    d.tinR = mezclar(base.tinte[0],   look.tinte[0],   peso);
+    d.tinG = mezclar(base.tinte[1],   look.tinte[1],   peso);
+    d.tinB = mezclar(base.tinte[2],   look.tinte[2],   peso);
+    d.tinF = mezclar(base.tinte[3],   look.tinte[3],   peso);
+    d.sat = mezclar(base.ajuste[0],  look.ajuste[0],  peso);
+    d.con = mezclar(base.ajuste[1],  look.ajuste[1],  peso);
+    d.bri = mezclar(base.ajuste[2],  look.ajuste[2],  peso);
+    d.destello = mezclar(base.extras[0], look.extras[0], peso);
+    d.grano = mezclar(base.extras[1], look.extras[1], peso);
+    d.aberracion = mezclar(base.extras[2], look.extras[2], peso);
+    d.vinR = 0.04;
+    d.vinG = 0.04;
+    d.vinB = 0.07;;
 
     // ── La estación, encima ──
     var E = ESTACIONES[e.estacion] || null;
@@ -591,6 +593,7 @@
 
   /** Acerca cada número a su destino. Nada salta: todo se desliza. */
   function acercar(st, delta) {
+    var V=st.valores,destino=st.destino;
     if (!destino) return;
     var lento  = Math.min(1, delta / ENTRA_MS);
     var agil   = Math.min(1, delta / ENFOQUE_MS);
@@ -647,7 +650,7 @@
 
     V = nuevoValor();
     var st = {
-      scene: scene, cam: cam, clave: clave, conTaps: conTaps, movil: movil,
+      scene: scene, cam: cam, clave: clave, conTaps: conTaps, movil: movil, valores:V, destino:null,
       quieto: false, px: 0, py: 0, ultimoMovimiento: 0,
       forzado: null, manual: null,
       // Ni noche ni clima: lo piden las escenas bajo techo (ver `oscuridad`).
@@ -656,11 +659,15 @@
     };
     scene.__gfPost = st;
     montado = st;
+    try{var pipelines=cam.getPostPipeline?cam.getPostPipeline(clave):null;
+      (Array.isArray(pipelines)?pipelines:[pipelines]).forEach(function(p){if(p)p._gfValues=st.valores;});
+    }catch(_){}
 
     st.onUpdate = function (ahora, delta) {
       if (!Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
       vigilarJugador(st, ahora);
-      destino = calcularDestino(st);
+      st.destino = calcularDestino(st);
+      if(montado===st){V=st.valores;destino=st.destino;}
       acercar(st, Math.min(delta, 100));
     };
     scene.events.on('update', st.onUpdate);
@@ -670,7 +677,7 @@
     scene.events.once('destroy', st.onApagar);
 
     // Primer cálculo ya puesto, para no entrar a la escena con el look de ayer.
-    destino = calcularDestino(st);
+    destino = st.destino = calcularDestino(st);
     for (var k in destino) {
       if (Object.prototype.hasOwnProperty.call(destino, k)) V[k] = destino[k];
     }

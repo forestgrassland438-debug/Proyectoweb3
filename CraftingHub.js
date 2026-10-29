@@ -43,7 +43,7 @@ class CraftingSystem {
     this._nonStackableItems = [
       'hacha_de_madera','hacha_de_piedra','hacha_de_cobre','hacha_de_hierro',
       'pico_de_madera','pico_de_piedra','pico_de_cobre','pico_de_hierro',
-      'espada_madera','balde_vacio','balde_con_agua'
+      'espada_madera','espada_hierro','pala_construccion','balde_vacio','balde_con_agua'
     ];
     this._maxStackSize = 99;
     this.initialize();
@@ -754,198 +754,54 @@ class CraftingSystem {
   }
 
   // FIX 7: anti-double-craft con try/finally
-  async _craftItemInterno({recipe,quantity,optional}) {
-    if (this._destroyed || !this.scene) return false;
-    // Siendo fantasma no se craftea (ver GFMuerte.bloquear).
-    if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
-    if(!recipe) return;
-    // El nivel puede haber cambiado mientras esta petición esperaba en la cola
-    this.updatePlayerLevelFromScene();
-    if(this.playerLevel<recipe.level){
-      this.showFeedback(`You need level ${recipe.level} (you have ${this.playerLevel})`,'error');return;
-    }
-    const resultQty=(recipe.resultQuantity||1)*quantity;
-    if(!this.canAddItemToInventory(recipe.resultItem,resultQty)){
-      this.showFeedback('❌ Not enough space in inventory','error');return;
-    }
-    /* (2026-10-28) "AL CRAFTEAR TAMBIÉN DEBERÍA HABER UN PRECIO JUSTO" que corre
-       con la economía: lo calcula y lo cobra el servidor (un % de lo que vale
-       lo que sale, con el índice de precios; ver gf-servicios.js). Si al final
-       no se entrega nada, vuelve (ver el finally de abajo). */
-    let cobroCrafteo=null, entregadoCrafteo=false;
-    if(!window.GFServicios){
-      this.showFeedback('The payment service is unavailable. Reopen the game before crafting.','error');return false;
-    }
-    if(window.GFServicios){
-      cobroCrafteo=await window.GFServicios.cobrar('craftear',recipe.resultItem,resultQty);
-      if(cobroCrafteo&&!cobroCrafteo.ok){this.showFeedback('❌ '+cobroCrafteo.message,'error');return;}
-    }
-    if(!cobroCrafteo||!cobroCrafteo.ok) return false;
-    if(this._destroyed||!this.scene){await window.GFServicios.devolver(cobroCrafteo.ref);return false;}
-    this._crafting=true;
-    // Aviso (en inglés) de que el crafteo empezó: la parte on-chain (consumir
-    // materiales / agregar el resultado) es asíncrona y puede tardar, así que
-    // sin esto el jugador cree que el botón no hizo nada.
-    this.showFeedback(`⏳ Crafting ${quantity} ${recipe.name}…`, 'info');
-    this._setCraftButtonBusy(true);
-
-    // DOBLE VERIFICACIÓN (2026-08-04) — FOTO ANTES
-    // -------------------------------------------------------------------
-    // Se guarda cuánto había de cada material y del resultado ANTES de tocar
-    // nada. Al final se compara: cada material tiene que haber BAJADO lo que
-    // tocaba y el resultado tiene que haber SUBIDO. Si el resultado no llega,
-    // se devuelven los materiales. Así no puede pasar ni que se cobren
-    // materiales sin entregar el objeto ni que se entregue sin cobrar.
-    const contarReal = (id) => (
-      this.scene && typeof this.scene.contarItemEnInventario === 'function'
-        ? this.scene.contarItemEnInventario(id)
-        : this.countPlayerItem(id)
-    );
-    const materialesPrevistos = this._materialesDe({recipe,quantity,optional});
-    const antesMateriales = {};
-    materialesPrevistos.forEach(m => { antesMateriales[m.itemId] = contarReal(m.itemId); });
-    const antesResultado = contarReal(recipe.resultItem);
-    let materialesConsumidos = [];
-
-    try {
-      const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
-      if(isOR){
-        const group=recipe.optionalResources[0]||[];
-        if(optional===null||optional===undefined){
-          let found=false;
-          for(let i=0;i<group.length;i++){
-            if(this.countPlayerItem(group[i].itemId)>=group[i].quantity){optional=i;found=true;break;}
-          }
-          if(!found){this.showFeedback('Not enough resources for any option','error');return;}
-        }
-        const opt=group[optional];
-        const total=opt.quantity*quantity;
-        if(this.countPlayerItem(opt.itemId)<total){
-          this.showFeedback(`Not enough ${opt.name} (you need ${total}, you have ${this.countPlayerItem(opt.itemId)})`,'error');return;
-        }
-        if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
-        materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
-      } else {
-        // FIX: si falla el descuento del 2º material, los que YA se gastaron se
-        // devuelven. Antes se salía con un `return` y el primero se perdía
-        // (hacha: el tablón descontado, el palo no, y ni hacha ni tablón).
-        const abortarDevolviendo = async (msg) => {
-          await this._devolverMateriales(materialesConsumidos);
-          this.showFeedback(msg + (materialesConsumidos.length ? ' Your materials were returned.' : ''), 'error');
-        };
-        // Se comprueba TODO antes de consumir nada: si falta un material no se
-        // gasta ninguno de los otros.
-        for(const resource of (recipe.resources||[])){
-          const total=resource.quantity*quantity;
-          if(this.countPlayerItem(resource.itemId)<total){
-            this.showFeedback(`Not enough ${resource.name} (you need ${total}, you have ${this.countPlayerItem(resource.itemId)})`,'error');return;
-          }
-        }
-        if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
-          const opt=recipe.optionalResources[0]?.[optional];
-          if(opt&&this.countPlayerItem(opt.itemId)<opt.quantity*quantity){
-            this.showFeedback(`Not enough ${opt.name} (you need ${opt.quantity*quantity})`,'error');return;
-          }
-        }
-
-        for(const resource of (recipe.resources||[])){
-          const total=resource.quantity*quantity;
-          if(!(await this.removePlayerItem(resource.itemId,total))){await abortarDevolviendo('Error consuming resources.');return;}
-          materialesConsumidos.push({itemId:resource.itemId,quantity:total,name:resource.name||resource.itemId});
-        }
-        if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
-          const opt=recipe.optionalResources[0]?.[optional];
-          if(opt){
-            const total=opt.quantity*quantity;
-            if(!(await this.removePlayerItem(opt.itemId,total))){await abortarDevolviendo('Error consuming optional resource.');return;}
-            materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
-          }
-        }
+  async _craftItemInterno(context) {
+    if(this._destroyed || !this.scene)return false;
+    const source=this.scene,run=source._sceneRunId,recipe=context.recipe,quantity=context.quantity,optional=context.optional;
+    if(!recipe)return false;
+    this._crafting=true;this._setCraftButtonBusy(true);
+    const call=async(path,body)=>{
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
+      try{const options={method:body?'POST':'GET',credentials:'include',signal:controller.signal,
+        headers:{'Content-Type':'application/json',...(window.getCsrfToken?{'X-CSRF-Token':window.getCsrfToken()}: {})},...(body?{body:JSON.stringify(body)}:{})};
+        const response=await (typeof source.fetchWithTokenRetry==='function'?source.fetchWithTokenRetry(source.serverBase+path,options):fetch(source.serverBase+path,options));
+        const data=await response.json();if(!response.ok)throw new Error(data.message || data.error || 'Crafting unavailable');return data;
+      }finally{clearTimeout(timer);}
+    };
+    try{
+      source._cancelarArrastre?.();
+      const pending=await call('/api/craft/pending');
+      let data;
+      if(pending.rows?.length){
+        const existing=pending.rows[0];
+        this.showFeedback('Checking your pending craft. No new payment will be made.','info');
+        data=await call('/api/craft/reconcile',{operationId:existing._id});
+      }else{
+        const key=JSON.stringify([source.address || source.playerName,recipe.id,quantity,optional]);
+        if(!this._craftResume || this._craftResume.key!==key)this._craftResume={key,ref:window.crypto.randomUUID()};
+        this.showFeedback('Crafting '+quantity+' '+recipe.name+' — materials and payment are verified by the server.','info');
+        data=await call('/api/craft/execute',{recipeId:recipe.id,quantity,option:optional,ref:this._craftResume.ref});
       }
-
-      // ── VERIFICACIÓN 1: ¿se descontaron de verdad los materiales? ──────
-      // removePlayerItem ya compara antes/después por su cuenta, pero aquí se
-      // vuelve a mirar sobre el inventario COMPLETO. Si algún material no bajó,
-      // el crafteo se aborta ANTES de entregar nada y se devuelve lo que sí se
-      // hubiera consumido: es preferible cancelar a regalar el objeto.
-      const noDescontados = materialesConsumidos.filter(m =>
-        (antesMateriales[m.itemId] - contarReal(m.itemId)) < m.quantity
-      );
-      if (noDescontados.length > 0) {
-        console.error('❌ Crafteo abortado: materiales sin descontar', noDescontados);
-        await this._devolverMateriales(materialesConsumidos.filter(m => !noDescontados.includes(m)));
-        this.showFeedback(
-          `Craft cancelled: ${noDescontados[0].name} could not be consumed. Nothing was lost.`,
-          'error'
-        );
-        return;
+      if(!data.ok){if(data.status==='cancelled'){this._craftResume=null;this.showFeedback('The unstarted craft was cancelled and its fee returned. You can request it again.','warning');}else this.showFeedback('Craft saved for reconciliation ('+data.operationId+'). Recheck this craft; do not submit a new reference.','warning');return false;}
+      this._craftResume=null;
+      if(this._destroyed || this.scene!==source || source._sceneRunId!==run || source.sys?.isActive?.()===false)return true;
+      const slots=[source.STATE?.slots,source.STATE?.quickSlots].filter(Array.isArray),remaining=new Map((data.sourceInvoices || []).map(i=>[Number(i.id),i.remaining]));
+      for(const array of slots)for(let i=0;i<array.length;i++){const slot=array[i];if(!slot || !remaining.has(Number(slot.idx)))continue;const count=remaining.get(Number(slot.idx));if(count>0)slot.count=count;else array[i]=null;}
+      for(const r of data.rewards || []){
+        let placed=false;
+        for(const array of slots)for(const slot of array)if(slot && Number(slot.idx)===r.invoiceId && slot.idm===r.manualId){slot.count=r.newTotal;placed=true;}
+        if(!placed)for(const array of slots){const ghost=array===source.STATE.slots?source.STATE.ghostSlots?.inv:source.STATE.ghostSlots?.quick;const index=array.findIndex((x,i)=>!x && !ghost?.[i]);
+          if(index>=0){array[index]={id:r.itemId,count:r.newTotal,idx:r.invoiceId,idm:r.manualId};placed=true;break;}}
+        if(!placed)this.showFeedback('The result is confirmed on-chain. Free a slot and synchronize inventory.','warning');
       }
-
-      if(!(await this.addPlayerItem(recipe.resultItem,resultQty))){
-        if (this._destroyed) return false;
-        // Si una parte ya llegó, una devolución íntegra regalaría esos
-        // resultados junto con todos los materiales de origen.
-        const parciales = Math.max(0, contarReal(recipe.resultItem) - antesResultado);
-        if (parciales > 0) {
-          entregadoCrafteo = true;
-          this.showFeedback(`Only ${parciales} of ${resultQty} ${recipe.name} were confirmed. Recheck your inventory.`, 'warning');
-          return false;
-        }
-        // Los materiales YA se gastaron: hay que devolverlos.
-        await this._devolverMateriales(materialesConsumidos);
-        this.showFeedback('❌ Inventory full — your materials were returned','error');
-        return;
-      }
-
-      // ── VERIFICACIÓN 2: ¿llegó de verdad el objeto crafteado? ──────────
-      const recibidas = contarReal(recipe.resultItem) - antesResultado;
-      if (recibidas > 0) entregadoCrafteo = true;
-      if (recibidas < resultQty) {
-        console.error(`❌ Crafteo sin entregar: ${recibidas}/${resultQty} ${recipe.resultItem}`);
-        if (recibidas <= 0) {
-          await this._devolverMateriales(materialesConsumidos);
-          this.showFeedback(
-            `Craft failed: ${recipe.name} was not delivered. Your materials were returned.`,
-            'error'
-          );
-          return;
-        }
-        this.showFeedback(
-          `Only ${recibidas} of ${resultQty} ${recipe.name} were confirmed.`,
-          'warning'
-        );
-      }
-
-      // Otorgar experiencia por craftear (mismo criterio que minería/tala/siembra)
-      if(this.scene){
-        this.scene.nivel_exp=(this.scene.nivel_exp||0)+30;
-      }
-
-      this.showFeedback(`You crafted ${quantity} ${recipe.name}(s)!`,'success');
-      this.updateRequiredResources(); this.updateOptionalResources();
-      this.calculateMaxCraftable(); this.updateCraftButton();
-      this.updateInventoryPreview(); this.updateRecipesList();
-      const ov=document.getElementById('recipe-overlay');
-      if(ov&&!ov.classList.contains('hidden')&&this.selectedRecipe){
-        this.updateOverlayResourcesDisplay(this.selectedRecipe);
-        this.updateOverlayMaxCraftable(this.selectedRecipe);
-        this.updateOverlayCraftButton(this.selectedRecipe);
-      }
-      if(this.scene?.updateInventoryDisplay) this.scene.updateInventoryDisplay();
-      this.savePlayerData();
-      console.log('✅ Crafteo completado');
-    } finally {
-      // (2026-10-28) No se entregó nada: lo cobrado por craftear vuelve (una vez; el servidor lo comprueba).
-      if(!entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&cobroCrafteo.bronce>0&&window.GFServicios){
-        await window.GFServicios.devolver(cobroCrafteo.ref);
-      }
-      if(entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&window.GFServicios?.confirmar){
-        await window.GFServicios.confirmar(cobroCrafteo.ref);
-      }
-      this._crafting=false;
-      // El estado del botón depende de si QUEDA cola, no de este crafteo.
-      this._setCraftButtonBusy((this._craftPending||0) > 1);
-    }
+      if(data.inventoryLoadedAt)source._inventoryLoadedAt=data.inventoryLoadedAt;
+      if(data.stats){if(window.playerStats)Object.assign(window.playerStats,data.stats);if(typeof data.stats.exp==='number')source.nivel_exp=data.stats.exp;window.GFBronce?.adoptarStats?.(data.stats);source._adoptarVitalesDelServidor?.(data.stats);}
+      source.rebuildPlayerInventoryFromState?.();source.renderAllSlots?.();
+      const requested=data.recipeId===recipe.id&&data.quantity===quantity;
+      this.showFeedback(requested?'Craft confirmed: '+data.resultQuantity+' '+data.itemId+'.':'Your previous operation was reconciled. Request the selected recipe again.','success');
+      this.updateRequiredResources();this.updateOptionalResources();this.calculateMaxCraftable();this.updateCraftButton();this.updateInventoryPreview();this.updateRecipesList();
+      return requested;
+    }catch(e){if(!this._destroyed)this.showFeedback(e.message || 'Crafting needs reconciliation.','error');return false;}
+    finally{this._crafting=false;if(!this._destroyed)this._setCraftButtonBusy((this._craftPending || 0)>1);}
   }
 
   /**
@@ -1167,7 +1023,7 @@ class CraftingSystem {
     }
     if(this.scene?.events){this.scene.events.emit('addItem',{itemId,quantity});return true;}
     if(this.scene?.STATE){
-      const max=this._maxStackSize; let remaining=quantity;
+      const max=Math.max(1,Number(this.scene.ItemDefinitions?.[itemId]?.maxStack) || (isStackable?this._maxStackSize:1)); let remaining=quantity;
       const add=(slots)=>{
         if(!Array.isArray(slots)) return remaining;
         if(isStackable){

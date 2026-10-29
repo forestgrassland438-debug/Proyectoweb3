@@ -472,6 +472,9 @@
             if (this.game && this.game.canvas) {
               this.canvas = this.game.canvas;
               this._applyCanvasStyles();
+              this.canvas.addEventListener('webglcontextlost',this._onContextLost);
+              this.canvas.addEventListener('webglcontextrestored',this._onContextRestored);
+              if(this.opts.preventDefaultEvents)this._preventDefaultEvents();
             }
           }, 100);
 
@@ -594,21 +597,24 @@
       if (!this.game) return;
 
       try {
-        if (this.canvas) {
-          this.canvas.width  = physicalW;
-          this.canvas.height = physicalH;
-        }
-
         if (this.game.scale && typeof this.game.scale.resize === 'function') {
           this.game.scale.resize(cssW, cssH);
           // FIX WARN#3: eliminada la segunda llamada a displaySize.setSize —
           // game.scale.resize() ya lo gestiona internamente
         }
 
+        // ScaleManager.resize writes the backing buffer in logical pixels.
+        // Set the physical buffer afterwards, before matching the viewport.
+        if (this.canvas) {
+          this.canvas.width = physicalW;
+          this.canvas.height = physicalH;
+        }
+
         if (this.game.renderer && typeof this.game.renderer.resize === 'function') {
           try {
             this.game.renderer.resize(physicalW, physicalH);
           } catch (_) {
+            if (this.canvas) { this.canvas.width = cssW; this.canvas.height = cssH; }
             this.game.renderer.resize(cssW, cssH);
           }
         }

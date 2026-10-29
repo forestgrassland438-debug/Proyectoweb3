@@ -77,6 +77,7 @@
   function fmt(idioma, op) {
     var k = idioma + JSON.stringify(op);
     if (!fmtCache[k]) {
+      if (Object.keys(fmtCache).length >= 32) delete fmtCache[Object.keys(fmtCache)[0]];
       try { fmtCache[k] = new Intl.DateTimeFormat(idioma === 'es' ? 'es-ES' : 'en-GB', Object.assign({ timeZone: 'UTC' }, op)); }
       catch (e) { fmtCache[k] = { format: function (d) { return d.toISOString().slice(0, 16).replace('T', ' '); } }; }
     }
@@ -198,7 +199,7 @@
     var T = { reset: idioma === 'es' ? 'Restablecer' : 'Reset', tabla: idioma === 'es' ? 'Tabla' : 'Table', grafico: idioma === 'es' ? 'Gráfico' : 'Chart',
               todo: idioma === 'es' ? 'Todo' : 'All', fecha: idioma === 'es' ? 'Fecha (UTC)' : 'Date (UTC)',
               ayuda: idioma === 'es' ? 'Rueda o pellizco: acercar · arrastrar: mover' : 'Wheel or pinch: zoom · drag: pan' };
-    var series = [], datos = {}, ocultas = {};
+    var series = [], datos = {}, indices = {}, ocultas = {};
     var vista = null, extension = null;           // [t0, t1]
     var destruido = false, verTabla = false;
     var ancho = 600;
@@ -442,7 +443,7 @@
       lista.forEach(function (t) {
         var basePositiva = 0, baseNegativa = 0;
         vis.forEach(function (s) {
-          var p = (datos[s.id] || []).find(function (q) { return q[0] === t; });
+          var p = indices[s.id] && indices[s.id].get(t);
           var v = p ? Number(p[1]) || 0 : 0;
           if (!v) return;
           var base = v > 0 ? basePositiva : baseNegativa;
@@ -470,7 +471,7 @@
         var r = el('tr');
         r.appendChild(el('td', '', fechaHora(t, idioma)));
         vis.forEach(function (s) {
-          var p = (datos[s.id] || []).find(function (q) { return q[0] === t; });
+          var p = indices[s.id] && indices[s.id].get(t);
           r.appendChild(el('td', '', p && p[1] !== null ? f(p[1], s) : '—'));
         });
         cuerpo.appendChild(r);
@@ -500,7 +501,7 @@
       var f = op.formato || numeroCorto;
       var acum = 0;
       vis.forEach(function (s) {
-        var p = op.tipo === 'barras' ? (datos[s.id] || []).find(function (q) { return q[0] === mejorT; }) : valorEn(s, mejorT);
+        var p = op.tipo === 'barras' ? indices[s.id] && indices[s.id].get(mejorT) : valorEn(s, mejorT);
         var v = p && p[1] !== null && isFinite(p[1]) ? p[1] : null;
         var linea = el('div'), izq = el('span'), cuadro = el('i');
         cuadro.style.background = s.color;
@@ -643,7 +644,7 @@
         series.forEach(function (s) { vivas[s.id] = true; });
         for (var k in ocultas) if (!vivas[k]) delete ocultas[k];
       }
-      if (nuevo.datos) datos = normalizar(nuevo.datos);
+      if (nuevo.datos) { datos = normalizar(nuevo.datos); indices = {}; for (var id in datos) indices[id] = new Map(datos[id].map(function(p){return [p[0],p];}).reverse()); }
       if (nuevo.referencia !== undefined) op.referencia = nuevo.referencia;
       var antes = extension;
       extension = calcularExtension();
@@ -672,7 +673,7 @@
         lienzo.removeEventListener('pointerleave', alSalir);
         lienzo.removeEventListener('keydown', alTecla);
         punteros.clear(); arrastre = pellizco = null;
-        datos = {}; series = []; geo = svg = capaHover = null;
+        datos = {}; indices = {}; series = []; geo = svg = capaHover = null;
         raiz.remove();
       }
     };

@@ -13,9 +13,7 @@ class hub {
     this.itemsList = document.getElementById('tx-list-items');
     
     // Callback for retry button (override from Phaser)
-    this.onRetry = options.onRetry || ((txData) => {
-      console.log('Retry transaction:', txData);
-    });
+    this.onRetry = typeof options.onRetry === 'function' ? options.onRetry : null;
     
     // Current user (set after login)
     this.playerName = null;
@@ -107,28 +105,20 @@ class hub {
   }
 
   makeDraggable(el) {
-    let offsetX, offsetY;
-    const header = el.querySelector('.tx-hub-header');
-    if (!header) return; // FIX: sin cabecera no hay arrastre, pero tampoco crash
-    this._listen(header, 'mousedown', (e) => {
-      offsetX = e.clientX - el.offsetLeft;
-      offsetY = e.clientY - el.offsetTop;
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
-    
-    const onMouseMove = (e) => {
-      el.style.left = (e.clientX - offsetX) + 'px';
-      el.style.top = (e.clientY - offsetY) + 'px';
-    };
-    
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-    this._endDrag = onMouseUp;
+    let offsetX=0,offsetY=0,pointer=null;
+    const header=el.querySelector('.tx-hub-header');if(!header)return;
+    const end=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',end);document.removeEventListener('pointercancel',end);pointer=null;};
+    const move=e=>{if(e.pointerId!==pointer)return;const box=el.getBoundingClientRect();
+      el.style.left=Math.max(0,Math.min(e.clientX-offsetX,Math.max(0,window.innerWidth-box.width)))+'px';
+      el.style.top=Math.max(0,Math.min(e.clientY-offsetY,Math.max(0,window.innerHeight-box.height)))+'px';};
+    header.style.touchAction='none';
+    this._listen(header,'pointerdown',e=>{if(e.button!==undefined && e.button!==0 || e.target?.closest?.('button,a,input'))return;end();const box=el.getBoundingClientRect();
+      pointer=e.pointerId;offsetX=e.clientX-box.left;offsetY=e.clientY-box.top;
+      el.style.transform='none';el.style.right='auto';el.style.bottom='auto';
+      document.addEventListener('pointermove',move);document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);});
+    this._endDrag=end;
   }
-  
+
   switchTab(tabId) {
     if (this.disabled || this._destroyed) return;
     const tab = Array.from(this.tabs).find(item => item.dataset.tab === tabId);
@@ -375,6 +365,7 @@ class hub {
     button.innerText = 'Retrying…';
 
     try {
+      if (typeof this.onRetry !== 'function') throw new Error('No verified retry handler is configured. The failed transaction was preserved.');
       // Do not discard the failed record before the game's retry callback
       // accepts the request. This also catches a synchronous callback error.
       const accepted = await this.onRetry(tx.hiddenData || {
@@ -440,6 +431,8 @@ class hub {
   
   // --- Backend integration (adapt to your API) ---
   async csrfHeaders() {
+    const cached = typeof window.getCsrfToken === 'function' ? window.getCsrfToken() : null;
+    if (typeof cached === 'string' && /^[a-f0-9]{64}$/i.test(cached)) return { 'Content-Type':'application/json', 'X-CSRF-Token':cached };
     const data = await this._request(`${this.baseUrl}/api/auth/csrf-token`, {
       credentials: 'include', cache: 'no-store'
     }, true);

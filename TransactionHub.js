@@ -328,58 +328,19 @@ class TransactionHub {
     }
 
     _startVisibilityCountdown(durationMs) {
-        try {
-            // invalidar contador anterior
-            this._visibilityToken = (this._visibilityToken || 0) + 1;
-            const token = this._visibilityToken;
-
-            // limpiar cualquier intervalo anterior
-            if (this._visibilityIntervalId) {
-                clearInterval(this._visibilityIntervalId);
-                this._visibilityIntervalId = null;
-            }
-
-            const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-            const checkInterval = 150; // ms - frecuencia de comprobación razonable
-
-            this._visibilityIntervalId = setInterval(() => {
-                try {
-                    // si el token cambió, cancelamos este interval
-                    if (token !== this._visibilityToken) {
-                        clearInterval(this._visibilityIntervalId);
-                        this._visibilityIntervalId = null;
-                        return;
-                    }
-
-                    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-                    if (now - start >= durationMs) {
-                        // cancelar y ocultar (NO modificar mensajes ni mostrar texto por defecto)
-                        clearInterval(this._visibilityIntervalId);
-                        this._visibilityIntervalId = null;
-                        // reiniciar token para evitar ejecuciones duplicadas
-                        this._visibilityToken = 0;
-                        this.hideNotification();
-                    }
-                } catch (e) {
-                    this._handleError('_startVisibilityCountdown.interval', e);
-                }
-            }, checkInterval);
-        } catch (e) {
-            this._handleError('_startVisibilityCountdown', e);
-        }
+        this._cancelVisibilityCountdown();
+        const token = this._visibilityToken = (this._visibilityToken || 0) + 1;
+        this._visibilityIntervalId = setTimeout(() => {
+            if (token !== this._visibilityToken) return;
+            this._visibilityIntervalId = null;
+            this.hideNotification();
+        }, Math.max(0, Number(durationMs) || 0));
     }
 
     _cancelVisibilityCountdown() {
-        try {
-            if (this._visibilityIntervalId) {
-                clearInterval(this._visibilityIntervalId);
-                this._visibilityIntervalId = null;
-            }
-            // invalidar token para que interval anteriores no actúen si están aún en vuelo
-            this._visibilityToken = 0;
-        } catch (e) {
-            this._handleError('_cancelVisibilityCountdown', e);
-        }
+        if (this._visibilityIntervalId) clearTimeout(this._visibilityIntervalId);
+        this._visibilityIntervalId = null;
+        this._visibilityToken = (this._visibilityToken || 0) + 1;
     }
 
     hideNotification() {

@@ -470,6 +470,7 @@
   function arrancarBucle() {
     if (bucle) return;
     bucle = global.setInterval(function () {
+      if (doc.hidden) return;
       // Si un guardado no pudo salir (aún sin sesión, o falló la red), se
       // reintenta aquí en vez de perder el ajuste del jugador.
       if (pendienteDeGuardar && escenaConSesion()) guardarPendientes();

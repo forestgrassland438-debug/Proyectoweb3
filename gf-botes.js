@@ -508,6 +508,8 @@
     var nuevo = { id: 'bote', idx: Number(f.invoiceId), idm: f.manualId, count: Math.max(1, Number(f.cantidad) || 1) };
     var k = (S.slots || []).indexOf(null);
     if (k >= 0) S.slots[k] = nuevo;
+    else { k=(S.quickSlots || []).indexOf(null); if(k>=0)S.quickSlots[k]=nuevo;
+      else scene.notifications?.show('Your boat is confirmed on-chain. Free a slot and reload the inventory.','warning'); }
     try { scene.renderAllSlots(); } catch (e) {}
   }
 

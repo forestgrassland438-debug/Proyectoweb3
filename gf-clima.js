@@ -2851,7 +2851,7 @@
     // El chapoteo: el jugador y su mascota, si andan por encima.
     if (ahora < st.proximoChapoteo) return;
     st.proximoChapoteo = ahora + 90;
-    var quienes = [scene.player, scene.dog];
+    var quienes = [scene.player, scene.dog && scene.dog.sprite];
     st._ultPos = st._ultPos || [];
     for (i = 0; i < quienes.length; i++) {
       var q = quienes[i];
@@ -3500,19 +3500,8 @@
 
   /** Avisa al servidor de que el árbol ha caído. Nadie se lleva nada. */
   function avisarArbolQuemado(scene, clave) {
-    var tipo = null;
-    if (clave.indexOf('sprite_pinos') === 0) tipo = 'pinos';
-    else if (clave.indexOf('sprite_arbustos') === 0) tipo = 'arbustos';
-    else if (clave.indexOf('sprite_arbolx') === 0) tipo = 'arbolx';
-    if (!tipo) return;
-    var M = window.GFMascota;
-    if (!M || !M.api) return;
-    /* /api/tree/lock es la ruta que bloquea el árbol y avisa a TODOS por
-       socket. No entrega nada a nadie, que es justo lo que se quiere: el árbol
-       se ha quemado, no lo ha talado un jugador. Y el respawn que aplica es el
-       normal del juego, con su deforestación y todo. */
-    M.api('/api/tree/lock', { treeKey: clave, treeType: tipo })
-     .then(function (r) { log('árbol quemado avisado:', clave, r && r.ok); });
+    // Shared depletion is committed only by the authoritative gather route.
+    log('efecto local de rayo:',clave);
   }
 
   function moverIncendio(st, ahora, delta) {

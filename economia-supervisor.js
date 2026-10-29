@@ -11,7 +11,7 @@
     if (busy || ended) return;
     busy = true;
     try {
-      const [d, reviews] = await Promise.all([session.request('/api/admin/economia/supervisor'), session.request('/api/admin/economia/servicios/revisar')]);
+      const [d, reviews, crafts] = await Promise.all([session.request('/api/admin/economia/supervisor'), session.request('/api/admin/economia/servicios/revisar'), session.request('/api/admin/craft/pending')]);
       if (ended) return;
       $('e3-active').checked = d.politica.activo;
       $('e3-burn').checked = d.politica.quemaAutomatica;
@@ -23,7 +23,15 @@
         ' BR · quema automática máxima 0,1 % por día UTC, solo con 7 días completos y crecimiento monetario >20 %. ' +
         (d.estado.error ? 'Requiere atención: ' + d.estado.error : 'Última ejecución: ' + (d.estado.ultima || 'pendiente'));
       const wrap = $('e3-reviews'); wrap.replaceChildren();
-      if (!reviews.filas.length) wrap.append(node('p', 'No hay cobros pendientes de revisión.'));
+      if (!reviews.filas.length && !(crafts.rows || []).length) wrap.append(node('p', 'No hay operaciones pendientes de revisión.'));
+      for(const craft of crafts.rows || []){
+        const line=node('div','');line.className='ec-kpi';line.append(node('span',craft.playerName+' · '+craft.recipe+' ×'+craft.quantity+' · '+number(craft.fee)+' BR · '+craft.status));
+        for(const [label,path] of [['Reconciliar','/api/admin/craft/reconcile'],['Cancelar solo si no comenzó','/api/admin/craft/cancel-unstarted']]){
+          const button=node('button',label);button.type='button';button.className='tz-btn';button.onclick=async()=>{if(busy)return;busy=true;button.disabled=true;
+            try{const result=await session.request(path,{method:'POST',body:JSON.stringify({operationId:craft._id})});message('Estado: '+result.status);}
+            catch(e){message(e.message||'Requiere comprobación en la cadena.');}finally{busy=false;button.disabled=false;load();}};line.append(button);
+        }wrap.append(line);
+      }
       for (const r of reviews.filas) {
         const line = node('div', ''); line.style.cssText = 'padding:12px 0;border-bottom:1px solid #555;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
         const text = node('span', r.playerName + ' · ' + r.tipo + ' ' + r.itemId + ' ×' + r.cantidad + ' · ' + number(r.bronce) + ' BR · ' + r.estado);
@@ -48,8 +56,9 @@
           const b = node('button', label); b.type = 'button'; b.className = 'tz-btn';
           b.onclick = async () => {
             if (busy) return;
+            busy=true;
             const reason = window.prompt('Describe qué verificaste en el inventario y en la cadena (mínimo 5 caracteres):');
-            if (!reason || reason.trim().length < 5) return;
+            if (!reason || reason.trim().length < 5) {busy=false;return;}
             busy = true; b.disabled = true;
             try { await session.request('/api/admin/economia/servicios/revisar', { method: 'POST', body: JSON.stringify({ id: r._id, accion: action, motivo: reason }) }); message('Revisión registrada.'); }
             catch (e) { message(e.message || 'No se pudo registrar.'); }

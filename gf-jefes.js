@@ -208,11 +208,12 @@
       el.setAttribute('role', 'status');
       el.style.cssText = 'position:fixed;left:50%;top:118px;transform:translateX(-50%);z-index:9000;width:min(320px,calc(100vw - 140px));' +
         'min-width:160px;pointer-events:none;font:700 12px/1.2 inherit;color:#fff3d0;text-align:center;text-shadow:0 1px 2px #000;display:none';
-      el.innerHTML = '<div class="gfj-n">👑 ' + j.m.def.nombre + '</div>' +
+      el.innerHTML = '<div class="gfj-n">👑 </div>' +
         '<div style="margin-top:4px;height:12px;border-radius:7px;background:rgba(10,6,14,.8);border:1px solid ' + TEMAS[j.cfg.tema].medio + ';overflow:hidden">' +
         '<div class="gfj-v" style="height:100%;width:100%;background:linear-gradient(90deg,' + TEMAS[j.cfg.tema].oscuro + ',' + TEMAS[j.cfg.tema].medio + ',' + TEMAS[j.cfg.tema].luz + ');transition:width .15s"></div></div>';
       document.body.appendChild(el);
     }
+      var label=el.querySelector('.gfj-n');if(label)label.textContent='👑 '+String(j.m.def.nombre || '');
     el.style.display = ver ? 'block' : 'none';
     if (ver) { var v = el.querySelector('.gfj-v'); if (v) v.style.width = Math.max(0, j.m.vida / j.m.max * 100).toFixed(1) + '%'; }
   }

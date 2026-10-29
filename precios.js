@@ -28,6 +28,7 @@
 
   // Los nombres y dibujos (los del catálogo de la tienda; lo demás, desde el id).
   const NOMBRES = {
+    ...(root.GFPlantCatalog?.names || {}),
     Semillax: ['Carrot Seed', './Game/Objetos/Plantas/planta_zanahorias/item_saco.png'], Semillax1: ['Tomato Seed', './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png'],
     Semillax2: ['Wheat Seed', './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png'], Semillax3: ['Pumpkin Seed', './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png'],
     Semillax4: ['Strawberry Seed', './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png'], Regaderax: ['Watering Can', './Game/Source/recurso2.png'],
@@ -115,6 +116,7 @@
       datos = d; aviso('');
       if (G && d.ahora) G.reloj.ajustar(d.ahora);
       pintarResumen(); pintarTabla();
+      if (!elegido) { const requested = new URLSearchParams(root.location.search).get('itemId'); if (requested && d.items.some(x => x.itemId === requested)) elegido = requested; }
       if (elegido) await abrir(elegido, true);
       $('pr-updated').textContent = t('Last updated · ') + (G ? G.fechaHora(d.ahora || Date.now(), ui.language === 'es' ? 'es' : 'en') : new Date().toUTCString());
     } catch (e) {

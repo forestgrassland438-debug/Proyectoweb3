@@ -32,7 +32,7 @@
   ];
   var QUE = { drop: 'drop items for other players', market: 'use the P2P Market', lands: 'enter your island' };
   var estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
-  var pidiendo = null, avisadoEn = Object.create(null), propietario = '', destruido = false;
+  var pidiendo = null, avisadoEn = Object.create(null), propietario = '', destruido = false, compraRef = null;
   /* (2026-10-26) LA HORA DEL SERVIDOR. Los días que quedan y si el VIP sigue
      activo se contaban con el reloj del PC: en la captura iba 3,5 h atrasado y
      salían "361 days left" (son 360) y un inicio "en el futuro". `desfase` es
@@ -45,7 +45,7 @@
   function asegurarCuenta() {
     var id = cuenta();
     if (id && id !== propietario) {
-      propietario = id; pidiendo = null; avisadoEn = Object.create(null);
+      propietario = id; pidiendo = null; compraRef = null; avisadoEn = Object.create(null);
       estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
       Object.keys(modales).forEach(function (key) { modales[key].cerrar(); });
     }
@@ -289,6 +289,11 @@
         '</div>' + (tarjetas || sinTarjetas()) +
         '<div class="gfv-msg" style="min-height:18px;font-size:13px;text-align:center;color:' + (color || '#ffd76a') + '">' + esc(msg || '') + '</div>' +
         '<p style="font-size:11px;color:#8f86a8;margin:6px 0 0;">Each purchase is saved on the blockchain (table "vip") with its start and expiry dates. Without VIP you cannot drop items for others, use the P2P Market or enter your island.</p>';
+      if (compraRef) {
+        var revisar = document.createElement('button');revisar.type='button';revisar.textContent='↻ Check pending purchase';
+        revisar.style.cssText='display:block;width:100%;min-height:44px;margin-top:10px;border:1px solid #ffd76a;border-radius:10px;background:#49365f;color:white;cursor:pointer';
+        revisar.onclick=function(){comprar(compraRef.plan,compraRef.moneda);};m.cuerpo.appendChild(revisar);
+      }
       Array.prototype.forEach.call(m.cuerpo.querySelectorAll('.gfv-comprar'), function (b) {
         b.onclick = function () { comprar(b.getAttribute('data-plan'), b.getAttribute('data-moneda')); };
       });
@@ -311,31 +316,53 @@
         '<button type="button" class="gfv-otra" style="border:none;border-radius:8px;padding:8px 12px;min-height:40px;background:#4a3d6a;color:#fff;cursor:pointer;">↻ Try again</button>';
     };
     var ocupado = false;
-    var comprar = function (plan, moneda) {
+    // Keep the reference across modal closures. After a lost response the same
+    // purchase is reconciled before another plan can be charged.
+    var comprar = async function (plan, moneda) {
       if (ocupado || !m.valido()) return;
-      var p = estado.planes && estado.planes[plan], mo = MONEDAS.filter(function (x) { return x.k === moneda; })[0];
-      if (!p || !mo) return;
-      var precio = p.precio[moneda];
-      if (saldos()[moneda] < precio) { pintar('You do not have enough ' + mo.nombre + ' (' + Number(precio).toLocaleString('en-US') + ').', '#ff8a8a'); return; }
-      if (!window.confirm('Buy ' + p.nombre + ' for ' + Number(precio).toLocaleString('en-US') + ' ' + mo.nombre + '?')) return;
-      if (!m.valido()) return;
-      ocupado = true;
-      pintar('⏳ Saving your VIP on the blockchain…', '#ffd76a');
-      api('/api/vip/comprar', { plan: plan, moneda: moneda }).then(function (r) {
-        if (!m.valido()) return;
-        var d = (r && r.datos) || {};
-        if (r && r.ok && d.ok) {
-          adoptar(d);
-          if (window.GFBronce && d.stats) window.GFBronce.adoptarStats(d.stats);
-          avisar(scene, '👑 ' + p.nombre + ' — VIP until ' + fecha(d.fin), 'success');
-          pintar('Thank you, dear! Your VIP lasts until ' + fecha(d.fin) + '.', '#6fcf97');
-        } else {
-          pintar(d.error === 'insufficient_funds' ? 'You do not have enough ' + mo.nombre + '.'
-               : d.error === 'name_required' ? 'Choose your character name first.'
-               : (d.message || 'The purchase could not be completed. Try again.'), '#ff8a8a');
+      var p=estado.planes && estado.planes[plan],mo=MONEDAS.filter(function(x){return x.k===moneda;})[0];
+      if(!p || !mo)return;
+      ocupado=true;
+      try {
+        var existing=await api('/api/craft/pending');if(!m.valido())return;
+        if(!existing || !existing.ok || !existing.datos || !existing.datos.ok)throw Error('Pending operations could not be checked. Try again.');
+        var pending=existing.datos.rows && existing.datos.rows[0],r,d;
+        if(pending || compraRef && compraRef.operationId){
+          if(!pending)pending={_id:compraRef.operationId,recipe:'vip_'+compraRef.plan+'_'+compraRef.moneda};
+          if(!/^vip_/.test(pending.recipe || '')){pintar('Finish your pending crafting or consumption operation first.','#ffb86b');return;}
+          var pendingBits=String(pending.recipe).split('_');
+          compraRef={plan:pendingBits[1],moneda:pendingBits[2],operationId:pending._id};
+          pintar('⏳ Checking the existing VIP purchase…','#ffd76a');
+          r=await api('/api/craft/reconcile',{operationId:pending._id});
+        }else{
+          if(!compraRef){
+            if(saldos()[moneda]<p.precio[moneda]){pintar('You do not have enough '+mo.nombre+'.','#ff8a8a');return;}
+            if(!window.confirm('Buy '+p.nombre+' for '+Number(p.precio[moneda]).toLocaleString('en-US')+' '+mo.nombre+'?'))return;
+            if(!m.valido())return;
+            compraRef={plan:plan,moneda:moneda,ref:crypto.randomUUID().replace(/-/g,'')};
+          }
+          pintar('⏳ Saving your VIP on the blockchain…','#ffd76a');
+          r=await api('/api/vip/comprar',compraRef);
         }
-      }).catch(function () { pintar('Connection error. Try again.', '#ff8a8a'); })
-        .finally(function () { ocupado = false; });
+        if(!m.valido())return;d=(r && r.datos)||{};
+        if(r && r.ok && d.ok){
+          compraRef=null;adoptar(d);
+          if(window.GFBronce && d.stats)window.GFBronce.adoptarStats(d.stats);
+          avisar(scene,'👑 VIP until '+fecha(d.fin),'success');
+          pintar('Your VIP is confirmed until '+fecha(d.fin)+'.','#6fcf97');
+        }else if(d.status==='cancelled'){
+          compraRef=null;pintar('The untouched operation was cancelled and refunded.','#ffb86b');
+        }else if(d.operationId){
+          // The backend owns durable recovery even after a page reload.
+          if(compraRef)compraRef.operationId=d.operationId;
+          if(d.stats && window.GFBronce)window.GFBronce.adoptarStats(d.stats);
+          pintar('Your purchase is recorded and awaiting confirmation. Use Check pending purchase; it will not charge again.','#ffd76a');
+        }else{
+          if(['saldo_insuficiente','craft_result_capacity_unavailable','craft_level_required','craft_invalid_request'].indexOf(d.error)!==-1)compraRef=null;
+          pintar(d.error==='saldo_insuficiente'?'You do not have enough coins.':d.message || 'The purchase could not be confirmed. Check it again.','#ff8a8a');
+        }
+      }catch(e){if(m.valido())pintar(e.message || 'Connection error. Check the pending purchase again.','#ff8a8a');}
+      finally{ocupado=false;}
     };
     pintar();
     refrescar().then(function () { cargando = false; if (document.body.contains(m.ov) && !ocupado) pintar(); });

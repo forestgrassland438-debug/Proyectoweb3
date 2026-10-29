@@ -266,6 +266,13 @@
     if (gas * 3n > tope) tope = gas * 3n;
     if (tope < 50000000n) tope = 50000000n;          // 0,05 gwei
     tope = tope * 2n + propina;                       // una firma: mejor de sobra que otra ventana
+    // Same absolute ceiling as the backend relay policy. A lower UI ceiling
+    // may be configured explicitly without changing the network's safety margin.
+    var ceiling=Number(window.GF_TOPUP_MAX_FEE_GWEI);
+    if(!Number.isFinite(ceiling)||ceiling<=0)ceiling=10000;
+    ceiling=BigInt(Math.floor(Math.min(10000,ceiling)*1e9));
+    if(tope>ceiling){var error=new Error('Network fees exceed the configured safety ceiling. Wait before paying.');error.code='GF_FEE_CEILING';throw error;}
+    if(propina>tope)propina=tope;
     return { maxFeePerGas: '0x' + tope.toString(16), maxPriorityFeePerGas: '0x' + propina.toString(16) };
   }
   async function pagarConMetamask(cot, direccion) {
@@ -282,7 +289,7 @@
       }
     }
     var tx = { from: cuenta, to: cot.destino, value: '0x' + BigInt(cot.wei).toString(16) };
-    try { var t = await tarifasRed(); tx.maxFeePerGas = t.maxFeePerGas; tx.maxPriorityFeePerGas = t.maxPriorityFeePerGas; tx.type = '0x2'; } catch (e) {}
+    try { var t = await tarifasRed(); tx.maxFeePerGas = t.maxFeePerGas; tx.maxPriorityFeePerGas = t.maxPriorityFeePerGas; tx.type = '0x2'; } catch (e) {if(e && e.code==='GF_FEE_CEILING')throw e;}
     return p.request({ method: 'eth_sendTransaction', params: [tx] });
   }
   async function pagarConCartera(cot, secreto) {

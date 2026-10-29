@@ -21,6 +21,7 @@
   if (window.GFNivelesObjetos) return;
 
   var TABLA = Object.freeze({
+    ...(window.GFPlantCatalog?.levels || {}),
     // Semillas y su cosecha (la cosecha, el nivel de su semilla)
     Semillax: 1, zanahoria_buena: 1, zanahoria_corta: 1, zanahoria_mala: 1,
     Semillax4: 3, fresa_buena: 3, fresa_corta: 3, fresa_mala: 3,

@@ -195,3 +195,27 @@ Los cambios están en disco; **esta revisión no se desplegó en Railway** y no 
 6. Revisa tus publicaciones anteriores y la progresión con inventarios pequeños. Conserva una instancia del juego hasta resolver los demás estados de sesión que aún dependen de memoria de proceso. Mongo HA no convierte por sí solo todo el juego en un servicio distribuido.
 
 No hace falta vigilar manualmente cada precio o cada quema: hay reglas acotadas, referencias y trazabilidad para los flujos revisados. Sí hace falta revisar excepciones, liquidez, capacidad ocupada, consumo y fallos persistentes. El límite impide emisión ilimitada bajo sus condiciones; la utilidad del juego y una operación mantenida determinan que la economía siga funcionando a largo plazo.
+
+## Revisión de cobros y recuperación · 29 de octubre de 2026
+
+El crafteo ya usa las 14 recetas comprobadas del juego en el servidor: comprueba materiales propios y capacidad, cobra, consume los materiales confirmados y entrega el resultado. Guarda cada paso firmado antes de enviarlo. Comer o beber utiliza esa misma comprobación, sin cobrar una tarifa de crafteo. La compra de VIP conserva tus tres planes y los precios de oro, plata y bronce; descuenta exactamente la moneda elegida.
+
+Los trabajos pendientes se recuperan por su referencia. Cerrar una ventana o perder la respuesta no significa que el cobro haya fallado. En Economía → Supervisor, **Reconciliar** consulta y continúa el mismo trabajo; **Cancelar solo si no comenzó** solo devuelve una operación que no tenga pasos firmados o consumidos. Una compra de VIP cancelada antes de comenzar devuelve su moneda original. Los fondos retenidos quedan fuera del saldo disponible para quemas y transferencias.
+
+![Cómo se recupera una operación](audits/metricas-20261029/operaciones-recuperables.png)
+
+La sincronización de estadísticas también registra su firma pendiente: confirma ese envío antes de calcular otra diferencia. Un guardado antiguo no puede borrar una ganancia recibida mientras esperaba. Esta protección evita duplicaciones por reintento; no crea fondos para pagar una operación sin liquidez.
+
+### Archivos que deben publicarse juntos
+
+Además del backend y los archivos web ya indicados, `server2.js` requiere junto a él `crafting-authority.js`, `craft-recipes.json`, `consumables.json` y `stat-chain-journal.js`. Sus fuentes están en `backend-gameplay/`. Copiar solo `server2.js` deja incompleta esta revisión. Conserva Mongo con soporte de transacciones e índices y una sola instancia activa del juego mientras los demás estados de mundo continúen en memoria.
+
+El crafteo, consumo y VIP tienen este registro recuperable. Las otras acciones heredadas requieren su propia revisión; no se deben marcar como seguras solo porque usan el mismo relayer. Ante un estado pendiente, consulta antes de repetir o devolver manualmente. No borres los trabajos ni las reservas de nonce para intentar desbloquearlos.
+
+### Qué rendimiento se midió
+
+![Mediciones locales con sus límites](audits/metricas-20261029/metricas-rendimiento.png)
+
+En un escenario local de gráficos con ocho series y 365 puntos, la mediana de redibujado pasó de 193,8 a 158,9 ms: 18,0 % menos tiempo en ese caso. El culling se midió con 30.000 objetivos artificiales; el juego actual no registra esos objetivos. Los FPS de la imagen corresponden al escenario de prueba, no a una partida completa. Estas cifras no demuestran capacidad para millones de jugadores ni latencia de Railway.
+
+La revisión incluye pruebas locales con navegador, Mongo y el contrato original desplegado en una blockchain de ensayo con claves generadas. No se usaron fondos reales ni se publicó en Railway. Los detalles técnicos y puntos abiertos se mantienen en el informe privado, separado del texto para Discord.

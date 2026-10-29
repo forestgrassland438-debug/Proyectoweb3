@@ -29,6 +29,22 @@ function gfComisionTesoroBronce(precioUnidad, moneda, cantidad) {
 }
 
 class TiendaSistema {
+    _listenGlobal(target,event,fn,options){
+        if(!this._pageDispose){this._pageDispose=e=>{if(!e.persisted)this.destroy();};window.addEventListener('pagehide',this._pageDispose);(this._globalDisposers ||= []).push(()=>window.removeEventListener('pagehide',this._pageDispose));}
+
+        target.addEventListener(event,fn,options);
+        (this._globalDisposers ||= []).push(()=>target.removeEventListener(event,fn,options));
+    }
+    destroy(){
+        if(this._destroyed)return;this._destroyed=true;
+        this.close();
+        for(const dispose of this._globalDisposers || [])dispose();
+        this._globalDisposers=[];
+        clearTimeout(this._searchDebounce);clearTimeout(this._renderTimer);clearTimeout(this.tapTimeout);
+        for(const stop of this._repeatDisposers || [])stop();this._repeatDisposers=[];
+        this.scene=null;
+    }
+
     // FIX: getter STATE para que this.STATE apunte siempre a this.scene.STATE.
     // Antes this.STATE era undefined porque nunca se asignó en el constructor,
     // causando "Cannot read properties of undefined (reading 'quickSlots')"
@@ -279,6 +295,7 @@ class TiendaSistema {
            el catalogo bueno es el de la escena. Esta copia solo se usa si la
            tienda se instanciara sin escena, que hoy no pasa. */
         this._ItemDefinitionsRespaldo = {
+          ...(window.GFPlantCatalog?.items || {}),
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
           
@@ -390,6 +407,7 @@ class TiendaSistema {
         // Configuración de objetos de la tienda (con precios separados)
         this.itemsTienda = {
             semillas: [
+                ...(window.GFPlantCatalog?.shop.semillas || []),
                 {
                     id: 'Semillax',
                     name: 'Carrot Seed',
@@ -547,6 +565,7 @@ class TiendaSistema {
             */
             
             alimentos: [
+                ...(window.GFPlantCatalog?.shop.comida || []),
                 {
                     id: 'zanahoria_buena',
                     name: 'Fresh Carrot',
@@ -1174,10 +1193,13 @@ class TiendaSistema {
         console.log('🏪 Sistema de tienda inicializado v6.3');
     }
     
+    _escHtml(value){return String(value ?? '').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+    _safeItemImage(value){try{const u=new URL(String(value || ''),location.href);return ['http:','https:'].includes(u.protocol) && u.origin===location.origin ? this._escHtml(u.href) : './favicon.png';}catch(_){return './favicon.png';}}
+
     // Detectar si es dispositivo móvil
     checkMobile() {
         this.isMobile = window.innerWidth <= 768;
-        window.addEventListener('resize', () => {
+        this._listenGlobal(window,'resize', () => {
             this.isMobile = window.innerWidth <= 768;
             if (this.isOpen) {
                 this.filterItems?.();
@@ -1198,7 +1220,7 @@ class TiendaSistema {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value.toLowerCase();
-                this.filterItems?.();
+                clearTimeout(this._searchDebounce);this._searchDebounce=setTimeout(()=>{if(!this._destroyed)this.filterItems?.();},120);
             });
             
             // Prevenir propagación de teclas WASD
@@ -1385,6 +1407,8 @@ class TiendaSistema {
             if (timerRepe)   { clearTimeout(timerRepe);    timerRepe   = null; }
         };
 
+        (this._repeatDisposers ||= []).push(parar);
+
         const siguienteIntervalo = () => {
             const i = Math.min(Math.floor(repeticiones / 6), PASOS.length - 1);
             return PASOS[i];
@@ -1418,7 +1442,7 @@ class TiendaSistema {
         boton.addEventListener('pointercancel', parar);
         boton.addEventListener('pointerleave',  parar);
         boton.addEventListener('blur',          parar);
-        window.addEventListener('pointerup',    parar);
+        this._listenGlobal(window,'pointerup',    parar);
 
         // Respaldo para el teclado (Enter/Espacio sobre el botón enfocado) y para
         // navegadores sin eventos de puntero.
@@ -1509,30 +1533,21 @@ class TiendaSistema {
             }
         }, { passive: false });
         
-        document.addEventListener('DOMContentLoaded', () => {
+        this._listenGlobal(document,'DOMContentLoaded', () => {
             this.setupItemTouchEvents();
         });
     }
     
     // Configurar eventos táctiles para items individuales
     setupItemTouchEvents() {
-        const setupEvents = () => {
-            const itemCards = document.querySelectorAll('.item-card');
-            itemCards.forEach(card => {
-                const newCard = card.cloneNode(true);
-                card.parentNode.replaceChild(newCard, card);
-            });
-            
-            const freshCards = document.querySelectorAll('.item-card');
-            freshCards.forEach(card => {
-                card.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
-                card.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-            });
-        };
-        
-        setTimeout(setupEvents, 100);
+        if(!this.isMobile || this._destroyed)return;
+        document.querySelectorAll('#tienda-items .item-card').forEach(card=>{
+            if(card._gfShopTouch)return;card._gfShopTouch=true;
+            card.addEventListener('dblclick',e=>this.handleDoubleClick(e));
+            card.addEventListener('touchstart',e=>this.handleTouchStart(e),{passive:false});
+        });
     }
-    
+
     // Manejar doble click
     handleDoubleClick(e) {
         const itemCard = e.currentTarget;
@@ -1620,17 +1635,17 @@ class TiendaSistema {
             item.innerHTML = `
                 <div class="historial-header-mobile">
                     <span class="historial-type-mobile">${transaction.type === 'compra' ? 'BUY' : 'SELL'}</span>
-                    <span class="historial-time-mobile">${transaction.timestamp}</span>
+                    <span class="historial-time-mobile">${this._escHtml(transaction.timestamp)}</span>
                 </div>
                 <div class="historial-content-mobile">
-                    <img src="${transaction.itemImage}" alt="${transaction.itemName}" class="historial-img-mobile">
+                    <img src="${this._safeItemImage(transaction.itemImage)}" alt="${this._escHtml(transaction.itemName)}" class="historial-img-mobile">
                     <div class="historial-details-mobile">
-                        <div class="historial-name-mobile">${transaction.itemName}</div>
-                        <div class="historial-qty-mobile">Qty: ${transaction.quantity}</div>
+                        <div class="historial-name-mobile">${this._escHtml(transaction.itemName)}</div>
+                        <div class="historial-qty-mobile">Qty: ${this._escHtml(transaction.quantity)}</div>
                     </div>
                     <div class="historial-price-mobile">
                         <img src="${this.getCurrencyIconPath(transaction.currency || 'gold')}" alt="${this.getCurrencyLabel(transaction.currency || 'gold')}" class="moneda-icon">
-                        ${transaction.price} ${this.getCurrencyLabel(transaction.currency || 'gold')}
+                        ${this._escHtml(transaction.price)} ${this.getCurrencyLabel(transaction.currency || 'gold')}
                     </div>
                 </div>
             `;
@@ -1882,7 +1897,7 @@ class TiendaSistema {
         try {
             const savedHistorial = localStorage.getItem(`tienda_historial_${this.scene?.playerName || 'guest'}`);
             if (savedHistorial) {
-                this.historial = JSON.parse(savedHistorial);
+                const data=JSON.parse(savedHistorial);this.historial=Array.isArray(data)?data.filter(x=>x && typeof x==='object').slice(0,1000):[];
             }
         } catch (err) {
             this.historial = [];
@@ -2396,7 +2411,7 @@ class TiendaSistema {
             });
 
             this.setupItemTouchEvents();
-        }, 300);
+        }, 0);
     }
     
     // Nivel actual del jugador (desde la escena). 0 si no está disponible.
@@ -3536,13 +3551,12 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
 // GENERADOR DE manualId (se mantiene igual)
 // ------------------------------------------------------------------
 generarCodigo(longitud = 19) {
-  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let resultado = '';
-  for (let i = 0; i < longitud; i++) {
-    resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
+    return resultado;
   }
-  return resultado;
-}
 
 // ------------------------------------------------------------------
 // BLOQUEO VISUAL DE SLOTS (se mantiene igual)
@@ -3584,11 +3598,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   const self = this;
 
   function generarCodigoLocal(longitud = 19) {
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let resultado = '';
-    for (let i = 0; i < longitud; i++) {
-      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-    }
+    const caracteres='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const length=Math.max(1,Math.min(128,Math.floor(Number(longitud)||19)));
+    let resultado='';const bytes=new Uint8Array(64);
+    while(resultado.length<length){crypto.getRandomValues(bytes);for(const value of bytes){if(value<248)resultado+=caracteres[value%62];if(resultado.length===length)break;}}
     return resultado;
   }
 
@@ -4240,74 +4253,9 @@ simulateAddItem(itemId, quantity = 1) {
  * @param {Object} itemRef  — objeto de slot o selectedItem con .id e .idx
  */
 async verificarRompimiento(itemRef) {
-  try {
-    if (!itemRef || !itemRef.idx) return;
-    const toolDef = this.ItemDefinitions[itemRef.id];
-    if (!toolDef || toolDef.usos == null) return; // sin usos definidos → no es herramienta
-
-    // 1) Consultar usos actuales en backend
-    const usosRes = await this.fetchWithTokenRetry(
-      `${this.serverBase}/api/tool/uses/${itemRef.idx}`, { method: 'GET' }
-    );
-    const usosData = await usosRes.json();
-    const usosActuales = typeof usosData.usos === 'number' ? usosData.usos : toolDef.usos;
-    const usosNuevos = usosActuales - 1;
-
-    // 2) Registrar el descuento en backend
-    await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
-      body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
-    });
-
-    if (usosNuevos <= 0) {
-      // ── Buscar casilla del item (solo para el log) ──
-      let slotRoto = null;
-      let slotTipo = null;
-      for (let i = 0; i < this.STATE.slots.length; i++) {
-        if (this.STATE.slots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'inventario'; break; }
-      }
-      if (slotRoto === null) {
-        for (let i = 0; i < this.STATE.quickSlots.length; i++) {
-          if (this.STATE.quickSlots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'quickslot'; break; }
-        }
-      }
-
-      console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
-      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
-
-      // ── Quitar 1 del stack en blockchain + local ──
-      /* EL TIPO ON-CHAIN, NO LA PALABRA 'slots'. Ese argumento acaba en
-         `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
-         para no quemar la equivocada. Con 'slots' la comparacion fallaba
-         siempre y la respuesta era "esa factura ya no estaba": la herramienta
-         rota desaparecia de la pantalla pero seguia entera en la cadena.
-         Mismo fallo que tenia la venta de la tienda. */
-      const tipoOnchain = (toolDef && toolDef.tipo) || itemRef.id;
-      await this.ejecutarDivisionRemove.call(this, tipoOnchain, itemRef.id, toolDef.maxStack || 5, 1);
-
-      // ── Borrar el registro de usos para que las unidades restantes del stack empiecen frescos ──
-      try {
-        await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
-          method: 'DELETE',
-          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
-        });
-      } catch (delErr) {
-        console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
-      }
-
-    } else {
-      // Actualizar usos restantes en el estado local (para la barra visual)
-      for (const s of [...this.STATE.slots, ...this.STATE.quickSlots]) {
-        if (s?.idx === itemRef.idx) { s.usosRestantes = usosNuevos; break; }
-      }
-      console.log(`🪓 ${itemRef.id} usó 1 uso. Restantes: ${usosNuevos}/${toolDef.usos}`);
-    }
-
-    this.renderAllSlots();
-  } catch (err) {
-    console.warn('⚠️ Error en verificarRompimiento:', err);
-  }
+  const scene=this._escena?.() || this.scene;
+  if(!scene || scene===this || typeof scene.verificarRompimiento!=='function')return false;
+  return scene.verificarRompimiento(itemRef);
 }
 
 // ---------------------------
@@ -5745,7 +5693,7 @@ renderSlot(index) {
         notification.innerHTML = `
             <div class="transaction-icon">${icon}</div>
             <div class="transaction-details">
-                <strong>${actionText}: ${quantity}x ${item.name}</strong>
+                <strong>${actionText}: ${quantity}x ${this._escHtml(item.name)}</strong>
                 <div class="transaction-price">
                     <img src="${this.getCurrencyIconPath(currency)}" alt="${this.getCurrencyLabel(currency)}" class="moneda-icon">
                     ${total} ${this.getCurrencyLabel(currency)}
@@ -5814,17 +5762,17 @@ renderSlot(index) {
             item.innerHTML = `
                 <div class="historial-header-pc">
                     <span class="historial-type-pc">${transaction.type === 'compra' ? 'BUY' : 'SELL'}</span>
-                    <span class="historial-time-pc">${transaction.timestamp}</span>
+                    <span class="historial-time-pc">${this._escHtml(transaction.timestamp)}</span>
                 </div>
                 <div class="historial-content-pc">
-                    <img src="${transaction.itemImage}" alt="${transaction.itemName}" class="historial-img-pc">
+                    <img src="${this._safeItemImage(transaction.itemImage)}" alt="${this._escHtml(transaction.itemName)}" class="historial-img-pc">
                     <div class="historial-details-pc">
-                        <div class="historial-name-pc">${transaction.itemName}</div>
-                        <div class="historial-qty-pc">Qty: ${transaction.quantity}</div>
+                        <div class="historial-name-pc">${this._escHtml(transaction.itemName)}</div>
+                        <div class="historial-qty-pc">Qty: ${this._escHtml(transaction.quantity)}</div>
                     </div>
                     <div class="historial-price-pc">
                         <img src="${this.getCurrencyIconPath(transaction.currency || 'gold')}" alt="${this.getCurrencyLabel(transaction.currency || 'gold')}" class="moneda-icon">
-                        ${transaction.price} ${this.getCurrencyLabel(transaction.currency || 'gold')}
+                        ${this._escHtml(transaction.price)} ${this.getCurrencyLabel(transaction.currency || 'gold')}
                     </div>
                 </div>
             `;

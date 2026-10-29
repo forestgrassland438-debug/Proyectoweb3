@@ -128,9 +128,13 @@
   function sitioJuntoAlAgua(scene, d) {
     var ga = scene.__gfAgua;
     if (!ga || !ga.clase || !ga.W) return null;
-    for (var k = 0; k < 200; k++) {
-      var i = Math.floor(Math.random() * ga.clase.length);
-      if (ga.clase[i] !== 1) continue;
+    if(!ga._faunaOrillas || ga._faunaOrillas.clase!==ga.clase){
+      var indices=[];for(var j=0;j<ga.clase.length;j++)if(ga.clase[j]===1)indices.push(j);
+      ga._faunaOrillas={clase:ga.clase,indices:indices};
+    }
+    var orillas=ga._faunaOrillas.indices;if(!orillas.length)return null;
+    for (var k = 0; k < Math.min(20,orillas.length); k++) {
+      var i = orillas[Math.floor(Math.random() * orillas.length)];
       var x = (i % ga.W) * ga.T + ga.T / 2, y = Math.floor(i / ga.W) * ga.T + ga.T / 2;
       var s = sitioLibre(scene, d, x, y + 30, 90, 12);
       if (s) return s;

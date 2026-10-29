@@ -426,6 +426,7 @@ class RulerOverlay {
       const w = scene.scale.width;
       const h = scene.scale.height;
 
+      const drawList=[];
       this.g.clear();
       this.rt.clear();
 
@@ -470,7 +471,7 @@ class RulerOverlay {
             const label = this._safeFormula(centerUnitX + dx, 'x');
             const txt   = this._getText(label, px, h / 2 + tlen + 12, 0.5, 0);
             // FIX #1: dibujar en la posición real del texto, no en (0,0)
-            if (txt) this.rt.draw(txt, txt.x, txt.y);
+            if (txt) drawList.push(txt);
           }
         }
 
@@ -493,12 +494,13 @@ class RulerOverlay {
             const label = this._safeFormula(centerUnitY + dy, 'y');
             const txt   = this._getText(label, w / 2 + tlen + 12, py, 0, 0.5);
             // FIX #1: dibujar en la posición real del texto
-            if (txt) this.rt.draw(txt, txt.x, txt.y);
+            if (txt) drawList.push(txt);
           }
         }
       }
 
-      this.rt.draw(this.g, 0, 0);
+      drawList.push(this.g);
+      this.rt.draw(drawList);
       this._releaseTextPool();
 
       if (this.rt)           this.rt.setVisible(this.visible);
@@ -535,10 +537,13 @@ class RulerOverlay {
 
   _releaseTextPool() {
     try {
+      const needed=Math.max(16,this._usedText.length);
       while (this._usedText.length) {
         const t = this._usedText.pop();
         this._textPool.push(t);
       }
+      while(this._textPool.length>needed){const t=this._textPool.pop();try{t.destroy();}catch(_){}}
+
     } catch (err) {
       this._handleError(err);
     }

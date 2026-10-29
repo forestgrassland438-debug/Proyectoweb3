@@ -184,9 +184,9 @@ class NotificationHub {
                     
                     // Efecto de actualización
                     messageEl.style.animation = 'none';
-                    setTimeout(() => {
-                        messageEl.style.animation = 'textUpdate 0.3s ease';
-                    }, 10);
+                    const timer=setTimeout(() => {
+                        this._animationTimers.delete(timer);if(!this._destroyed && messageEl.isConnected)messageEl.style.animation = 'textUpdate 0.3s ease';
+                    }, 10);this._animationTimers.add(timer);
                 }
             }
             
@@ -635,17 +635,6 @@ class NotificationHub {
                             transform: scale(1.1); 
                             box-shadow: 0 0 ${this.config.pixelSize * 5}px rgba(16, 185, 129, 0.8);
                         } 
-                    }
-                    
-                    @keyframes pixelFlash {
-                        0%, 100% { 
-                            opacity: 1; 
-                            background-color: #f59e0b;
-                        }
-                        50% { 
-                            opacity: 0.7; 
-                            background-color: #fbbf24;
-                        }
                     }
                     
                     @keyframes pixelGlitch {

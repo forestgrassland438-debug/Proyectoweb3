@@ -75,6 +75,9 @@
     if (!p || !p._afk) return;
     p._afk = false;
     var l = p._afkVisibles || [];
+    var base=[p.sprite,p.nameText,p.shadowContainer];
+    if(p.dog && p.dog.visible!==false && p.dog.equipped!==false && !p.dog.muerto)base.push(p.dog.sprite,p.dog.nameText,p.dog.shadowContainer);
+    l=l.filter(function(o){return base.indexOf(o)>=0;});
     for (var i = 0; i < l.length; i++) {
       try { if (l[i] && l[i].scene) l[i].setVisible(true); } catch (e) {}
     }

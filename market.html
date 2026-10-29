@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script src="./gf-crop-catalog.js?v=20261029.plants1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mercado · Grassland Forest</title>
@@ -971,7 +972,7 @@
   <div class="toast-stack" id="toast-stack"></div>
 
 <!-- (2026-10-28) Gráficos interactivos y el panel de estadísticas de precio (los mismos que en la tienda del juego). -->
-<script src="./gf-graficos.js?v=20261028.542879aed93b"></script>
+<script src="./gf-graficos.js?v=20261029.auditoria2"></script>
 <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd"></script>
 <script>
 (function(){
@@ -1147,6 +1148,7 @@
 
   // Nombres de ítem en inglés por itemId (fallback: el nombre en español del catálogo)
   const ITEM_NAME_EN = {
+    ...Object.fromEntries(Object.entries(window.GFPlantCatalog?.items || {}).map(([id,d])=>[id,d.name])),
     Semillax:'Carrot Seeds', Semillax1:'Tomato Seeds', Semillax2:'Wheat Seeds', Semillax3:'Pumpkin Seeds',
     Regaderax:'Watering Can', Tijerasx:'Scissors',
     hacha_de_madera:'Wooden Axe', hacha_de_piedra:'Stone Axe', hacha_de_cobre:'Copper Axe', hacha_de_hierro:'Iron Axe',

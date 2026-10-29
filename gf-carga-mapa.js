@@ -126,7 +126,8 @@
     // Se llegó sin pasar por la pantalla de carga: se enseña la misma.
     if (!retenida && typeof LoadingSystem === 'function') {
       try {
-        var sis = new LoadingSystem();
+        var sis = window.loadingSystem;
+        if(!sis || sis._destroyed){sis=new LoadingSystem();window.loadingSystem=sis;}
         sis.show({ message: 'Preparing the map…', initialProgress: 0.9 });
         retenida = { sistema: sis, desde: Date.now() };
       } catch (e) {}

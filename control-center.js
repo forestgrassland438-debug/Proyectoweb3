@@ -29,6 +29,7 @@
     { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups.' },
     // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
     { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
+    { id:'cultivos', file:'cultivos.html', name:'Cultivos y tablas', icon:'prices', group:'Game control', text:'Plantas, niveles, tablas, porcentajes, precios, compras, ventas y quemas de objetos.' },
     { id:'recursos', file:'recursos.html', name:'Resources & capacity', icon:'prices', group:'Game control', text:'Read global table capacity, simulate gradual respawn and price adjustments, and preserve the owner’s limits.' },
     { id:'cuentas', file:'cuentas.html', name:'Accounts & identity', icon:'players', group:'Moderation', text:'Private administrator directory: wallets, character names, available verified emails, login methods and recorded activity.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
@@ -268,14 +269,16 @@
   }
   async function setRpc(active) {
     if (!verified || rpcBusy) return;
+    const revision=requestRevision;
     rpcBusy = true; renderRpc();
     try {
       const data = await session.request('/api/admin/impact/historico',{ method:'POST', body:JSON.stringify({ activo:active }) });
-      if (destroyed || !verified) return;
+      if (destroyed || !verified || revision!==requestRevision) return;
       rpcState = data && typeof data.activo === 'boolean' ? data : rpcState;
       rpcBusy = false;
       renderRpc(active ? 'Chain reading resumed. It uses the same RPC quota as the game.' : 'Chain reading paused: the RPC is left for the game.');
     } catch (e) {
+      if (revision!==requestRevision) return;
       rpcBusy = false;
       if (e?.name === 'AbortError' || destroyed || !verified) return;
       renderRpc(e.status === 404 ? 'The game server does not have this control yet: upload the new server2.js.' : 'The change could not be saved.');

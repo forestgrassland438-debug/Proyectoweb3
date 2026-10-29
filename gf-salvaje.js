@@ -312,7 +312,7 @@
   // (cofres, espadas, parcelas…), con su nivel para recogerlo; las herramientas
   // que se gastan (hachas, picos, regadera, tijeras), no.
   var SOLTABLES = {};
-  ['Semillax', 'Semillax1', 'Semillax2', 'Semillax3', 'Semillax4',
+  [...Object.keys(window.GFPlantCatalog?.items || {}), 'Semillax', 'Semillax1', 'Semillax2', 'Semillax3', 'Semillax4',
    'mineral_piedra', 'mineral_cobre', 'mineral_hierro', 'carbon',
    'mineral_piedra_cobre', 'mineral_piedra_hierro', 'mineral_carbon',
    'palo', 'tablon_de_madera', 'madera_pinos', 'madera_con_hojas', 'madera_seca',

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="./gf-crop-catalog.js?v=20261029.plants1"></script>
+<script src="./gf-native-crops.js?v=20261029.plants1" defer></script>
   <meta charset="UTF-8" />
   <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
        se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
@@ -90,7 +92,7 @@
   <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39" defer></script>
   <!-- (2026-10-27) El nivel de cada objeto: la tienda, el suelo y el mercado (la MISMA tabla que GF_NIVEL_OBJETO de server2.js). -->
   <script src="./gf-niveles-objetos.js?v=22.5.eed4a459e168" defer></script>
-  <script src="./gf-lands.js?v=22.5.118ac060b63f" defer></script>
+  <script src="./gf-lands.js?v=20261029.auditoria2" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
@@ -105,15 +107,15 @@
   <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
   <script src="./gf-monte.js?v=22.5.077d85a03e35" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
-  <script src="./gf-reposo.js?v=21.4.d131cf64dcf9" defer></script>
+  <script src="./gf-reposo.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5" defer></script>
   <script src="./gf-antorchas.js?v=22.5.f602d6102aee" defer></script>
-  <script src="./gf-botes.js?v=22.5.d2ecef6288ce" defer></script>
+  <script src="./gf-botes.js?v=20261029.auditoria2" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.f4e63c49731d">
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
   <script src="./gf-character-skills.js?v=22.5.b87ce67311d6" defer></script>
-  <script src="./gf-espada.js?v=22.5.9beb5cd8efb3" defer></script>
+  <script src="./gf-espada.js?v=20261029.auditoria2" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
   <script src="./gf-hud-ajuste.js?v=22.5.56ccd6a7df4d" defer></script>
@@ -137,16 +139,16 @@
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
   <script src="./gf-salvaje.js?v=20261028.76688f222472" defer></script>
-  <script src="./gf-jefes.js?v=22.5.e24ed531dd1c" defer></script>
+  <script src="./gf-jefes.js?v=20261029.auditoria2" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
        Scenes/ZonasScenes.js). -->
   <script src="./gf-camellos.js?v=22.5.9812a80489cc" defer></script>
-  <script src="./gf-fauna-zonas.js?v=22.5.9bb8a1d14a15" defer></script>
+  <script src="./gf-fauna-zonas.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-zonas.js?v=22.5.86e48976ef3e" defer></script>
   <script src="./gf-agua.js?v=22.5.783d5f911ef3" defer></script>
   <script src="./gf-suelo.js?v=22.5.1769043b2030" defer></script>
-  <script src="./gf-casas.js?v=22.5.c1d7d5dc58ff" defer></script>
+  <script src="./gf-casas.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
@@ -157,23 +159,23 @@
   <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
   <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
-  <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
+  <script src="./gf-muerte.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
-  <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
+  <script src="./gf-carga-mapa.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
-  <script src="./gf-graficos.js?v=20261028.542879aed93b" defer></script>
-  <script src="./gf-economia.js?v=20261028.66ade9054170" defer></script>
-  <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
+  <script src="./gf-graficos.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-economia.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-vip.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
-  <script src="./gf-clima.js?v=audit20261016.4ab981fc0772" defer></script>
+  <script src="./gf-clima.js?v=20261029.auditoria2" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
        tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
-  <script src="./gf-postproceso.js?v=22.5.b2be1ebab6e5" defer></script>
+  <script src="./gf-postproceso.js?v=20261029.auditoria2" defer></script>
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
@@ -209,7 +211,7 @@
   <script src="./gf-amigos.js?v=22.5.aad9d1c1f261" defer></script>
   <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
        adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
-  <script src="./gf-admin-ajuste.js?v=22.5.85f84998105f" defer></script>
+  <script src="./gf-admin-ajuste.js?v=20261029.auditoria2" defer></script>
   <!-- (2026-10-26) El mapa del mundo: tecla M o el botón "Map"; viajar pagando en bronce. -->
   <script src="./gf-mapa-mundo.js?v=22.5.0dbd402e13fd" defer></script>
   <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f" defer></script>
@@ -217,9 +219,9 @@
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.5.d24030e5f25b" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
-  <script src="./Scenes/GameScene.js?v=20261029.5e35bd096fb2" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=20261029.auditoria2" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=20261029.auditoria2" defer></script>
+  <script src="./Scenes/GameScene.js?v=20261029.auditoria2" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -249,34 +251,34 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=22.5.2ab933167846" defer></script>
-  <script src="./Phaser-camera.js?v=22.5.85fe422bf494" defer></script>
+  <script src="./phaser-rpg-perf.js?v=20261029.auditoria2" defer></script>
+  <script src="./Phaser-camera.js?v=20261029.auditoria2" defer></script>
   <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14" defer></script>
 
   <!-- blockchain / transaction -->
   <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
-  <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
+  <script src="./TransactionHub.js?v=20261029.auditoria2" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
-  <script src="./CraftingHub.js?v=20261028.a9be9c73a042" defer></script>
+  <script src="./CraftingHub.js?v=20261029.auditoria2" defer></script>
   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
   <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
-  <script src="./tienda_sistema.js?v=20261028.7773a2a51f03" defer></script>
+  <script src="./tienda_sistema.js?v=20261029.auditoria2" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
-  <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
+  <script src="./hub.js?v=20261029.auditoria2" defer></script>
 
 
   <script src="./register-scenes.js?v=22.5.4a66c40ab27f" defer></script>
 
-  <script src="./memory-fix.js?v=22.5.fee9136a55a9" defer></script>
+  <script src="./memory-fix.js?v=20261029.auditoria2" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=22.5.1f744425ec12" defer></script>
+  <script src="./NotificationHub.js?v=20261029.auditoria2" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
-  <script type="module" src="lib/tileManager.js?v=22.5.02e7e78c3861" defer></script>
+  <script type="module" src="lib/tileManager.js?v=20261029.auditoria2" defer></script>
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
@@ -301,12 +303,12 @@
   <script src="./viewport-fix.js?v=22.4.a4e37828640e" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=22.5.987eaaff7a00" defer></script>
+  <script src="app.js?v=20261029.auditoria2" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=22.5.fe0448e24cc1" defer></script>
+  <script src="./gf-graphics-settings.js?v=20261029.auditoria2" defer></script>
 
   <!-- ============================
        END HEAD
@@ -1521,7 +1523,7 @@
 
 
     <div class="round-buttons" id="round-buttons-container">
-      <button class="round-btn" tabindex="-1">
+      <button class="round-btn" tabindex="-1" id="dashboard-btn">
         <img src="./Game/Source/hud/panel.png" alt="Dashboard" />
         <span class="label-badge">Dashboard</span>
       </button>
@@ -1531,12 +1533,12 @@
         <!-- Badge de notificación: se muestra/oculta y actualiza desde Phaser -->
         <span class="notif-badge" id="mail-notif-badge" style="display:none">0</span>
       </button>
-      <button class="round-btn" tabindex="-1">
+      <button class="round-btn" tabindex="-1" id="music-btn">
         <img src="./Game/Source/hud/musica.png" alt="Music" data-hide-on-error data-image-fallback />
         <span style="display:none;font-size:20px;align-items:center;justify-content:center;width:100%;height:100%">🎵</span>
         <span class="label-badge">Music</span>
       </button>
-      <button class="round-btn" tabindex="-1">
+      <button class="round-btn" tabindex="-1" id="transactions-btn">
         <img src="./Game/Source/hud/transacciones.png" alt="Transactions" />
         <span class="label-badge">Transactions</span>
       </button>

@@ -351,12 +351,13 @@
     // (2026-10-20) Dentro de una isla sin VIP (la tuya o la de otro), de vuelta.
     if (enLaIsla && root.GFVip && !escena.__gfVipVigilada) {
       escena.__gfVipVigilada = true;
-      setTimeout(function () { escena.__gfVipVigilada = false; if (escena.sys && escena.sys.isActive()) root.GFVip.vigilarIsla(escena); }, 2500);
+      clearTimeout(escena.__gfVipTimer);
+      escena.__gfVipTimer=setTimeout(function () { escena.__gfVipTimer=null;escena.__gfVipVigilada = false; if (escena.sys && escena.sys.isActive()) root.GFVip.vigilarIsla(escena); }, 2500);
     }
     if (escena.events && escena.events.once && !ciclosEscena.has(escena)) {
       var soltar = function () {
         escena.events.off('shutdown', soltar); escena.events.off('destroy', soltar);
-        ciclosEscena.delete(escena);
+        ciclosEscena.delete(escena);clearTimeout(escena.__gfVipTimer);escena.__gfVipTimer=null;escena.__gfVipVigilada=false;
         if (escenaBoton === escena) escenaBoton = null;
       };
       ciclosEscena.set(escena, soltar);
@@ -471,6 +472,7 @@
     if (!escena || !destino) { log('viaje: no hay escena activa'); return false; }
     if (escena._cambiandoEscena) return false;
     var mundo = Number(destino.mundo);
+    if (mundo===4 && (!root.GFVip || !root.GFVip.exigir(escena,'lands'))) return false;
     var clave = ESCENA_DE_MUNDO[mundo];
     if (!clave || !escena.scene.get(clave)) { log('viaje: mundo sin escena', mundo); return false; }
     // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js): ni con el botón de amigos.
