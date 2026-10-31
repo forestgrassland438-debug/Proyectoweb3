@@ -381,7 +381,7 @@ class SalvajeScene extends GameScene {
       const y = o.y;
       const k = (o.width || 166) / 128;
       const spr = this.add.image(x, y, clave).setOrigin(0.5, 1).setScale(k).setDepth(y);
-      spr.setData('optimized', true);
+      spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = this.add.image(x + 6, y - 4, 'sv_sombra_arbol').setScale(k * 0.95).setDepth(2).setAlpha(0.9);
       this._arboles.push({ spr, sombra, x, y, visible: true });
     });

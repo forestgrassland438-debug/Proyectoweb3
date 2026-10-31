@@ -2731,6 +2731,7 @@ class StatsSync {
     /** Envía todos los cambios pendientes al backend */
     async _flush() {
         if (this._updating) { this._reintentarPronto(); return; }
+        const authorityRevision = this._authorityRevision || 0;
         const toSend = { ...this._pending };
         if (!Object.keys(toSend).length) return;
 
@@ -2794,7 +2795,7 @@ class StatsSync {
                 if (data.errors && data.errors.length) {
                     console.warn('⚠️ El contrato rechazó parte del update:', data.errors);
                 }
-                this._adoptServerStats(data.stats);
+                this._adoptServerStats(data.stats, authorityRevision);
                 console.log('✅ Stats actualizados en contrato:', toSend);
                 this._reintentos = 0;
             } else {
@@ -2846,7 +2847,16 @@ class StatsSync {
      * Copia a la escena los valores canónicos que devolvió el backend.
      * Un stat con un cambio local más nuevo todavía en cola NO se pisa.
      */
-    _adoptServerStats(serverStats) {
+    adoptCanonical(serverStats) {
+        if(!serverStats)return;
+        this._authorityRevision=(this._authorityRevision||0)+1;
+        for(const key of ['oro','plata','bronce','exp'])delete this._pending[key];
+        if(!window.playerStats)window.playerStats={};
+        this._adoptServerStats(serverStats);
+        window.GFBronce?.adoptarStats(serverStats);
+    }
+
+    _adoptServerStats(serverStats, authorityRevision = this._authorityRevision || 0) {
         if (!serverStats || !window.playerStats) return;
         const CAMPOS = {
             vida:   'vidaPorcentaje',
@@ -2859,6 +2869,7 @@ class StatsSync {
         };
         let corregido = false;
         for (const [stat, prop] of Object.entries(CAMPOS)) {
+            if(authorityRevision!==(this._authorityRevision||0)&&['oro','plata','bronce','exp'].includes(stat))continue;
             const valor = serverStats[stat];
             if (typeof valor !== 'number') continue;
             if (this._pending[stat] !== undefined) continue; // hay algo más nuevo en cola
@@ -2878,6 +2889,7 @@ class StatsSync {
 
     /** Fuerza la lectura de stats desde el backend (llama /api/stats/:playerName) */
     async forceRefresh() {
+        const authorityRevision = this._authorityRevision || 0;
         const playerName = window.currentPlayer;
         if (!playerName) return;
         try {
@@ -2889,6 +2901,7 @@ class StatsSync {
                 const data = await res.json();
                 if (data.stats && window.playerStats) {
                     ['vida','agua','comida','oro','plata','bronce','exp'].forEach(s => {
+                        if(authorityRevision!==(this._authorityRevision||0)&&['oro','plata','bronce','exp'].includes(s))return;
                         if (data.stats[s] !== undefined) window.playerStats[s] = Number(data.stats[s]);
                     });
                     if (data.stats.invoiceIds) window.playerStats.invoiceIds = data.stats.invoiceIds;

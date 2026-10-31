@@ -1062,6 +1062,7 @@ this.player.on('pointerdown', (pointer) => {
         .setInteractive()
         .setDepth(0)
         .setDisplaySize(38, 90);
+    this.npcTienda1=boton3;this.npcTienda2=boton4;
     // (2026-10-20) El tendero con su aspecto nuevo encima (gf-npcs-pueblo.js).
     try { if (window.GFNpcsPueblo) window.GFNpcsPueblo.montar(this); } catch (e) { console.warn('tendero:', e); }
     // Crear el panel, pero oculto al inicio
@@ -6713,6 +6714,7 @@ makeDraggable(element) {
       // ─────────────────────────────────────────────────────────
 
 initInventory() {
+  this._domInvSlots=[];this._domQuickSlots=[];
   // 1) Limpiar el HTML de los contenedores antes de recrear:
   const containerQ = document.getElementById('quick-slots');
   if (containerQ) containerQ.innerHTML = '';   // <— aquí borras todo <div class="quick-slot">...
@@ -8427,7 +8429,10 @@ renderSlot(index) {
   };
 
   // Render inventario
-  const invDiv = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+  const cacheInv=this._domInvSlots ||= [];
+  let invDiv=Number.isInteger(index)&&index>=0&&index<40?cacheInv[index]:null;
+  if(invDiv?.isConnected===false)invDiv=null;
+  if(!invDiv&&Number.isInteger(index)&&index>=0&&index<40)invDiv=cacheInv[index]=document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
   if (invDiv) {
     invDiv.innerHTML = "";
     if (this.STATE.ghostSlots.inv[index]) {
@@ -8454,7 +8459,10 @@ renderSlot(index) {
   }
 
   // Render quick-slot
-  const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+  const cacheQuick=this._domQuickSlots ||= [];
+  let quickDiv=Number.isInteger(index)&&index>=0&&index<7?cacheQuick[index]:null;
+  if(quickDiv?.isConnected===false)quickDiv=null;
+  if(!quickDiv&&Number.isInteger(index)&&index>=0&&index<7)quickDiv=cacheQuick[index]=document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
   if (quickDiv) {
     quickDiv.innerHTML = "";
     if (this.STATE.ghostSlots.quick[index]) {
@@ -10486,17 +10494,25 @@ async _cargarSkillsTienda() {
  * como colisión), así que el juego se comporta igual que antes.
  */
 _chocaConLista(x, y, w, h, lista) {
-  if (!Array.isArray(lista) || w <= 0 || h <= 0) return false;
-  const derecha = x + w;
-  const abajo   = y + h;
-  for (let i = 0; i < lista.length; i++) {
-    const o = lista[i];
-    if (!o || o.width <= 0 || o.height <= 0) continue;
-    if (!(derecha < o.x || abajo < o.y ||
-          x > o.x + o.width || y > o.y + o.height)) {
-      return true;
-    }
+  if(!Array.isArray(lista)||w<=0||h<=0)return false;
+  const hit=o=>o&&o.width>0&&o.height>0&&!(x+w<o.x||y+h<o.y||x>o.x+o.width||y>o.y+o.height);
+  if(lista.length<16)return lista.some(hit);
+  const indexes=this._shopCollisionIndexes ||= new WeakMap(),frame=this.time?.now ?? Date.now();
+  let index=indexes.get(lista),changed=!index||index.geometry.length!==lista.length*4;
+  if(!changed&&index.frame!==frame){for(let i=0;i<lista.length;i++){const r=lista[i],o=i*4;if(!r||index.refs[i]!==r||index.geometry[o]!==r.x||index.geometry[o+1]!==r.y||index.geometry[o+2]!==r.width||index.geometry[o+3]!==r.height){changed=true;break;}}}
+  if(changed){
+    index={geometry:new Float64Array(lista.length*4),refs:lista.slice(),cells:new Map(),large:[],seen:new WeakMap(),sequence:0,frame};
+    for(let i=0;i<lista.length;i++){const r=lista[i],o=i*4;if(!r)continue;index.geometry.set([r.x,r.y,r.width,r.height],o);if(!(r.width>0&&r.height>0)||![r.x,r.y,r.width,r.height].every(Number.isFinite))continue;
+      const a=Math.floor(r.x/128),b=Math.floor((r.x+r.width)/128),c=Math.floor(r.y/128),d=Math.floor((r.y+r.height)/128);
+      if((b-a+1)*(d-c+1)>256){index.large.push(r);continue;}
+      for(let cx=a;cx<=b;cx++)for(let cy=c;cy<=d;cy++){const key=cx+':'+cy;let bucket=index.cells.get(key);if(!bucket)index.cells.set(key,bucket=[]);bucket.push(r);}
+    }indexes.set(lista,index);
   }
+  index.frame=frame;const a=Math.floor(x/128),b=Math.floor((x+w)/128),c=Math.floor(y/128),d=Math.floor((y+h)/128);
+  if(![a,b,c,d].every(Number.isFinite)||(b-a+1)*(d-c+1)>256)return lista.some(hit);
+  const sequence=++index.sequence;
+  for(const r of index.large)if(hit(r))return true;
+  for(let cx=a;cx<=b;cx++)for(let cy=c;cy<=d;cy++)for(const r of index.cells.get(cx+':'+cy)||[]){if(index.seen.get(r)===sequence)continue;index.seen.set(r,sequence);if(hit(r))return true;}
   return false;
 }
 

@@ -910,7 +910,7 @@ class MinaScene extends GameScene {
        * suelo: el PNG de un arco de apuntalar trae transparencia por debajo
        * del dintel, asi que su "pie" cae mas abajo que los postes por los que
        * de verdad se pasa. Eso es justo lo que gf-profundidad mide bien. */
-      spr.setData('optimized', true);
+      spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       this._piezas.push(spr);
 
       /* Y SU COLISION, que antes no tenian ninguna: se atravesaban los
@@ -974,7 +974,7 @@ class MinaScene extends GameScene {
             .setOrigin(0.5, 1)
             .setScale(e.nombre === 'pena_pequena' ? 1.35 : 1.15)
             .setDepth(py);
-          spr.setData('optimized', true);
+          spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
           this._piezas.push(spr);
           const ancho = spr.displayWidth * 0.62;
           // (2026-10-19) Y con fondo: el montón tiene bulto (ver arriba).

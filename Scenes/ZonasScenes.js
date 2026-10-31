@@ -356,7 +356,7 @@ class ZonaScene extends GameScene {
       const clave = c.prefijo + o.name;
       if (!this.textures.exists(clave) || this._despejado(o.x, o.y)) return;
       const spr = this.add.image(o.x, o.y, clave).setOrigin(0.5, 1).setScale(1.3).setDepth(o.y);
-      spr.setData('optimized', true);
+      spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = this.add.image(o.x + 6, o.y - 4, 'zn_sombra_pie').setScale(1.25).setDepth(2).setAlpha(0.9);
       this._arboles.push({ spr, sombra, x: o.x, y: o.y, visible: true });
     });
@@ -375,7 +375,7 @@ class ZonaScene extends GameScene {
     capa.objects.forEach((o) => {
       if (!tex.has(o.name) || this._despejado(o.x, o.y)) return;
       const spr = this.add.image(o.x, o.y, c.objetos, o.name).setOriginFromFrame().setScale(2).setDepth(o.y);
-      spr.setData('optimized', true);
+      spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const prop = (o.properties || []).find((p) => p.name === 'sombra');
       const ancho = prop ? Number(prop.value) : 0;
       const sombra = ancho > 0 ? this.add.image(o.x + 4, o.y - 3, 'zn_sombra_pie').setScale(ancho / 96 * 1.15, ancho / 96).setDepth(2).setAlpha(0.85) : null;
@@ -417,7 +417,7 @@ class ZonaScene extends GameScene {
       tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
       if (!tex.has(e.fotograma)) return;
       const spr = this.add.image(e.x, e.y, e.atlas, e.fotograma).setOriginFromFrame().setScale(2).setDepth(e.y);
-      spr.setData('optimized', true);
+      spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = e.sombra ? this.add.image(e.x + 4, e.y - 3, 'zn_sombra_pie').setScale(e.sombra / 96 * 1.15, e.sombra / 96).setDepth(2).setAlpha(0.85) : null;
       this._objetosZona.push({ spr, sombra, x: e.x, y: e.y, visible: true });
       (e.choques || []).forEach((r) => this.collisionRectangles.push(new Phaser.Geom.Rectangle(e.x + r[0], e.y + r[1], r[2], r[3])));

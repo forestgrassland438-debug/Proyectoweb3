@@ -1604,6 +1604,14 @@ async completeMission(missionId) {
     const result = await res.json();
     console.log('✅ RESPUESTA DEL SERVIDOR:', result);
 
+    if(result.stats){
+      this.statsSync?.adoptCanonical?.(result.stats);
+      if(!window.playerStats)window.playerStats={};Object.assign(window.playerStats,result.stats);
+      window.GFBronce?.adoptarStats(result.stats);
+      if(Number.isFinite(result.stats.oro))this.moneda=result.stats.oro;
+      if(Number.isFinite(result.stats.plata))this.moneda_plata=result.stats.plata;
+      if(Number.isFinite(result.stats.bronce))this.moneda_bronce=result.stats.bronce;
+    }
     // 9. El servidor ya movió inventario, experiencia y recompensa: se recarga
     //    todo desde ahí en vez de adivinarlo en el cliente.
     await this.loadPlayerData();
@@ -2645,7 +2653,7 @@ showNotification(message, type = 'info') {
 
     // musica 
 
-    this.load.audio('main-theme', './Game/MUSIC/Principal.ogg');
+    if(!window.GFAudio)this.load.audio('main-theme', './Game/MUSIC/Principal.ogg');
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
     this.load.audio('cortando_sound', './Game/MUSIC/arbol_golpe.wav');
     this.load.audio('cortado_sound', './Game/MUSIC/arbol_cortado.wav');
@@ -5730,7 +5738,7 @@ const NPC_LABEL_DEPTH = 90000;
    recolocan, con la del NPC: asi el que esta MAS ABAJO en pantalla tapa al
    otro, que es lo correcto. Aqui solo se deja un valor de arranque por si se
    pinta un frame antes de colocarlos. */
-const _marcarCartel = (t) => { t.setOrigin(0.5); t.setDepth(0); t.setData('optimized', true); return t; };
+const _marcarCartel = (t) => { t.setOrigin(0.5); t.setDepth(0); t.setData('optimized', true); window.GFGraphics?.registrar?.(t.scene,t); return t; };
 
 this.npcx1 = _marcarCartel(this.add.text(1829, 3288, 'Farmer Joe', textStyle));
 this.npcx2 = _marcarCartel(this.add.text(3296, 1950, 'Crafter Jack', textStyle));
@@ -12451,7 +12459,7 @@ initPlots() {
       // visión, los árboles y las casas se iban pero las 24 parcelas seguían
       // dibujándose al otro lado del mapa — parte del "los chunks no quitan
       // todas las cosas".
-      imagen.setData('optimized', true);
+      imagen.setData('optimized', true); window.GFGraphics?.registrar?.(imagen.scene,imagen);
 
       /* ESTO ES SUELO, NO UN OBJETO DEL MUNDO.
 
@@ -12532,6 +12540,7 @@ setupCropSocketEvents() {
   this._cropSocketDispose=dispose;this._onceSceneEnd(dispose);
 
   onCrop('nativeFarmResult',data=>window.GFNativeCrops?.adopt(this,data,run));
+  onCrop('cropGrowthUpdate',data=>window.GFNativeCrops?.growth(this,data,run));
   onCrop('cropConfig', (config) => {
     this.cropTypes = config;
     console.log('✅ Configuración de cultivos recibida:', this.cropTypes);
@@ -12675,6 +12684,7 @@ setupCropSocketEvents() {
   });
   
   onCrop('cropGrowth', (data) => {
+    if(window.GFNativeCrops?.growth(this,data,run))return;
     if (data.userId === this.currentAccount) {
       this.updatePlotGrowth(
         data.plotId, 
@@ -15690,6 +15700,18 @@ toggleSFXMute() {
 
 // Reproducir música - CORREGIDO
 playMusic(key, config = {}) {
+  if(key==='main-theme'&&this.cache?.audio?.exists&& !this.cache.audio.exists(key)){
+    if(this._legacyMusicPending||!this.load?.audio)return null;
+    this._legacyMusicPending=true;const run=this._sceneRunId,loader=this.load;
+    let deadline;const event='filecomplete-audio-'+key;
+    const clear=()=>{clearTimeout(deadline);loader.off(event,ready);loader.off('loaderror',failed);this._legacyMusicPending=false;};
+    const ready=()=>{clear();if(!this._sceneStopped&&this._sceneRunId===run)this.playMusic(key,config);};
+    const failed=file=>{if(file?.key===key)clear();};
+    loader.once(event,ready);loader.on('loaderror',failed);this._onceSceneEnd?.(clear);
+    deadline=setTimeout(clear,20000);
+    loader.audio(key,'./Game/MUSIC/Principal.ogg');if(!loader.isLoading?.())loader.start();return null;
+  }
+
   // Detener música actual si existe
   this.stopMusicSafely();
   
@@ -20302,6 +20324,7 @@ makeDraggable(element) {
       // ─────────────────────────────────────────────────────────
 
 initInventory() {
+  this._domInvSlots=[];this._domQuickSlots=[];
   // 1) Limpiar el HTML de los contenedores antes de recrear:
   const containerQ = document.getElementById('quick-slots');
   if (containerQ) containerQ.innerHTML = '';   // <— aquí borras todo <div class="quick-slot">...
@@ -21063,7 +21086,10 @@ renderSlot(index) {
   };
 
   // Render inventario
-  const invDiv = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+  const cacheInv=this._domInvSlots ||= [];
+  let invDiv=Number.isInteger(index)&&index>=0&&index<40?cacheInv[index]:null;
+  if(invDiv?.isConnected===false)invDiv=null;
+  if(!invDiv&&Number.isInteger(index)&&index>=0&&index<40)invDiv=cacheInv[index]=document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
   if (invDiv) {
     invDiv.innerHTML = "";
     if (this.STATE.ghostSlots.inv[index]) {
@@ -21090,7 +21116,10 @@ renderSlot(index) {
   }
 
   // Render quick-slot
-  const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+  const cacheQuick=this._domQuickSlots ||= [];
+  let quickDiv=Number.isInteger(index)&&index>=0&&index<7?cacheQuick[index]:null;
+  if(quickDiv?.isConnected===false)quickDiv=null;
+  if(!quickDiv&&Number.isInteger(index)&&index>=0&&index<7)quickDiv=cacheQuick[index]=document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
   if (quickDiv) {
     quickDiv.innerHTML = "";
     if (this.STATE.ghostSlots.quick[index]) {
@@ -25449,7 +25478,7 @@ createOptimizedSprite(scene, obj, spriteKey, depthOffset = 0) {
   this.applyTiledProperties(sprite, obj);
 
   // 3. Marcar como optimizable
-  sprite.setData('optimized', true);
+  sprite.setData('optimized', true); window.GFGraphics?.registrar?.(sprite.scene,sprite);
   sprite.setData('static', true); // Marcar como estático para Phaser
 
   // Y-SORT PROFESIONAL: las capas que pasan depthOffset ≠ 0 son edificios
