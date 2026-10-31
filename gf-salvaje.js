@@ -533,7 +533,7 @@
     // Las bestias traen su punto de apoyo en el fotograma (de frente, las
     // patas de delante caen más abajo que el centro).
     if (!def.humanoide) spr.setOriginFromFrame();
-    spr.setData('optimized', true);
+    spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
     var sombra = scene.add.image(punto.x, punto.y, 'gfsv_sombra').setScale(def.sombra).setAlpha(0.85).setDepth(2.5);
     var m = {
       id: id, tipo: tipo, def: def, n: n, casa: { x: punto.x, y: punto.y }, x: punto.x, y: punto.y,

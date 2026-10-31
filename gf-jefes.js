@@ -153,6 +153,7 @@
   }
 
   // ── LA GUARIDA (igual en todos: azar con semilla) ──────────────────────
+  var cachePuestos=new Map();
   function puesto(scene) {
     var key = scene.sys && scene.sys.settings ? scene.sys.settings.key : '';
     var cfg = Object.prototype.hasOwnProperty.call(JEFES, key) ? JEFES[key] : null;
@@ -170,6 +171,8 @@
     try { var ap = scene._puntoDeAparicion && scene._puntoDeAparicion(); if (ap) lejosDe.push({ x: ap.x, y: ap.y, r: 900 }); } catch (e) {}
     var cm = scene.map.getObjectLayer('monstruos');
     (cm ? cm.objects : []).forEach(function (o) { lejosDe.push({ x: o.x, y: o.y, r: 260 }); });
+    var cacheKey=key+'|'+JSON.stringify([cfg.caja,lejosDe]),cached=cachePuestos.get(cacheKey);
+    if(cached){var valid=true;for(var check=60;check<=cached.clearance*60;check+=60)if(!lib(cached.point.x,cached.point.y,check)){valid=false;break;}if(valid)return Object.assign({},cached.point);cachePuestos.delete(cacheKey);}
     var r = azar(semillaDe(key + '|jefe')), caja = cfg.caja, mejor = null, holgura = -1;
     for (var i = 0; i < 500; i++) {
       var x = caja[0] + r() * (caja[2] - caja[0]), y = caja[1] + r() * (caja[3] - caja[1]);
@@ -178,6 +181,7 @@
       for (var rad = 60; rad <= 300; rad += 60) { if (lib(x, y, rad)) h++; else break; }
       if (h > holgura) { holgura = h; mejor = { x: Math.round(x), y: Math.round(y), tipo: cfg.tipo, tema: cfg.tema, id: ID_JEFE }; if (h >= 5) break; }
     }
+    if(mejor){if(cachePuestos.size>=16)cachePuestos.delete(cachePuestos.keys().next().value);cachePuestos.set(cacheKey,{point:Object.assign({},mejor),clearance:holgura});}
     return mejor;
   }
 

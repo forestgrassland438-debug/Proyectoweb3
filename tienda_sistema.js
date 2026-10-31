@@ -407,7 +407,7 @@ class TiendaSistema {
         // Configuración de objetos de la tienda (con precios separados)
         this.itemsTienda = {
             semillas: [
-                ...(window.GFPlantCatalog?.shop.semillas || []),
+                
                 {
                     id: 'Semillax',
                     name: 'Carrot Seed',
@@ -471,7 +471,8 @@ class TiendaSistema {
                     limiteDiario: 0,
                     nivelRequerido: 3,
                     descripcion: 'Seed used to grow strawberries. Growth time: 5 minutes.'
-                }
+                },
+                ...(window.GFPlantCatalog?.shop.semillas || []).map(item => ({ ...item }))
             ],
             
             herramientas: [
@@ -565,7 +566,7 @@ class TiendaSistema {
             */
             
             alimentos: [
-                ...(window.GFPlantCatalog?.shop.comida || []),
+                
                 {
                     id: 'zanahoria_buena',
                     name: 'Fresh Carrot',
@@ -839,7 +840,8 @@ class TiendaSistema {
                     comision: 2,
                     limiteDiario: 0,
                     descripcion: 'Poisonous! It stings when you unhook it and drains 16% life over half a minute. Not edible.'
-                }
+                },
+                ...(window.GFPlantCatalog?.shop.comida || []).map(item => ({ ...item }))
             ],
 
             /* CONSTRUCCIÓN (2026-10-03). Lo que se coloca en la isla (Lands).
@@ -1494,59 +1496,21 @@ class TiendaSistema {
     
     // Inicializar eventos táctiles para móvil
     initMobileTouchEvents() {
-        const itemsContainer = document.getElementById('tienda-items');
-        if (!itemsContainer) return;
-        
-        let tapCount = 0;
-        let tapTimer = null;
-        
-        itemsContainer.addEventListener('click', (e) => {
-            const itemCard = e.target.closest('.item-card');
-            if (!itemCard || itemCard.classList.contains('sold-out')) return;
-            
-            tapCount++;
-            
-            if (tapCount === 1) {
-                tapTimer = setTimeout(() => {
-                    const itemId = itemCard.dataset.itemId;
-                    if (itemId) {
-                        this.selectItem(itemId);
-                    }
-                    tapCount = 0;
-                }, 300);
-            } else if (tapCount === 2) {
-                clearTimeout(tapTimer);
-                const itemId = itemCard.dataset.itemId;
-                if (itemId) {
-                    this.selectItem(itemId);
-                    this.openMobileModal();
-                }
-                tapCount = 0;
-            }
-        });
-        
-        itemsContainer.addEventListener('touchstart', (e) => {
-            if (!this.isMobile) return;
-            const itemCard = e.target.closest('.item-card');
-            if (itemCard && !itemCard.classList.contains('sold-out')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-        
-        this._listenGlobal(document,'DOMContentLoaded', () => {
-            this.setupItemTouchEvents();
+        const items=document.getElementById('tienda-items');if(!items)return;
+        let down=null;
+        items.addEventListener('pointerdown',e=>{if(!this.isMobile)return;const card=e.target.closest('.item-card');down=card?{id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now(),card}:null;});
+        items.addEventListener('pointercancel',()=>{down=null;});
+        items.addEventListener('pointerup',e=>{
+            const tap=down;down=null;
+            if(!this.isMobile||!tap||tap.id!==e.pointerId||!tap.card.isConnected||tap.card!==e.target.closest('.item-card')||Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>12||performance.now()-tap.time>800)return;
+            if(tap.card.classList.contains('sold-out'))return;
+            const id=tap.card.dataset.itemId;this.selectItem(id);
+            if(this.selectedItem?.id===id&&!this._isLockedByLevel(this.selectedItem))this.openMobileModal();
         });
     }
-    
-    // Configurar eventos táctiles para items individuales
-    setupItemTouchEvents() {
-        if(!this.isMobile || this._destroyed)return;
-        document.querySelectorAll('#tienda-items .item-card').forEach(card=>{
-            if(card._gfShopTouch)return;card._gfShopTouch=true;
-            card.addEventListener('dblclick',e=>this.handleDoubleClick(e));
-            card.addEventListener('touchstart',e=>this.handleTouchStart(e),{passive:false});
-        });
-    }
+
+    // Delegated pointer handling survives filtering without per-card touch timers.
+    setupItemTouchEvents() {}
 
     // Manejar doble click
     handleDoubleClick(e) {
@@ -5651,18 +5615,29 @@ renderSlot(index) {
 
     async _operacionEconomicaTienda(op, item, cantidad, ref) {
         if (!window.GFMascota?.api) throw new Error('The authoritative payment service is unavailable.');
-        const factor = { gold: 1000000, silver: 1000, bronze: 1 }[this.getItemCurrency(item)];
-        const r = await window.GFMascota.api('/api/economia/tienda', { op, itemId: item.id, cantidad,
-            precioBronce: Number(op === 'compra' ? item.buyPrice : item.sellPrice) * factor, ref });
-        const d = r && r.datos || {};
+        const bronzeQuote = value => Number(op === 'compra' ? value.buyPrice : value.sellPrice) * ({ gold: 1000000, silver: 1000, bronze: 1 }[this.getItemCurrency(value)] || 0);
+        const agreed = bronzeQuote(item);
+        const send = value => window.GFMascota.api('/api/economia/tienda', { op, itemId: value.id, cantidad, precioBronce: bronzeQuote(value), ref });
+        let r = await send(item), d = r && r.datos || {};
+        if (d.error === 'precios_actualizados' && !d.revision) {
+            const loaded = await this._cargarPreciosServidor();
+            const current = Object.values(this.itemsTienda || {}).flat().find(value => value.id === item.id);
+            const next = current && bronzeQuote(current);
+            // Reuse the reference only after an explicit rejection before payment,
+            // and only when the new quote is at least as favorable to the player.
+            if (loaded && Number.isSafeInteger(next) && next > 0 && (op === 'compra' ? next <= agreed : next >= agreed)) {
+                item = { ...current }; r = await send(item); d = r && r.datos || {};
+            }
+        }
         if (!r || !r.ok || !d.ok) {
-            if (d.error === 'precios_actualizados') await this._cargarPreciosServidor();
-            const why = d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
+            const why = d.error === 'precios_actualizados' ? 'The price changed. Review the updated price and try again.'
+                : d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
                 : d.revision ? 'Your operation is recorded for chain review. Do not repeat it; the control center has the receipt.'
-                : d.message || d.error || 'The server could not complete the trade.';
-            this.showNotification?.(why, 'error'); throw new Error(why);
+                : ({saldo_insuficiente:'You do not have enough coins, including the shop fee.',nivel_bajo:'Your character has not reached the required level.',tope_diario_tienda:'You have reached the daily purchase limit.',objeto_no_disponible:'This item is not available for this trade.',crop_table_unavailable:'The crop table is unavailable. Nothing was charged.',resource_capacity_exhausted:'The resource table is full. Nothing was charged.'})[d.error] || 'The server could not complete the trade. Check pending operations before retrying.';
+            this.showNotification?.(why, 'error'); throw Object.assign(new Error(why), { code: d.error });
         }
         if (d.stats) {
+            this._statsSync()?.adoptCanonical?.(d.stats);
             if (window.GFBronce?.adoptarStats) window.GFBronce.adoptarStats(d.stats);
             this.playerMoneda = Number(d.stats.oro) || 0; this.playerMonedaPlata = Number(d.stats.plata) || 0;
             if (window.playerStats) Object.assign(window.playerStats, d.stats);

@@ -202,7 +202,7 @@
   }
 
   /** FOTOS patrones de PERIODO² en RGB, que dan una vuelta y vuelven al primero. */
-  function patrones(pal, semilla) {
+  function* iterarPatrones(pal, semilla) {
     var P = PERIODO, fondo = new Float32Array(P * P), lo = 1, hi = 0, x, y;
     for (y = 0; y < P; y++) {
       for (x = 0; x < P; x++) {
@@ -210,7 +210,6 @@
         fondo[y * P + x] = v; if (v < lo) lo = v; if (v > hi) hi = v;
       }
     }
-    var out = [];
     for (var f = 0; f < FOTOS; f++) {
       var a = 2 * Math.PI * f / FOTOS;
       var px = new Uint8ClampedArray(P * P * 3);
@@ -231,10 +230,10 @@
           px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2];
         }
       }
-      out.push(px);
+      yield px;
     }
-    return out;
   }
+  function patrones(pal,semilla){return Array.from(iterarPatrones(pal,semilla));}
 
   /** Pinta una casilla (gid + fase) del fotograma f en `img` (ImageData). */
   function pintarCasilla(img, ox, oy, T, info, fx, fy, pat, f, pal) {
@@ -361,8 +360,9 @@
     var faltan = false;
     for (var f = 0; f < FOTOS; f++) { claves.push(id + '_' + f); if (!scene.textures.exists(id + '_' + f)) faltan = true; }
     if (faltan) {
-      var pats = patrones(pal, 7);
-      for (f = 0; f < FOTOS; f++) {
+      var iterator = iterarPatrones(pal,7);
+      var drawFrame=function(f){
+        var pat=iterator.next().value;
         if (scene.textures.exists(claves[f])) scene.textures.remove(claves[f]);
         var ct = crearLienzo(scene, claves[f], TW, TH);
         var ctx = ct.getContext();
@@ -370,11 +370,13 @@
         for (var k = 0; k < N; k++) {
           var e = lista[k];
           pintarCasilla(img, (k % cols) * (T + 2) + 1, Math.floor(k / cols) * (T + 2) + 1, T,
-                        infoGid(lec, T, firstgid, e[0]), e[1], e[2], pats[f], f, pal);
+                        infoGid(lec, T, firstgid, e[0]), e[1], e[2], pat, f, pal);
         }
         ctx.putImageData(img, 0, 0);
         ct.refresh();
-      }
+      };
+      drawFrame(0);var nextFrame=1;
+      st.buildFrame=function(){drawFrame(nextFrame++);if(nextFrame>=FOTOS)st.buildFrame=null;};
     }
 
     var tm = scene.make.tilemap({ data: datos, tileWidth: T, tileHeight: T, insertNull: true });
@@ -886,6 +888,8 @@
     scene.__gfAgua = st;
     if (st.vida) { try { montarVida(st); } catch (e) { console.warn('[agua] vida:', e); } }
     st.onUpdate = function (t, delta) {
+      if(scene.__gfAgua!==st)return;
+      if(st.buildFrame){try{st.buildFrame();}catch(e){st.buildFrame=null;console.warn('[agua] atlas frame unavailable');}}
       if (!Number.isFinite(delta) || delta < 0) return;
       try {
         st.acc += delta;
@@ -914,7 +918,7 @@
     scene.__gfAgua = null;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
-    st.scene = null;
+    st.scene = null;st.buildFrame=null;
     var matar = function (o) {
       try { if (o && scene.tweens && scene.tweens.killTweensOf) scene.tweens.killTweensOf(o); } catch (e) {}
       try { if (o && o.destroy) o.destroy(); } catch (e) {}

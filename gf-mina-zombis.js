@@ -180,7 +180,7 @@
       muertoHasta: 0, vivo: true, saltoEn: 0, furia: false, rugio: false, fase: Math.random() * 6,
       objX: sitio.x, objY: sitio.y
     };
-    spr.setData('optimized', true);
+    spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
     jugarAnim(z, 'down', false);
     return z;
   }

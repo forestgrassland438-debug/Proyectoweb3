@@ -318,15 +318,17 @@
     return [];
   }
 
+  var cacheCopas=new WeakMap();
   function copaDe(spr) {
     try {
       if (window.GFCuervo && window.GFCuervo._interno && window.GFCuervo._interno.posadero) {
         return window.GFCuervo._interno.posadero(spr);
       }
     } catch (e) {}
-    var b;
-    try { b = spr.getBounds(); } catch (x) { b = null; }
-    if (b) return { x: b.centerX, y: b.top + b.height * 0.26 };
+    var signature=[spr.x,spr.y,spr.scaleX,spr.scaleY,spr.rotation,spr.originX,spr.originY,spr.displayWidth,spr.displayHeight,spr.flipX,spr.flipY,spr.texture?.key,spr.frame?.name,spr.parentContainer?.x,spr.parentContainer?.y,spr.parentContainer?.rotation].join('|');
+    var cached=cacheCopas.get(spr);if(cached?.signature===signature)return cached.point;
+    var b;try { b = spr.getBounds(); } catch (x) { b = null; }
+    if(b){var point={x:b.centerX,y:b.top+b.height*.26};cacheCopas.set(spr,{signature:signature,point:point});return point;}
     return { x: spr.x, y: spr.y - 60 };
   }
 

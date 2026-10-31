@@ -956,3 +956,16 @@ html body #hub-panel_101.visible {
   html body [class*="container"],
   html body #inventory-panel { animation: none !important; transition-duration: .01s !important; }
 }
+
+/* Both shop actions stay visible in short desktop viewports. Only the item
+   preview scrolls; these scoped rules preserve every other game panel. */
+@media (min-width:769px){
+ html body #tienda-hub .item-detail-simple{padding:10px;overflow:hidden;box-sizing:border-box;}
+ html body #tienda-hub .detail-content-simple{flex:1 1 auto;min-height:0;gap:10px;}
+ html body #tienda-hub .detail-header-simple{flex:1 1 auto;min-height:0;overflow:auto;width:100%;gap:8px;}
+ html body #tienda-hub .detail-image-simple{width:clamp(52px,9vh,88px);height:clamp(52px,9vh,88px);padding:6px;box-sizing:border-box;}
+ html body #tienda-hub .detail-title-simple{flex:0 0 auto;}
+ html body #tienda-hub .detail-title-simple h3{font-size:.7rem;margin-bottom:6px;}
+ html body #tienda-hub .detail-actions-simple{flex:0 0 auto;margin-top:0;gap:8px;}
+ html body #tienda-hub .interact-btn-pc{min-height:48px;padding:10px 6px;font-size:.62rem;letter-spacing:0;line-height:1.5;}
+}

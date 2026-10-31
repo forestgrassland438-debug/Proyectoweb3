@@ -309,17 +309,22 @@
   // se restaura el valor que tenía justo antes de esconderlo. Lo que ya estaba
   // invisible al salir del rango se queda como estaba.
 
+  function registrar(escena,obj){
+    if(!escena||!obj)return obj;
+    var r=escena._gfOptimizedRegistry;
+    if(!r){r=escena._gfOptimizedRegistry={objects:new Set(),revision:0,censado:false};
+      if(escena.events?.once){var limpiar=function(){r.objects.clear();r.revision++;escena.events.off('shutdown',limpiar);escena.events.off('destroy',limpiar);escena._gfObjetosMapa=null;escena._gfOptimizedRegistry=null;};escena.events.once('shutdown',limpiar);escena.events.once('destroy',limpiar);}}
+    if(r.objects.has(obj))return obj;r.objects.add(obj);r.revision++;
+    obj.once?.('destroy',function(){if(r.objects.delete(obj))r.revision++;});return obj;
+  }
   function objetosDelMapa(escena) {
-    if (!escena.children || !escena.children.list) return [];
-    var salida = [];
-    var lista = escena.children.list;
-    for (var i = 0; i < lista.length; i++) {
-      var o = lista[i];
-      if (o && o.getData && o.active !== undefined) {
-        try { if (o.getData('optimized')) salida.push(o); } catch (e) {}
-      }
+    var r=escena._gfOptimizedRegistry;
+    if(!r?.censado){
+      var lista=escena.children?.list || [];
+      for(var i=0;i<lista.length;i++){var o=lista[i];try{if(o?.getData?.('optimized'))registrar(escena,o);}catch(e){}}
+      r=escena._gfOptimizedRegistry;if(r)r.censado=true;
     }
-    return salida;
+    return r?Array.from(r.objects):[];
   }
 
   function aplicarAObjetos(escena) {
@@ -341,9 +346,9 @@
     // La lista se recalcula de vez en cuando: los objetos se crean durante los
     // primeros segundos de la escena y algunos se destruyen al talarlos.
     var listaRefrescada = false;
-    if (!objs || escena._gfObjetosCaducan < Date.now()) {
+    if (!objs || escena._gfObjetosVersion !== (escena._gfOptimizedRegistry?.revision || 0)) {
       objs = escena._gfObjetosMapa = objetosDelMapa(escena);
-      escena._gfObjetosCaducan = Date.now() + 4000;
+      escena._gfObjetosVersion = escena._gfOptimizedRegistry?.revision || 0;
       listaRefrescada = true;
     }
 
@@ -690,6 +695,8 @@
       guardar(); aplicarTodo();
     },
     aplicar:  aplicarTodo,
+    registrar: registrar,
+    _objetosDelMapa: objetosDelMapa,
     CHUNK_PX: CHUNK_PX,
     CHUNK_MIN: CHUNK_MIN,
     CHUNK_MAX: CHUNK_MAX

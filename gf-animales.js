@@ -3411,11 +3411,18 @@
   // Solo consulta contornos ya medidos; no lee píxeles ni crea objetos por frame.
   function tapado(scene, x, y, soporte, profundidad) {
     if (!window.GFProfundidad || !window.GFProfundidad.medir) return false;
-    var lista = scene.children && scene.children.list || [];
+    var cache=cacheDe(scene),source=scene.children && scene.children.list || [],frame=scene.time?.now ?? 0;
+    if(cache.occludersFrame!==frame||cache.occludersSource!==source||cache.occludersLength!==source.length){
+      cache.occluders=source.filter(function(o){return o&&o.texture&&o.getBounds;});cache.occludersFrame=frame;cache.occludersSource=source;cache.occludersLength=source.length;
+    }
+    var lista=cache.occluders;
     for (var i = 0; i < lista.length; i++) {
       var obj = lista[i];
       if (!obj || obj === soporte || obj.active === false || obj.visible === false || obj.alpha === 0 ||
           !(obj.depth > profundidad) || !obj.texture || !obj.getBounds || /^gfa_|^cuervo_|^gfb_/.test(obj.texture.key)) continue;
+      if(!obj.parentContainer&&Number.isFinite(obj.displayWidth)&&Number.isFinite(obj.displayHeight)&&Number.isFinite(obj.x)&&Number.isFinite(obj.y)){
+        var radius=Math.abs(obj.displayWidth)+Math.abs(obj.displayHeight),dx=x-obj.x,dy=y-obj.y;if(dx*dx+dy*dy>radius*radius)continue;
+      }
       var b = obj.getBounds();
       if (x < b.x || x >= b.x + b.width || y < b.y || y >= b.y + b.height) continue;
       var m = window.GFProfundidad.medir(scene, obj.texture.key);

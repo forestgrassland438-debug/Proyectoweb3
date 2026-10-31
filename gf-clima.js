@@ -490,6 +490,11 @@
   var ETAPAS_CHARCO = 6;
   function claveEtapa(base, e) { return e >= ETAPAS_CHARCO - 1 ? base : base + '_e' + e; }
 
+  function etapaCharco(scene,tam,helado,etapa){
+    var base=(helado?HIELOS_DIBUJADOS:CHARCOS_DIBUJADOS)[tam];
+    return dibujarCharco(scene,base,tam+1,helado,etapa)||claveEtapa(base,0);
+  }
+
   function dibujarCharco(scene, clave, semilla, helado, etapa) {
     if (etapa === undefined) etapa = ETAPAS_CHARCO - 1;
     clave = claveEtapa(clave, etapa);
@@ -2563,7 +2568,7 @@
   }
 
   function nuevoCharco(st) {
-    var s = st.scene.add.image(0, 0, CHARCOS_DIBUJADOS[0]);
+    var s = st.scene.add.image(0, 0, etapaCharco(st.scene,0,false,0));
     s.setOrigin(0.5, 0.5);
     s.setDepth(PROF_CHARCO);
     // Valor de arranque; el de verdad se lo pone brotarCharco al encenderlo.
@@ -2614,7 +2619,7 @@
       libre.helado = false;
       libre.prog = 0;
       libre.etapa = 0;
-      libre.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[libre.tam], 0));
+      libre.spr.setTexture(etapaCharco(st.scene,libre.tam,false,0));
       /* Cada charco con su tamaño y su giro, pero CON LÍMITES.
        *
        * DOS COSAS QUE ESTABAN MAL Y SE VEÍAN EN LA CAPTURA:
@@ -2667,14 +2672,14 @@
         else if (ahora >= c.helarEn) {
           c.helado = true;
           c.helarEn = 0;
-          c.spr.setTexture(claveEtapa(HIELOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
+          c.spr.setTexture(etapaCharco(st.scene,c.tam,true,Math.max(0,c.etapa)));
         }
       } else if (!nevando && c.helado) {
         if (!c.helarEn) c.helarEn = ahora + az(3000, 16000);
         else if (ahora >= c.helarEn) {
           c.helado = false;
           c.helarEn = 0;
-          c.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
+          c.spr.setTexture(etapaCharco(st.scene,c.tam,false,Math.max(0,c.etapa)));
         }
       }
 
@@ -2696,7 +2701,7 @@
       var e = Math.min(ETAPAS_CHARCO - 1, Math.floor(c.prog * ETAPAS_CHARCO));
       if (e !== c.etapa) {
         c.etapa = e;
-        c.spr.setTexture(claveEtapa(c.helado ? HIELOS_DIBUJADOS[c.tam] : CHARCOS_DIBUJADOS[c.tam], e));
+        c.spr.setTexture(etapaCharco(st.scene,c.tam,c.helado,e));
       }
       c.spr.setScale(c.sx * (0.85 + 0.15 * c.prog), c.sy * (0.85 + 0.15 * c.prog));
       c.spr.alpha = (c.helado ? 0.92 : 0.84) * Math.min(1, c.prog * 3);
@@ -3871,7 +3876,7 @@
        cuatro PNG viejos. */
     var hayCharco = true;
     for (i = 0; i < CHARCOS_DIBUJADOS.length; i++) {
-      for (var et = 0; et < ETAPAS_CHARCO; et++) {
+      for (var et = 0; et < 1; et++) {
         if (!dibujarCharco(scene, CHARCOS_DIBUJADOS[i], i + 1, false, et)) hayCharco = false;
         dibujarCharco(scene, HIELOS_DIBUJADOS[i], i + 1, true, et);
       }

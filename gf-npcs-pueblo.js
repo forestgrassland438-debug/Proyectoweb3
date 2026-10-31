@@ -208,7 +208,7 @@
     var buscar = function () {
       var lista = [];
       if (clave === 'tiendajuego') {
-        scene.children.list.forEach(function (o) {
+        [scene.npcTienda1,scene.npcTienda2].forEach(function (o) {
           var c = o && o.texture && o.type === 'Image' ? deLaTienda(o) : null;
           if (c) lista.push({ o: o, c: c });
         });

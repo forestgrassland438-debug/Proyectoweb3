@@ -457,7 +457,7 @@
     s.sombraCabeza = scene.add.image(s.x, s.y, 'gfsp_sombra').setScale(1.4).setVisible(false).setAlpha(0.8);
     s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false).setScale(1.8);
     s.agujero = scene.add.image(s.x, s.y, 'gfsp_agujero').setVisible(false).setScale(2.4);
-    [s.cabeza].concat(s.anillos).forEach(function (o) { o.setData('optimized', true); });
+    [s.cabeza].concat(s.anillos).forEach(function (o) { o.setData('optimized', true); window.GFGraphics?.registrar?.(o.scene,o); });
     reiniciarRastro(s);
   }
 

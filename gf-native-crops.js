@@ -5,9 +5,10 @@
  const notice=(s,text,type='warning')=>s.notifications?.show(text,type);
  function live(s,run){return s._sceneRunId===run&&!s._sceneStopped&&s.sys?.isActive?.()!==false;}
  async function request(scene,path,body){
+  const messages={farm_tool_required_or_worn:'You need an owned tool with enough durability for these plots.',farm_inventory_full:'Free some inventory space before harvesting.',craft_level_required:'Your character has not reached the required level.',craft_materials_missing:'The required items are no longer available in your bag.',craft_result_capacity_unavailable:'This crop table is full. Your crops remain on their plots; try again when capacity is available.',farm_vitals_insufficient:'You need more water or food before farming.',farm_plot_busy:'This plot has a pending operation. Reconcile it before trying again.',farm_crop_state_changed:'The crop changed while this request was waiting. Refresh your plots and try again.',farm_not_waterable:'These crops are already watered, ready or rotten.',farm_plot_not_owned:'This island plot is unavailable for your account.',farm_busy:'Another farm action is pending. Reconcile it before trying again.'};
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
   try{const response=await fetch(scene.serverBase+path,{method:body?'POST':'GET',credentials:'include',headers:{'Content-Type':'application/json','X-CSRF-Token':await root.getCsrfToken()},body:body?JSON.stringify(body):undefined,signal:controller.signal});
-   const value=await response.json();if(!response.ok)throw Object.assign(Error(value.message||value.error||'Farm request failed'),{code:value.error,status:response.status});return value;
+   const value=await response.json();if(!response.ok)throw Object.assign(Error(messages[value.error]||value.message||'The farm request could not be completed. Check pending operations before retrying.'),{code:value.error,status:response.status});return value;
   }finally{clearTimeout(timer);}
  }
  function adopt(scene,data,run){
@@ -22,7 +23,7 @@
   }
   for(const tool of data.toolUses || [])for(const list of lists)for(const item of list)if(item&&Number(item.idx)===tool.invoiceId)item.usosRestantes=tool.usos;
   if(data.inventoryLoadedAt)scene._inventoryLoadedAt=data.inventoryLoadedAt;
-  if(data.stats){scene._adoptarVitalesDelServidor?.(data.stats);Object.assign(root.playerStats || {},data.stats);if(root.GFBronce)root.GFBronce.adoptarStats(data.stats);}
+  if(data.stats){scene.statsSync?.adoptCanonical?.(data.stats);scene._adoptarVitalesDelServidor?.(data.stats);Object.assign(root.playerStats || {},data.stats);if(root.GFBronce)root.GFBronce.adoptarStats(data.stats);}
   if(data.progress){for(const [field,value]of Object.entries(data.progress))if(Number.isFinite(value))scene[field]=value;scene._nivelDesdeExp?.();}
   for(const crop of data.farm?.crops || [])scene.updatePlotVisual?.(crop.plotId,crop);
   if(data.ok&&data.farm?.action==='harvest')for(const plot of data.farm.plotIds)scene.resetPlot?.(plot);
@@ -71,6 +72,15 @@
   }}finally{if(live(scene,runId))for(const plot of plots){scene.marcarCuadroPendienteCorte(plot,false);scene._cutsEnVuelo.delete(plot);}}
  }
  async function waterBatch(scene,plots,mode){const runId=scene._sceneRunId,data=await run(scene,{action:'water',mode,plotIds:plots});if(!data||!live(scene,runId))return 0;scene._nativeWaterCount=(scene._nativeWaterCount||0)+plots.length;return plots.length;}
+ function growth(scene,data,run){
+  const account=String(scene.currentAccount || '').toLowerCase();
+  if(!live(scene,run)||String(data?.userId || '').toLowerCase()!==account)return false;
+  const previous=scene.cropData?.get(data.plotId);if(!previous||!catalog?.crops[previous.cropType])return false;
+  const next={...previous,...data,cropConfig:data.cropConfig || previous.cropConfig};delete next.timeRemaining;
+  if(Number.isFinite(data.timeRemaining))next.currentGrowthTime=Math.max(0,Number(previous.growthDuration)-data.timeRemaining);
+  if(next.isCompleted)next.currentGrowthTime=previous.growthDuration;
+  scene.updatePlotVisual?.(data.plotId,next);return true;
+ }
  function visual(crop){
   if(!catalog?.crops[crop.cropType]||!crop.isWatered||crop.isCompleted||crop.isDead)return;
   let anchor=clocks.get(crop);if(!anchor){anchor={at:performance.now(),elapsed:Number(crop.currentGrowthTime)||0};clocks.set(crop,anchor);}
@@ -79,8 +89,13 @@
  }
  function attach(scene){
   if(scene._nativeCropClock||!scene.time?.addEvent)return;const runId=scene._sceneRunId;
-  const timer=scene._nativeCropClock=scene.time.addEvent({delay:1000,loop:true,callback:()=>{if(!live(scene,runId))return;for(const [plot,crop]of scene.cropData || [])if(catalog?.crops[crop.cropType]&&crop.isWatered&&!crop.isCompleted&&!crop.isDead)scene.updatePlotVisual(plot,crop);}});
+  let lastRefresh=0;
+  const timer=scene._nativeCropClock=scene.time.addEvent({delay:1000,loop:true,callback:()=>{
+   if(!live(scene,runId))return;let due=false;
+   for(const [plot,crop]of scene.cropData || [])if(catalog?.crops[crop.cropType]&&crop.isWatered&&!crop.isCompleted&&!crop.isDead){scene.updatePlotVisual(plot,crop);if(crop.currentGrowthTime>=crop.growthDuration)due=true;}
+   if(due&&performance.now()-lastRefresh>=20000&&root.document?.visibilityState!=='hidden'){lastRefresh=performance.now();scene.loadUserCrops?.();}
+  }});
   scene._onceSceneEnd(()=>{timer.remove(false);if(scene._nativeCropClock===timer)scene._nativeCropClock=null;});
  }
- root.GFNativeCrops=Object.freeze({run,plantBatch,harvestBatch,waterBatch,visual,attach,isSeed:id=>!!catalog?.crops[id],isCrop:c=>!!c&&!!catalog?.crops[c.cropType],adopt});
+ root.GFNativeCrops=Object.freeze({run,plantBatch,harvestBatch,waterBatch,visual,attach,growth,isSeed:id=>!!catalog?.crops[id],isCrop:c=>!!c&&!!catalog?.crops[c.cropType],adopt});
 })(window);
