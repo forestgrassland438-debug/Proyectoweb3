@@ -2314,9 +2314,11 @@ class TiendaSistema {
             );
         }
         
-        // Lo que solo se vende (los peces) no sale en la lista de compra.
+        // Lo que solo se vende (los peces) no sale en la lista de compra. Tampoco lo que no
+        // tiene precio de compra (2026-11-02): las cosechas podridas y los brotes de los
+        // cultivos nuevos están en el catálogo para VENDERLOS y salían aquí a "0 SL".
         if (this.transactionType === 'compra') {
-            allItems = allItems.filter(item => !item.soloVenta);
+            allItems = allItems.filter(item => !item.soloVenta && Number(item.buyPrice) > 0);
         }
 
         if (this.transactionType === 'venta') {
@@ -2597,7 +2599,7 @@ class TiendaSistema {
         if (!this.selectedItem) {
             if (detailImg) detailImg.src = './Game/Source/moneda de oro.png';
             if (detailName) detailName.textContent = 'Select an item';
-            if (priceContainer) priceContainer.innerHTML = `<img src="./Game/Source/moneda de oro.png" alt="GL" class="moneda-icon"> 0 GL`;
+            if (priceContainer) priceContainer.innerHTML = '';
             if (interactBtn) interactBtn.disabled = true;
             const precioBtn0 = document.getElementById('price-history-button-pc');
             if (precioBtn0) precioBtn0.disabled = true;
@@ -5629,19 +5631,22 @@ renderSlot(index) {
                 item = { ...current }; r = await send(item); d = r && r.datos || {};
             }
         }
+        // Rechazada por la cadena: el servidor ya devolvió lo retenido y el saldo pudo cambiar de moneda.
+        const adoptarSaldo = stats => {
+            this._statsSync()?.adoptCanonical?.(stats);
+            if (window.GFBronce?.adoptarStats) window.GFBronce.adoptarStats(stats);
+            this.playerMoneda = Number(stats.oro) || 0; this.playerMonedaPlata = Number(stats.plata) || 0;
+            if (window.playerStats) Object.assign(window.playerStats, stats);
+        };
         if (!r || !r.ok || !d.ok) {
+            if (d.stats && !d.revision) { adoptarSaldo(d.stats); this.updateMonedaDisplay?.(); }
             const why = d.error === 'precios_actualizados' ? 'The price changed. Review the updated price and try again.'
                 : d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
                 : d.revision ? 'Your operation is recorded for chain review. Do not repeat it; the control center has the receipt.'
-                : ({saldo_insuficiente:'You do not have enough coins, including the shop fee.',nivel_bajo:'Your character has not reached the required level.',tope_diario_tienda:'You have reached the daily purchase limit.',objeto_no_disponible:'This item is not available for this trade.',crop_table_unavailable:'The crop table is unavailable. Nothing was charged.',resource_capacity_exhausted:'The resource table is full. Nothing was charged.'})[d.error] || 'The server could not complete the trade. Check pending operations before retrying.';
+                : ({cadena_ocupada:'The chain did not accept this trade. Nothing was charged and no item changed. Please try again.',saldo_insuficiente:'You do not have enough coins, including the shop fee.',nivel_bajo:'Your character has not reached the required level.',tope_diario_tienda:'You have reached the daily purchase limit.',objeto_no_disponible:'This item is not available for this trade.',crop_table_unavailable:'The crop table is unavailable. Nothing was charged.',resource_capacity_exhausted:'The resource table is full. Nothing was charged.'})[d.error] || 'The server could not complete the trade. Check pending operations before retrying.';
             this.showNotification?.(why, 'error'); throw Object.assign(new Error(why), { code: d.error });
         }
-        if (d.stats) {
-            this._statsSync()?.adoptCanonical?.(d.stats);
-            if (window.GFBronce?.adoptarStats) window.GFBronce.adoptarStats(d.stats);
-            this.playerMoneda = Number(d.stats.oro) || 0; this.playerMonedaPlata = Number(d.stats.plata) || 0;
-            if (window.playerStats) Object.assign(window.playerStats, d.stats);
-        }
+        if (d.stats) adoptarSaldo(d.stats);
         if (op === 'compra' && item.limiteDiario > 0) {
             this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + d.confirmadas;
             this.saveDailyLimits();
