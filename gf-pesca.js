@@ -84,6 +84,18 @@
                   pes13: 'King Salmon', pes14: 'Pufferfish' };
   var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8',
                'pes9', 'pes10', 'pes11', 'pes12', 'pes13', 'pes14'];
+  // (2026-11-02) Los 10 nuevos y las cañas nuevas vienen de gf-items-v2.js.
+  var CANAS = ['cana_pescar'];
+  (function () {
+    var v2 = window.GFItemsV2;
+    if (!v2) return;
+    Object.keys(v2.pesca).forEach(function (id) { NOMBRES[id] = v2.items[id].name; PECES.push(id); });
+    CANAS = CANAS.concat(Object.keys(v2.canasSuerte));
+  })();
+  function tieneCana(scene) {
+    if (typeof scene.contarItemEnInventario !== 'function') return false;
+    return CANAS.some(function (id) { return scene.contarItemEnInventario(id) > 0; });
+  }
   var DIRS = { left: 'izquierda', right: 'derecha', up: 'arriba', down: 'abajo' };
   var V_FOTOS = '?v=20261006a';   // fotogramas nuevos de frente y de espaldas
   /* Dónde está la punta de la caña en cada fotograma (px desde el centro del
@@ -1195,7 +1207,7 @@
     if (ahora - st.ultimaMirada > 150) {
       st.ultimaMirada = ahora;
       var antes = st.puede;
-      var tiene = typeof scene.contarItemEnInventario === 'function' && scene.contarItemEnInventario('cana_pescar') > 0;
+      var tiene = tieneCana(scene);
       st.puede = !!(tiene && st.agua && !scene._cambiandoEscena && enLaOrilla(st.agua, p.x, p.y + 40));
       if (antes !== st.puede) pintarBoton(st);
     }

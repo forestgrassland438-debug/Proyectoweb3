@@ -328,8 +328,12 @@
          Era `inline-flex`, o sea que al pasar el ratón aparecían dos botones de
          20 px, el renglón crecía y el chat entero pegaba un salto. En absoluta
          aparece y desaparece sin mover nada. `.chat-line` ya es `relative`. */
+      /* (2026-11-02) "Las reacciones no funcionan." El botón solo existía al pasar el ratón: en el
+         teléfono no hay ratón, y en el PC había que adivinarlo. Ahora siempre se ve, tenue, y el
+         texto le deja su hueco para no quedar debajo. */
+      '.chat-line[data-mid]{padding-right:26px !important;}',
       '.gfcs-barra{position:absolute;top:2px;right:4px;display:flex;gap:3px;',
-      '  opacity:0;transition:opacity .15s;pointer-events:none;',
+      '  opacity:.6;transition:opacity .15s;pointer-events:auto;',
       '  background:rgba(6,14,30,0.82);border-radius:7px;padding:1px 2px;}',
       '.chat-line:hover .gfcs-barra,.gfcs-barra.fijo{opacity:1;pointer-events:auto;}',
       '.gfcs-bot{background:rgba(64,160,255,0.14);border:1px solid rgba(64,160,255,0.28);',
@@ -444,6 +448,10 @@
        llamada, y el de 'chatMessage' —colgado del socket global, que se
        engancha una sola vez por pestaña— la arrastraba: la primera GameScene
        no se liberaba nunca, por muchos viajes que se hicieran. */
+    // El servidor ya no tiene ese mensaje (se reinició o salió del anillo de 50): se dice, no se calla.
+    poner('chatReactFallo', function () {
+      avisar(escenaViva, 'This message is too old to react to.', 'info');
+    });
     poner('chatReaction', function (d) {
       if (!d || !d.mid) return;
       var reg = pintados.get(d.mid);

@@ -2,14 +2,28 @@
  'use strict';if(root.GFNativeCrops)return;
  const catalog=root.GFPlantCatalog,queues=new Map(),references=new Map(),counts=new Map(),clocks=new WeakMap();
  const keyOf=b=>JSON.stringify([b.action,b.seedType || '',b.mode || '',[...b.plotIds].sort()]);
+ const wait=ms=>new Promise(fin=>setTimeout(fin,ms));
  const notice=(s,text,type='warning')=>s.notifications?.show(text,type);
  function live(s,run){return s._sceneRunId===run&&!s._sceneStopped&&s.sys?.isActive?.()!==false;}
  async function request(scene,path,body){
-  const messages={farm_tool_required_or_worn:'You need an owned tool with enough durability for these plots.',farm_inventory_full:'Free some inventory space before harvesting.',craft_level_required:'Your character has not reached the required level.',craft_materials_missing:'The required items are no longer available in your bag.',craft_result_capacity_unavailable:'This crop table is full. Your crops remain on their plots; try again when capacity is available.',farm_vitals_insufficient:'You need more water or food before farming.',farm_plot_busy:'This plot has a pending operation. Reconcile it before trying again.',farm_crop_state_changed:'The crop changed while this request was waiting. Refresh your plots and try again.',farm_not_waterable:'These crops are already watered, ready or rotten.',farm_plot_not_owned:'This island plot is unavailable for your account.',farm_busy:'Another farm action is pending. Reconcile it before trying again.'};
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
-  try{const response=await fetch(scene.serverBase+path,{method:body?'POST':'GET',credentials:'include',headers:{'Content-Type':'application/json','X-CSRF-Token':await root.getCsrfToken()},body:body?JSON.stringify(body):undefined,signal:controller.signal});
-   const value=await response.json();if(!response.ok)throw Object.assign(Error(messages[value.error]||value.message||'The farm request could not be completed. Check pending operations before retrying.'),{code:value.error,status:response.status});return value;
-  }finally{clearTimeout(timer);}
+  const messages={farm_tool_required_or_worn:'You need an owned tool with enough durability for these plots.',farm_inventory_full:'Free some inventory space before harvesting.',craft_level_required:'Your character has not reached the required level.',craft_materials_missing:'The required items are no longer available in your bag.',craft_result_capacity_unavailable:'This crop table is full. Your crops remain on their plots; try again when capacity is available.',farm_vitals_insufficient:'You need more water or food before farming.',farm_plot_busy:'This plot has a pending operation. Reconcile it before trying again.',farm_crop_state_changed:'The crop changed while this request was waiting. Refresh your plots and try again.',farm_not_waterable:'These crops are already watered, ready or rotten.',farm_plot_not_owned:'This island plot is unavailable for your account.',farm_busy:'Another farm action is pending. Reconcile it before trying again.',
+   craft_previous_pending:'Another item operation is still finishing. Try again in a moment.',farm_plot_occupied:'That plot already has a crop.',farm_crop_missing:'That crop is no longer there.',crop_missing:'That crop is no longer there.',farm_crop_not_native_or_busy:'This crop is busy with another action. Try again in a moment.',fantasma:'Revive your character before farming.',too_many_requests:'Too many actions in a row. Wait a few seconds and try again.',farm_plot_unknown:'This plot cannot be used.',craft_fee_state_changed:'This operation needs a review. Nothing else was spent.',farm_unavailable:'The farm is busy right now. Nothing was spent. Please try again.',farm_tool_authority_unavailable:'The farm is busy right now. Nothing was spent. Please try again.',farm_bucket_table_unavailable:'The chain table is not ready yet. Nothing was spent. Please try again.',farm_result_table_unavailable:'The chain table is not ready yet. Nothing was spent. Please try again.'};
+  /* (2026-11-02) "No me deja regar, sembrar ni cosechar: The farm operation could not be confirmed."
+     Un 429, un servidor ocupado o un corte de red no son un rechazo: se repiten con la misma
+     referencia (el servidor reconoce el trabajo, no se hace dos veces) antes de molestar a nadie. */
+  const esperas=[1000,2200,4000,6500,9000];
+  for(let intento=0;;intento++){
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
+   let response=null,value=null;
+   try{response=await fetch(scene.serverBase+path,{method:body?'POST':'GET',credentials:'include',headers:{'Content-Type':'application/json','X-CSRF-Token':await root.getCsrfToken()},body:body?JSON.stringify(body):undefined,signal:controller.signal});value=await response.json().catch(()=>null);}
+   catch(_){response=null;}
+   finally{clearTimeout(timer);}
+   const pasajero=!response||response.status===429||(!value&&response.status>=500)||(value&&value.reintentar===true);
+   if(response&&response.ok)return value;
+   if(pasajero&&intento<esperas.length){await wait(esperas[intento]);continue;}
+   if(!response)throw Object.assign(Error('The farm server did not answer. Please try again in a moment.'),{code:'farm_network'});
+   throw Object.assign(Error(messages[value&&value.error]||(value&&value.message)||'This farm action could not be done right now. Nothing was spent.'),{code:value&&value.error,status:response.status});
+  }
  }
  function adopt(scene,data,run){
   if(!live(scene,run))return;
@@ -34,22 +48,28 @@
   const owner=String(scene.currentAccount || scene.playerName).toLowerCase(),key=owner+':'+keyOf(body);let ticket=references.get(key),data,posting=false;
   if(!live(scene,run))return null;
   try{
-   const pending=await request(scene,'/api/craft/pending');
-   if(ticket?.operationId)data=await request(scene,'/api/craft/reconcile',{operationId:ticket.operationId});
-   else if(pending.rows?.length){
-    if(!String(pending.rows[0].recipe).startsWith('farm_')){notice(scene,'Another item operation is pending. Reconcile it before farming.');return null;}
-    data=await request(scene,'/api/craft/reconcile',{operationId:pending.rows[0]._id});
-   }else{
-    if(!ticket){if(references.size>=256)throw Error('Reconcile pending operations before starting more farm requests.');ticket={ref:crypto.randomUUID().replace(/-/g,'')};references.set(key,ticket);}
-    posting=true;data=await request(scene,'/api/farm/execute',{...body,ref:ticket.ref});
+   /* Solo cabe una operación activa por cuenta (comer, craftear, otra parcela). Si hay otra a
+      medias se termina primero y LUEGO se hace lo que el jugador acaba de pedir: antes se le
+      mandaba a "reconciliar" y a volver a elegir las parcelas, y parecía que no dejaba sembrar. */
+   for(let turno=0;turno<5;turno++){
+    if(!live(scene,run))return null;
+    posting=false;
+    const pending=await request(scene,'/api/craft/pending');
+    if(ticket?.operationId)data=await request(scene,'/api/craft/reconcile',{operationId:ticket.operationId});
+    else if(pending.rows?.length)data=await request(scene,'/api/craft/reconcile',{operationId:pending.rows[0]._id});
+    else{
+     if(!ticket){if(references.size>=256)throw Error('Please wait for your current farm actions to finish.');ticket={ref:crypto.randomUUID().replace(/-/g,'')};references.set(key,ticket);}
+     posting=true;data=await request(scene,'/api/farm/execute',{...body,ref:ticket.ref});
+    }
+    adopt(scene,data,run);
+    const farm=data.farm,same=farm&&farm.action===body.action&&JSON.stringify([...farm.plotIds].sort())===JSON.stringify([...body.plotIds].sort())&&(!body.seedType||farm.seedType===body.seedType)&&(!body.mode||farm.mode===body.mode);
+    if(!same){await wait(data.status==='completed'||data.status==='cancelled'?0:1500*(turno+1));continue;}
+    if(data.status==='cancelled'){references.delete(key);notice(scene,'The untouched operation was cancelled. Its reserved resources were returned.');return null;}
+    if(!data.ok){references.set(key,{...ticket,operationId:data.operationId});notice(scene,'Your farm action is still confirming on-chain. It will finish on its own.','info');return null;}
+    references.delete(key);return data;
    }
-   adopt(scene,data,run);
-   const farm=data.farm,same=farm&&farm.action===body.action&&JSON.stringify([...farm.plotIds].sort())===JSON.stringify([...body.plotIds].sort())&&(!body.seedType||farm.seedType===body.seedType)&&(!body.mode||farm.mode===body.mode);
-   if(!same){notice(scene,'The previous farm operation was reconciled. Select your current plots again.');return null;}
-   if(data.status==='cancelled'){references.delete(key);notice(scene,'The untouched operation was cancelled. Its reserved resources were returned.');return null;}
-   if(!data.ok){references.set(key,{...ticket,operationId:data.operationId});notice(scene,'Farm operation saved. Check pending operations before trying again.');return null;}
-   references.delete(key);return data;
-  }catch(e){if(posting&&[400,403].includes(e.status))references.delete(key);if(live(scene,run))notice(scene,e.message||'Farm confirmation is pending. Check it before retrying.');return null;}
+   notice(scene,'Another item operation is still finishing. Try again in a moment.');return null;
+  }catch(e){if(posting&&[400,403].includes(e.status))references.delete(key);if(live(scene,run))notice(scene,e.message||'Your farm action is still confirming on-chain. It will finish on its own.');return null;}
  }
  function run(scene,body){
   const runId=scene._sceneRunId,owner=String(scene.currentAccount || scene.playerName).toLowerCase(),previous=queues.get(owner)||Promise.resolve();

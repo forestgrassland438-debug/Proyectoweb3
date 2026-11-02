@@ -13324,6 +13324,9 @@ html.gf-teclado-abierto #chat-panel {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
+  /* (2026-11-02) Ya son 27: la rejilla se desplaza en vez de salirse de la pantalla. */
+  max-height: 46vh;
+  overflow-y: auto;
 }
 .lc-tipo {
   position: relative;
@@ -13341,7 +13344,7 @@ html.gf-teclado-abierto #chat-panel {
   cursor: pointer;
   transition: background .15s, border-color .15s, transform .15s cubic-bezier(.2, .9, .3, 1.4);
 }
-.lc-tipo img { width: 30px; height: 30px; image-rendering: pixelated; }
+.lc-tipo img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; }
 .lc-tipo-nombre {
   font-size: 10px;
   font-weight: 600;

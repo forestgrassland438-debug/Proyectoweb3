@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <script src="./gf-crop-catalog.js?v=20261029.plants1"></script>
-<script src="./gf-native-crops.js?v=20261029.plants1" defer></script>
+<script src="./gf-items-v2.js?v=20261102.ampl3"></script>
+<script src="./gf-native-crops.js?v=20261102.ampl3" defer></script>
   <meta charset="UTF-8" />
   <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
        se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
@@ -15,9 +16,9 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=20261028.00c2182d82bf" />
+  <link rel="stylesheet" href="styless.css?v=20261102.ampl3" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
-  <link rel="stylesheet" href="gf-hud.css?v=22.5.e34cb2881578" />
+  <link rel="stylesheet" href="gf-hud.css?v=20261102.ampl3" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -78,7 +79,7 @@
   <script src="./ui-image-fallbacks.js" defer></script>
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=22.5.cbe639b9d7b9" defer></script>
+  <script src="./missionspanel.js?v=20261102.ampl3" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
@@ -103,7 +104,7 @@
   <script src="./gf-troncos.js?v=22.5.9c7b9955523d" defer></script>
   <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8" defer></script>
   <script src="./gf-nieve.js?v=22.5.435bca8e424f" defer></script>
-  <script src="./gf-pesca.js?v=22.5.df5d5c38f56a" defer></script>
+  <script src="./gf-pesca.js?v=20261102.ampl3" defer></script>
   <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
   <script src="./gf-monte.js?v=22.5.077d85a03e35" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
@@ -115,10 +116,14 @@
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
   <script src="./gf-character-skills.js?v=22.5.b87ce67311d6" defer></script>
-  <script src="./gf-espada.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-espada.js?v=20261102.ampl3" defer></script>
+  <script src="./gf-poderes.js?v=20261102.ampl3" defer></script>
+  <script src="./gf-npc-tiendas.js?v=20261102.ampl3" defer></script>
+  <script src="./gf-vaca.js?v=20261102.ampl3" defer></script>
+  <script src="./gf-monturas.js?v=20261102.ampl3" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
-  <script src="./gf-hud-ajuste.js?v=22.5.56ccd6a7df4d" defer></script>
+  <script src="./gf-hud-ajuste.js?v=20261102.ampl3" defer></script>
   <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
   <!-- Caminos para los monstruos (rodean las paredes). Antes que los que lo usan. -->
   <script src="./gf-rutas.js?v=22.1.c909be131777" defer></script>
@@ -126,36 +131,36 @@
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
   <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9" defer></script>
   <script src="./gf-mobs-red.js?v=22.5.437264456c3c" defer></script>
-  <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949" defer></script>
+  <script src="./gf-mina-zombis.js?v=20261102.ampl3" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
   <!-- Recoger y soltar sin esperar a la cadena: la cola y su contador (2026-10-19). -->
   <script src="./gf-cola-cadena.js?v=22.5.ae046151620c" defer></script>
   <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
-  <script src="./gf-npcs.js?v=22.5.df341c48646a" defer></script>
+  <script src="./gf-npcs.js?v=20261102.ampl3" defer></script>
   <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6" defer></script>
   <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac" defer></script>
   <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e" defer></script>
-  <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
+  <script src="./gf-mina-espectros.js?v=20261102.ampl3" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=20261028.76688f222472" defer></script>
+  <script src="./gf-salvaje.js?v=20261102.ampl3" defer></script>
   <script src="./gf-jefes.js?v=20261029.auditoria2" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
        Scenes/ZonasScenes.js). -->
   <script src="./gf-camellos.js?v=22.5.9812a80489cc" defer></script>
-  <script src="./gf-fauna-zonas.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-fauna-zonas.js?v=20261102.ampl3" defer></script>
   <script src="./gf-zonas.js?v=22.5.86e48976ef3e" defer></script>
   <script src="./gf-agua.js?v=22.5.783d5f911ef3" defer></script>
   <script src="./gf-suelo.js?v=22.5.1769043b2030" defer></script>
-  <script src="./gf-casas.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-casas.js?v=20261102.ampl3" defer></script>
   <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=22.5.ccdc78818f1b" defer></script>
   <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
-  <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25" defer></script>
+  <script src="./gf-animales.js?v=20261102.ampl3" defer></script>
   <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
   <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
@@ -167,7 +172,7 @@
   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
   <script src="./gf-graficos.js?v=20261029.auditoria2" defer></script>
   <script src="./gf-economia.js?v=20261029.auditoria2" defer></script>
-  <script src="./gf-vip.js?v=20261029.auditoria2" defer></script>
+  <script src="./gf-vip.js?v=20261102.ampl3" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
   <script src="./gf-clima.js?v=20261029.auditoria2" defer></script>
@@ -186,7 +191,7 @@
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=22.5.7b8b409d783a" defer></script>
+  <script src="./gf-audio.js?v=20261102.ampl3" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
@@ -208,32 +213,32 @@
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
   <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2" defer></script>
-  <script src="./gf-amigos.js?v=22.5.aad9d1c1f261" defer></script>
+  <script src="./gf-amigos.js?v=20261102.ampl3" defer></script>
   <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
        adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
   <script src="./gf-admin-ajuste.js?v=20261029.auditoria2" defer></script>
   <!-- (2026-10-26) El mapa del mundo: tecla M o el botón "Map"; viajar pagando en bronce. -->
-  <script src="./gf-mapa-mundo.js?v=22.5.0dbd402e13fd" defer></script>
-  <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f" defer></script>
+  <script src="./gf-mapa-mundo.js?v=20261102.ampl3" defer></script>
+  <script src="./gf-chat-social.js?v=20261102.ampl3" defer></script>
   <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=20261029.auditoria2" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=20261102.ampl3" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=20261029.auditoria2" defer></script>
-  <script src="./Scenes/GameScene.js?v=20261029.auditoria2" defer></script>
+  <script src="./Scenes/GameScene.js?v=20261102.ampl3" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.5.412c8253e5c4" defer></script>
+  <script src="./Scenes/MinaScene.js?v=20261102.ampl3" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=22.5.d3bf5d95efbb" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=22.5.3b0a21ea6bbc" defer></script>
+  <script src="./Scenes/LandsScene.js?v=20261102.ampl3" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=20261102.ampl3" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=22.5.6e6d2234209f" defer></script>
-  <script src="./Scenes/ZonasScenes.js?v=22.5.5bc3a1b4cd85" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=20261102.ampl3" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=20261102.ampl3" defer></script>
   <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa" defer></script>
 
@@ -259,10 +264,10 @@
   <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
   <script src="./TransactionHub.js?v=20261029.auditoria2" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
-  <script src="./CraftingHub.js?v=20261029.auditoria2" defer></script>
+  <script src="./CraftingHub.js?v=20261102.ampl3" defer></script>
   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
   <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
-  <script src="./tienda_sistema.js?v=20261102.tienda1" defer></script>
+  <script src="./tienda_sistema.js?v=20261102.ampl3" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=20261029.auditoria2" defer></script>
@@ -480,7 +485,7 @@
     <!-- Shop header -->
     <div class="tienda-header">
       <div class="tienda-title">
-        <h2><span class="tienda-icon">🏪</span> Johnny Johnson's Shop</h2>
+        <h2><span class="tienda-icon">🏪</span> Johnny's General Store</h2>
         <div class="tienda-saldo">
           <span class="coin-balance">
             <img src="./Game/Source/moneda de oro.png" alt="Gold coin" class="moneda-icon">
@@ -489,6 +494,10 @@
           <span class="coin-balance">
             <img src="./Game/Source/moneda de plata.png" alt="Silver coin" class="moneda-icon">
             <span id="tienda-moneda-plata">0</span> SL
+          </span>
+          <span class="coin-balance">
+            <img src="./Game/Source/moneda de bronce.png" alt="Bronze coin" class="moneda-icon">
+            <span id="tienda-moneda-bronce">0</span> BR
           </span>
         </div>
       </div>
@@ -512,6 +521,7 @@
           <option value="equipo">Equipment</option>
           <option value="especial">Special</option>
           <option value="construccion">Construction</option>
+          <option value="monturas">Mounts</option>
         </select>
         
         <select id="tienda-tipo" class="tienda-select">
@@ -532,6 +542,7 @@
       <button type="button" class="tienda-apartado" data-cat="alimentos" role="tab" aria-selected="false">🍎 Food</button>
       <button type="button" class="tienda-apartado" data-cat="equipo" role="tab" aria-selected="false">⚔️ Equipment</button>
       <button type="button" class="tienda-apartado tienda-apartado-construccion" data-cat="construccion" role="tab" aria-selected="false">🏗️ Construction</button>
+      <button type="button" class="tienda-apartado" data-cat="monturas" role="tab" aria-selected="false">🐎 Mounts</button>
     </div>
 
     <!-- Main content -->
@@ -1374,6 +1385,7 @@
           </div>
 
           <div class="crafting-actions">
+            <div class="crafting-fee" id="craft-fee" style="font-size:12px;opacity:.85;margin:0 0 8px"></div>
             <button id="craft-button" class="craft-btn" disabled aria-disabled="true">
               <span class="craft-icon" aria-hidden="true">⚒️</span> Craft
             </button>

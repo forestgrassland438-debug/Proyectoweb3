@@ -604,6 +604,7 @@ class CraftingSystem {
     const fb=document.getElementById('crafting-feedback');
     if(!cb||!fb) return;
     cb.classList.remove('craft-blocked');
+    this._pintarComisionBoton(this.selectedRecipe);
     if(!this.selectedRecipe){cb.disabled=true;fb.textContent='';fb.className='crafting-feedback';return;}
     cb.disabled=false;
     if(this.playerLevel<this.selectedRecipe.level){
@@ -1355,7 +1356,23 @@ class CraftingSystem {
     window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1).then(b=>{
       if(!caja.isConnected) return;
       caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
+      // (2026-11-02) "En el botón Craft no dice el monto a cobrar."
+      const boton=document.getElementById('overlay-craft-button');
+      if(boton&&b!=null&&!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft · Fee ${Number(b).toLocaleString('en-US')} BR`;
     }).catch(()=>{});
+  }
+
+  /** La misma comisión en el botón de la lista de recetas. */
+  _pintarComisionBoton(recipe){
+    const caja=document.getElementById('craft-fee'),boton=document.getElementById('craft-button');
+    if(!caja||!boton) return;
+    const poner=(b)=>{
+      caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
+      if(!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft${b==null?'':` · Fee ${Number(b).toLocaleString('en-US')} BR`}`;
+    };
+    if(!recipe||!window.GFServicios){poner(null);return;}
+    const clave=recipe.id;this._comisionClave=clave;
+    window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1).then(b=>{if(this._comisionClave===clave)poner(b);}).catch(()=>{});
   }
 
   _setupOverlayEvents(content,recipe) {

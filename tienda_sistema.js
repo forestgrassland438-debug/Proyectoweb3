@@ -841,7 +841,9 @@ class TiendaSistema {
                     limiteDiario: 0,
                     descripcion: 'Poisonous! It stings when you unhook it and drains 16% life over half a minute. Not edible.'
                 },
-                ...(window.GFPlantCatalog?.shop.comida || []).map(item => ({ ...item }))
+                ...(window.GFPlantCatalog?.shop.comida || []).map(item => ({ ...item })),
+                // (2026-11-02) Panes, tortas, ingredientes y peces nuevos: aquí se VENDEN; se compran a Martha y a Tobias (gf-npc-tiendas.js).
+                ...(window.GFItemsV2?.shop.alimentos || []).map(item => ({ ...item }))
             ],
 
             /* CONSTRUCCIÓN (2026-10-03). Lo que se coloca en la isla (Lands).
@@ -1003,7 +1005,9 @@ class TiendaSistema {
                     comision: 10,
                     limiteDiario: 0,
                     descripcion: 'The finest chest in the land, with 20 slots. It cannot be bought: craft it from a Magic Chest.'
-                }
+                },
+                // (2026-11-02) Las 20 de gf-items-v2.js, cada una en su tabla, que se crea sola al comprar.
+                ...(window.GFItemsV2?.shop.construccion || []).map(item => ({ ...item }))
             ],
             /* EQUIPO (2026-10-05): las tres espadas y la caña de pescar, cada
              * una en su tabla del contrato. (El espantapájaros pasó a
@@ -1104,8 +1108,12 @@ class TiendaSistema {
                     comision: 10,
                     limiteDiario: 0,
                     descripcion: 'A rowing boat. Pick it from your bag and click the water near you (village, wild lands, desert, snow, cemetery or mine). Click it to get in, row with the arrows or by clicking the water, and fish from it. Pick it up again with the Construction Shovel.'
-                }
+                },
+                // (2026-11-02) Espadas, arcos y cañas nuevas, con su nivel y su tabla (gf-items-v2.js).
+                ...(window.GFItemsV2?.shop.equipo || []).map(item => ({ ...item }))
             ],
+            // (2026-11-02) Los animales para montar: tecla H (gf-monturas.js).
+            monturas: (window.GFItemsV2?.shop.monturas || []).map(item => ({ ...item })),
             /*
             equipo_viejo: [
                 {
@@ -1653,7 +1661,8 @@ class TiendaSistema {
             'alimentos': 'Food',
             'equipo': 'Equipment',
             'especial': 'Special',
-            'construccion': 'Construction'
+            'construccion': 'Construction',
+            'monturas': 'Mounts'
         };
         
         document.getElementById('pc-item-name').textContent = item.name;
@@ -2344,7 +2353,8 @@ class TiendaSistema {
                 'alimentos': 'Food',
                 'equipo': 'Equipment',
                 'especial': 'Special',
-                'construccion': 'Construction'
+                'construccion': 'Construction',
+                'monturas': 'Mounts'
             };
             filtroTexto = categorias[this.currentCategory] || this.currentCategory;
         }
@@ -5619,7 +5629,21 @@ renderSlot(index) {
         if (!window.GFMascota?.api) throw new Error('The authoritative payment service is unavailable.');
         const bronzeQuote = value => Number(op === 'compra' ? value.buyPrice : value.sellPrice) * ({ gold: 1000000, silver: 1000, bronze: 1 }[this.getItemCurrency(value)] || 0);
         const agreed = bronzeQuote(item);
-        const send = value => window.GFMascota.api('/api/economia/tienda', { op, itemId: value.id, cantidad, precioBronce: bronzeQuote(value), ref });
+        /* (2026-11-02) "Cuando hago muchas compras seguidas a veces sale ese error." Un corte de red,
+           un 429 o un servidor ocupado no es un rechazo: se repite con la MISMA referencia, que el
+           servidor reconoce (si ya la hizo, devuelve lo hecho; no se paga ni se entrega dos veces).
+           Solo se avisa al jugador si sigue sin contestar tras unos 30 s. */
+        const send = async value => {
+            const esperas = [1200, 2500, 4500, 7000, 10000];
+            for (let intento = 0; ; intento++) {
+                let resp = null;
+                try { resp = await window.GFMascota.api('/api/economia/tienda', { op, itemId: value.id, cantidad, precioBronce: bronzeQuote(value), ref }); } catch (_) { resp = null; }
+                const datos = resp && resp.datos;
+                const pasajero = !resp || resp.status === 429 || (!datos && resp.status >= 500) || (datos && datos.reintentar === true);
+                if (!pasajero || intento >= esperas.length) return resp;
+                await new Promise(fin => setTimeout(fin, esperas[intento]));
+            }
+        };
         let r = await send(item), d = r && r.datos || {};
         if (d.error === 'precios_actualizados' && !d.revision) {
             const loaded = await this._cargarPreciosServidor();
@@ -5643,7 +5667,7 @@ renderSlot(index) {
             const why = d.error === 'precios_actualizados' ? 'The price changed. Review the updated price and try again.'
                 : d.error === 'tienda_sin_liquidez' ? 'The shop needs reserve funds before it can buy items. Nothing was consumed.'
                 : d.revision ? 'Your operation is recorded for chain review. Do not repeat it; the control center has the receipt.'
-                : ({cadena_ocupada:'The chain did not accept this trade. Nothing was charged and no item changed. Please try again.',saldo_insuficiente:'You do not have enough coins, including the shop fee.',nivel_bajo:'Your character has not reached the required level.',tope_diario_tienda:'You have reached the daily purchase limit.',objeto_no_disponible:'This item is not available for this trade.',crop_table_unavailable:'The crop table is unavailable. Nothing was charged.',resource_capacity_exhausted:'The resource table is full. Nothing was charged.'})[d.error] || 'The server could not complete the trade. Check pending operations before retrying.';
+                : ({cadena_ocupada:'The chain did not accept this trade. Nothing was charged and no item changed. Please try again.',saldo_insuficiente:'You do not have enough coins, including the shop fee.',nivel_bajo:'Your character has not reached the required level.',tope_diario_tienda:'You have reached the daily purchase limit.',objeto_no_disponible:'This item is not available for this trade.',crop_table_unavailable:'The crop table is unavailable. Nothing was charged.',resource_capacity_exhausted:'The resource table is full. Nothing was charged.'})[d.error] || d.message || 'The server did not answer. Your coins are safe: check your balance before trying again.';
             this.showNotification?.(why, 'error'); throw Object.assign(new Error(why), { code: d.error });
         }
         if (d.stats) adoptarSaldo(d.stats);
@@ -5714,11 +5738,13 @@ renderSlot(index) {
     updateMonedaDisplay() {
         const gold = document.getElementById('tienda-moneda');
         const silver = document.getElementById('tienda-moneda-plata');
+        const bronze = document.getElementById('tienda-moneda-bronce');
         const goldFallback = document.getElementById('info-text-left');
         const silverFallback = document.getElementById('info-text-right');
 
         if (gold) gold.textContent = `${this.playerMoneda ?? 0}`;
         if (silver) silver.textContent = `${this.playerMonedaPlata ?? 0}`;
+        if (bronze) bronze.textContent = Math.floor(Number(this._saldoBronce()) || 0).toLocaleString('en-US');
         if (goldFallback) goldFallback.textContent = `${this.playerMoneda ?? 0}`;
         if (silverFallback) silverFallback.textContent = `${this.playerMonedaPlata ?? 0}`;
     }

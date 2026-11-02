@@ -33,7 +33,7 @@
     casa_npc1:  { sala: 'hogar',    puerta: { x: 1472, y: 612 },  titulo: 'Cottage' },
     casa_npc2:  { sala: 'hogar',    puerta: { x: 1962, y: 607 },  titulo: 'Cottage' },
     casa_L:     { sala: 'hogar',    puerta: { x: 1488, y: 3253 }, titulo: 'Corner House' },
-    casa_comida:  { sala: 'posada', puerta: { x: 2444, y: 3230 }, titulo: 'The Inn' },
+    casa_comida:  { sala: 'posada', puerta: { x: 2444, y: 3230 }, titulo: "Tobias' Pastry Shop" },
     casa_comida2: { sala: 'posada', puerta: { x: 2928, y: 3247 }, titulo: 'The Tavern' },
     casa_posiones: { sala: 'pociones', puerta: { x: 2452, y: 1492 }, titulo: 'Potion Shop' },
     casa_herreria: { sala: 'herreria', puerta: { x: 3137, y: 1975 }, titulo: 'Smithy' },

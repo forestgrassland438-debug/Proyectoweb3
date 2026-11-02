@@ -4768,6 +4768,48 @@
     /** Qué tiempo cree la fauna que hace ahora mismo. Para depurar. */
     tiempo: function () { return releerTiempo(Date.now()); },
     /**
+     * LA RÁFAGA DE VIENTO (2026-11-02, gf-poderes.js). Los animales del cono se llevan el
+     * empujón por pasos (se paran ANTES de una pared) y luego se asustan como con un trueno.
+     * No les hace daño. Devuelve cuántos ha movido.
+     */
+    /** Los animales vivos de una especie (la vaca que se ordeña, gf-vaca.js). */
+    deEspecie: function (scene, especie) {
+      var st = scene && scene.__gfFauna;
+      if (!st) return [];
+      return st.animales.filter(function (a) { return a.spr && a.spr.scene && !a.muerto && a.especie === especie; });
+    },
+    empujarViento: function (scene, x, y, ang, radio, arco, fuerza) {
+      var st = scene && scene.__gfFauna, n = 0;
+      if (!st) return 0;
+      st.animales.forEach(function (a) {
+        if (!a.spr || a.muerto || !a.spr.visible || a.enMadriguera || a.congelado) return;
+        var dx = a.spr.x - x, dy = a.spr.y - (a.spr.displayHeight || 30) * 0.45 - y, d = Math.hypot(dx, dy);
+        if (d - (a.spr.displayWidth || 30) * 0.4 > radio) return;
+        if (d > 26) {
+          var da = Math.atan2(dy, dx) - ang;
+          while (da > Math.PI) da -= Math.PI * 2;
+          while (da < -Math.PI) da += Math.PI * 2;
+          if (Math.abs(da) > arco) return;
+        }
+        var ux = d > 1 ? dx / d : Math.cos(ang), uy = d > 1 ? dy / d : Math.sin(ang);
+        var largo = fuerza * (1 - Math.min(0.6, d / radio * 0.6)), hecho = 0;
+        var tw = scene.tweens.addCounter({ from: 0, to: 1, duration: 280, ease: 'Cubic.easeOut', onUpdate: function (t) {
+          if (!a.spr || !a.spr.scene || a.muerto) { tw.stop(); return; }
+          var meta = largo * t.getValue();
+          while (hecho + 4 <= meta) {
+            var nx = a.spr.x + ux * 4, ny = a.spr.y + uy * 4;
+            if (!libre(scene, a, nx, ny)) { hecho = largo; break; }
+            a.spr.setPosition(nx, ny);
+            hecho += 4;
+          }
+        } });
+        a.destino = null;
+        try { sobresaltar(st, a, scene.time.now); } catch (e) {}
+        n++;
+      });
+      return n;
+    },
+    /**
      * UN ESPADAZO (2026-10-05, gf-espada.js). Daña a los animales que estén
      * en el arco de delante del jugador: a menos de `alcance` px y a menos de
      * 75° de hacia donde mira. Los de tierra huyen del golpe y las aves

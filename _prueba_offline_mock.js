@@ -377,6 +377,48 @@
        history"), lo que cuesta fundir y craftear y la quema de la basura.
        ?precios=0 = servidor viejo (404). El trigo (Semillax2) va en BRONCE para
        probar un objeto con precio en bronce. */
+    // (2026-11-02) Las misiones diarias, para probar el panel (cerrar a medias, HUD, tirón).
+    var mMision = /^\/api\/missions\/daily\/(granjero|guardian)\/\d{4}-\d{2}-\d{2}$/.exec(ruta);
+    if (mMision) {
+      estado.misiones = estado.misiones || { hechas: [] };
+      return { success: true, npcId: mMision[1], resetInfo: { hoursUntilReset: 9 },
+        missions: [{ missionId: 'm1', itemId: 'zanahoria_buena', requiredAmount: 1, expReward: 40, silverReward: 5, tipo: 'entregar',
+                     texts: { 'en-US': { title: 'Carrots for the soup', description: 'Bring me a carrot.' } } }],
+        userProgress: { completedCount: estado.misiones.hechas.length, completedMissions: estado.misiones.hechas.map(function (id) { return { missionId: id }; }) } };
+    }
+    if (ruta === '/api/missions/daily/complete' && metodo === 'POST') {
+      var bMision = cuerpo(init);
+      estado.misiones = estado.misiones || { hechas: [] };
+      estado.misionesPedidas = (estado.misionesPedidas || []).concat([bMision]);
+      if (!bMision.npcId) return { __status: 400, errors: [{ msg: 'npcId' }] };
+      if (estado.misiones.hechas.indexOf(bMision.missionId) >= 0) return { __status: 409, error: 'already_completed' };
+      estado.misiones.hechas.push(bMision.missionId);
+      return { success: true, missionId: bMision.missionId, completedCount: estado.misiones.hechas.length, stats: estado.stats,
+               rewards: { exp: 40, silver: 5, silverPrometido: 5, gold: 0, goldPrometido: 0, bronze: 0, bronzePrometido: 0, item: null } };
+    }
+    // (2026-11-02) Tienda, crafteo y vaca, para probar los paneles de Martha y de Tobias.
+    if (ruta === '/api/economia/tienda' && metodo === 'POST') {
+      var bT = cuerpo(init);
+      estado.comprasNpc = (estado.comprasNpc || []).concat([bT]);
+      return { ok: true, confirmadas: bT.cantidad, fee: 1, stats: estado.stats, ref: bT.ref };
+    }
+    if (ruta === '/api/inventory/reconcile' && metodo === 'POST') return { success: true };
+    if (ruta === '/api/craft/pending') return { ok: true, rows: [] };
+    if (ruta === '/api/craft/execute' && metodo === 'POST') {
+      var bC = cuerpo(init), catC = window.GFPlantCatalog, recC = (catC.recipes || []).find(function (r) { return r.id === bC.recipeId; });
+      estado.recetasPedidas = (estado.recetasPedidas || []).concat([bC]);
+      if (!recC) return { __status: 400, error: 'craft_invalid_request' };
+      estado.factura = (estado.factura || 50000) + 1;
+      return { ok: true, status: 'completed', recipeId: recC.id, quantity: bC.quantity, itemId: recC.itemId, resultQuantity: recC.quantity * bC.quantity, fee: 100,
+               sourceInvoices: [], rewards: [{ itemId: recC.itemId, invoiceId: estado.factura, manualId: 'cf:' + estado.factura, quantity: recC.quantity * bC.quantity, newTotal: recC.quantity * bC.quantity }], stats: estado.stats };
+    }
+    if (ruta === '/api/granja/ordenar' && metodo === 'POST') {
+      estado.ordenes = (estado.ordenes || 0) + 1;
+      if (estado.ordenes % 2 === 1) return { ok: true, leche: false, esperaMs: 300 };
+      estado.factura = (estado.factura || 50000) + 1;
+      return { ok: true, leche: true, esperaMs: 300, status: 'completed', recipeId: 'ordenar_vaca', quantity: 1, itemId: 'balde_leche', resultQuantity: 1,
+               sourceInvoices: [], rewards: [{ itemId: 'balde_leche', invoiceId: estado.factura, manualId: 'cf:' + estado.factura, quantity: 1, newTotal: 1 }], stats: estado.stats };
+    }
     if (ruta === '/api/tiempo') return { ok: true, ahora: Date.now() };
     if (/^\/api\/economia\/(precios|precio\/|servicio|quema\/)/.test(ruta)) {
       if (/[?&]precios=0/.test(location.search)) return { __status: 404, error: 'not_found' };

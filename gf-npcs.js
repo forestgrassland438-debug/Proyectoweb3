@@ -105,16 +105,17 @@
 
   // ── QUIÉN VIVE EN CADA CASA (gf-casas.js; el punto, relativo a la aparición) ──
   var CASAS = {
-    casa_npc1:     { arte: 'panadera', nombre: 'Martha the Baker', dx: 190, dy: -190,
-                     frases: ['Fresh bread every morning! Well... almost every morning.', 'Wipe your boots, dear, I just swept.'] },
+    // (2026-11-02) Martha y Tobias venden y cocinan: su panel está en gf-npc-tiendas.js.
+    casa_npc1:     { arte: 'panadera', nombre: 'Martha the Baker', dx: 190, dy: -190, tienda: 'martha',
+                     frases: ['Fresh bread every morning! Well... almost every morning.', 'Bring me flour and yeast and I will bake for you.', 'Wipe your boots, dear, I just swept.'] },
     casa_npc2:     { arte: 'tallista', nombre: 'Elias the Woodcarver', dx: -200, dy: -180,
                      frases: ['Pine is soft, oak is honest. I carve both.', 'Bring me good logs and I will make you something fine.'] },
     // (2026-10-20) Rosalind vende los tickets del VIP (gf-vip.js): al hablarle, su tienda.
-    casa_L:        { arte: 'tejedora', nombre: 'Rosalind the Weaver', dx: 180, dy: -200, tienda: 'vip',
-                     frases: ['Every thread tells a story.', 'Looking for VIP, dear? I weave the finest tickets in town.',
-                              'Wool from the farm, dye from the herbalist. That is my secret.'] },
-    casa_comida:   { arte: 'posadero', nombre: 'Tobias the Innkeeper', dx: 220, dy: -200,
-                     frases: ['Welcome to the Inn! Rooms are warm and the stew is hot.', 'Travellers from the desert pay in strange coins.'] },
+    casa_L:        { arte: 'tejedora', nombre: 'Rosalind the VIP Merchant', dx: 180, dy: -200, tienda: 'vip',
+                     frases: ['Every ticket opens a door.', 'Looking for VIP, dear? I sell the finest tickets in town.',
+                              'With VIP you can build on your island and trade with other players.'] },
+    casa_comida:   { arte: 'posadero', nombre: 'Tobias the Pastry Chef', dx: 220, dy: -200, tienda: 'tobias',
+                     frases: ['Welcome to my pastry shop! The ovens are warm and the cream is fresh.', 'Bring me butter, eggs and fruit, and I will make you a cake.'] },
     casa_comida2:  { arte: 'tabernero', nombre: 'Bram the Barkeep', dx: -220, dy: -200,
                      frases: ['What will it be? Cider or more cider?', 'Heard the cemetery is crawling with skeletons again.'] },
     casa_posiones: { arte: 'herbolaria', nombre: 'Greta the Herbalist', dx: 200, dy: -180,
@@ -219,6 +220,11 @@
         n.tiendaDist = pj ? Math.hypot(pj.x - n.x, pj.y + 45 - n.y) : 0;
         window.GFVip.abrirTienda(scene);
       }
+      if ((d.tienda === 'martha' || d.tienda === 'tobias') && window.GFNpcTiendas) {
+        var pj2 = scene.player;
+        n.tiendaDist = pj2 ? Math.hypot(pj2.x - n.x, pj2.y + 45 - n.y) : 0;
+        window.GFNpcTiendas.abrir(scene, d.tienda);
+      }
     });
     if (d.accion === 'accion' && scene.anims.exists(tex + '_accion')) {
       spr.play(tex + '_accion');
@@ -311,6 +317,18 @@
           return;
         }
       }
+      // Igual con el panel de Martha o de Tobias abierto.
+      if ((n.d.tienda === 'martha' || n.d.tienda === 'tobias') && window.GFNpcTiendas && window.GFNpcTiendas.abierta()) {
+        var lejos2 = pie ? Math.hypot(pie.x - n.x, pie.y - n.y) : 0;
+        if (lejos2 > Math.max(LEJOS_TIENDA, (n.tiendaDist || 0) + 160)) {
+          window.GFNpcTiendas.cerrar();
+        } else {
+          if (n.destino) { n.destino = null; n.spr.anims.stop(); n.spr.setFrame(n.mira + '_1'); }
+          if (pie) mirarA(n, pie.x, pie.y);
+          n.esperaHasta = t + 1500;
+          return;
+        }
+      }
       if (cerca) {
         if (n.destino) { n.destino = null; n.spr.anims.stop(); }
         mirarA(n, pie.x, pie.y);
@@ -387,6 +405,7 @@
   }
 
   function desmontar(scene) {
+    if (window.GFNpcTiendas) window.GFNpcTiendas.cerrar();
     var st = scene && scene.__gfNpcs;
     if (!st) return;
     st.vivo = false;

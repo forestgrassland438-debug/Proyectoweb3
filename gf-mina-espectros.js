@@ -499,6 +499,7 @@
   window.GFMinaEspectros = {
     montar: montar,
     _interno: { textures: textures, hit: hit, update: update, mirar: mirar, colocar: colocar,
-                estado: function (s) { return s.__gfEspectros; } }
+                estado: function (s) { return s.__gfEspectros; },
+                empujarEspectro: empujar }   // la ráfaga de viento (gf-poderes.js)
   };
 })();

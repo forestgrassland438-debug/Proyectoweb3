@@ -52,6 +52,18 @@
     baston_mago:   { nombre: 'Wizard Staff', dano: 18, alcance: 260, enfria: 800, color: 0xb88cff, distancia: 'orbe' }
   };
   var ORDEN = ['espada_hierro', 'espada_cobre', 'espada_madera', 'baston_mago', 'arco'];
+  /* (2026-11-02) "La tienda no vende los distintos tipos de espadas ni arcos." Los nuevos vienen de
+     gf-items-v2.js con su `src`. El orden: de mejor a peor, primero lo de cerca y luego lo de lejos. */
+  (function () {
+    var nuevas = window.GFItemsV2 && window.GFItemsV2.armasJuego;
+    if (!nuevas) return;
+    Object.keys(nuevas).forEach(function (id) { ESPADAS[id] = nuevas[id]; });
+    var porDano = function (a, b) { return ESPADAS[b].dano - ESPADAS[a].dano; };
+    var lista = Object.keys(ESPADAS);
+    ORDEN = lista.filter(function (id) { return !ESPADAS[id].distancia; }).sort(porDano)
+      .concat(lista.filter(function (id) { return ESPADAS[id].distancia; }).sort(porDano));
+  })();
+  function iconoDe(id) { return (ESPADAS[id] && ESPADAS[id].src) || './Game/Objetos/armas/' + id + '.png'; }
   var CONO_DISTANCIA = 0.2;        // medio ángulo del disparo (rad): estrecho
   var VEL_DISPARO = 950;           // px/s de la flecha y del rayo
   var PODERES = {
@@ -123,8 +135,9 @@
     ORDEN.forEach(function (id) {
       var k = 'gfs_' + id;
       if (scene.textures.exists(k) || pedidas[k]) return;
+      if (ESPADAS[id].src && cuantas(scene, id) <= 0) return;
       pedidas[k] = true;
-      scene.load.image(k, './Game/Objetos/armas/' + id + '.png');
+      scene.load.image(k, iconoDe(id));
       nuevas++;
     });
     if (nuevas) scene.load.start();
@@ -351,7 +364,7 @@
     var lista = !!equipada && mias.indexOf(equipada) >= 0;
     b.classList.toggle('equipada', lista);
     var img = b.querySelector('img');
-    var url = './Game/Objetos/armas/' + equipada + '.png';
+    var url = iconoDe(equipada);
     if (lista) { if (img.getAttribute('src') !== url) img.src = url; img.hidden = false; }
     else { img.removeAttribute('src'); img.hidden = true; }
     b.title = lista ? ESPADAS[equipada].nombre + ' equipped (SPACE to ' + (esDistancia(equipada) ? 'shoot' : 'swing') + ') — click to change'
@@ -417,12 +430,13 @@
     m.appendChild(cab);
     ORDEN.slice().reverse().forEach(function (id) {
       var tiene = mias.indexOf(id) >= 0;
+      if (!tiene && ESPADAS[id].src) return;
       var o = document.createElement('button');
       o.type = 'button';
       o.className = 'gf-espada-opcion' + (equipada === id ? ' activa' : '') + (tiene ? '' : ' sin');
       o.setAttribute('role', 'menuitem');
       if (!tiene) o.disabled = true;
-      var im = document.createElement('img'); im.src = './Game/Objetos/armas/' + id + '.png'; im.alt = '';
+      var im = document.createElement('img'); im.src = iconoDe(id); im.alt = '';
       var tx = document.createElement('span'); tx.textContent = ESPADAS[id].nombre;
       var dn = document.createElement('small');
       dn.textContent = !tiene ? 'Not owned' : (equipada === id ? 'Equipped' : 'DMG ' + ESPADAS[id].dano);
@@ -623,6 +637,9 @@
     botones(st);
     pintar(st);
     if (window.GFCharacterSkills) window.GFCharacterSkills.montar(scene);
+    // (2026-11-02) El impulso (C) y el viento (X) van en las mismas escenas, sin arma.
+    if (window.GFPoderes) window.GFPoderes.montar(scene);
+    if (window.GFMonturas) window.GFMonturas.montar(scene);
     } catch (e) { desmontar(scene); console.warn('[espada]', e); return null; }
     try { texturas(scene); } catch (e) {}
     st.onTecla = function (ev) {

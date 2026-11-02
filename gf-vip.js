@@ -124,7 +124,7 @@
     if (!estado.cargado) { refrescar(); avisar(scene, 'Checking your VIP… try again in a moment.', 'info'); return false; }
     if (ya - (avisadoEn[accion] || 0) > 3000) {
       avisadoEn[accion] = ya;
-      avisar(scene, '👑 You need VIP to ' + (QUE[accion] || 'do that') + '. Get it from Rosalind the Weaver in Farmer Joe\'s house.', 'warning');
+      avisar(scene, '👑 You need VIP to ' + (QUE[accion] || 'do that') + '. Get it from Rosalind the VIP Merchant in Farmer Joe\'s house.', 'warning');
     }
     return false;
   }
@@ -243,7 +243,7 @@
         (cargando ? '<p style="color:#cbbfe6;font-size:12px;">Reading the chain…</p>' : '') +
         (filas || (!cargando ? '<p style="color:#cbbfe6;font-size:12px;">No VIP invoices yet.</p>' : '')) +
         (estado.sinCadena ? '<p style="color:#ffb86b;font-size:12px;">The chain is not answering right now: showing the last known status.</p>' : '') +
-        '<p style="color:#cbbfe6;font-size:12px;margin-top:10px;">Get or extend your VIP with <b>Rosalind the Weaver</b>, inside Farmer Joe\'s house.</p>';
+        '<p style="color:#cbbfe6;font-size:12px;margin-top:10px;">Get or extend your VIP with <b>Rosalind the VIP Merchant</b>, inside Farmer Joe\'s house.</p>';
       m.cuerpo.querySelector('.gfv-ref').onclick = function () { pintarCuerpo(true); refrescar().then(function () { pintarCuerpo(false); }); };
     };
     pintarCuerpo(true);
@@ -259,7 +259,7 @@
   /** La tienda de Rosalind: los tres tickets y sus precios en las tres monedas. */
   function abrirTienda(scene) {
     if (window.GFSinNombre && !window.GFSinNombre.exigir(scene, 'shop')) return;
-    var m = modal('gf-vip-tienda', '🧵 Rosalind the Weaver — VIP Tickets');
+    var m = modal('gf-vip-tienda', '👑 Rosalind the VIP Merchant — VIP Tickets');
     var pintar = function (msg, color) {
       if (!m.valido()) return;
       var planes = estado.planes || {};
@@ -282,7 +282,7 @@
           (tiene() ? '<br><span style="color:#ffd76a">Adds to your current VIP</span>' : '') + '</div></div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' + botones + '</div></div>';
       }).join('');
-      m.cuerpo.innerHTML = '<p style="margin:0 0 10px;font-size:13px;color:#e8dcff;font-style:italic;">"Every thread tells a story… and this one gives you VIP. Which ticket will it be, dear?"</p>' +
+      m.cuerpo.innerHTML = '<p style="margin:0 0 10px;font-size:13px;color:#e8dcff;font-style:italic;">"Every ticket opens a door. Which one will it be, dear?"</p>' +
         bloqueEstado() +
         '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;background:#140f1e;border-radius:10px;padding:8px;margin-bottom:10px;font-size:12px;">' +
         MONEDAS.map(function (mo) { return '<span><img src="' + mo.img + '" alt="" style="width:14px;height:14px;vertical-align:-2px;image-rendering:pixelated"> ' + mo.nombre + ': <b>' + s[mo.k].toLocaleString('en-US') + '</b></span>'; }).join('') +
@@ -401,7 +401,7 @@
     }
     refrescar().then(function () {
       if (!actual()) return;
-      if (estado.cargado && !estado.sinServicio && !tiene()) fuera('👑 You need VIP to enter your island. Get it from Rosalind the Weaver in Farmer Joe\'s house.');
+      if (estado.cargado && !estado.sinServicio && !tiene()) fuera('👑 You need VIP to enter your island. Get it from Rosalind the VIP Merchant in Farmer Joe\'s house.');
       else guarda.cerrar();
     }).catch(guarda.cerrar);
   }

@@ -869,6 +869,14 @@
   window.GFMinaZombis = {
     montar: montar,
     desmontar: desmontar,
-    _interno: { estado: function (s) { return s && s.__gfZombis; }, elegirSitios: elegirSitios }
+    _interno: { estado: function (s) { return s && s.__gfZombis; }, elegirSitios: elegirSitios,
+                // La ráfaga de viento (gf-poderes.js): por pasos, se para antes de la pared.
+                empujarZombi: function (st, z, ux, uy, dist) {
+                  for (var k = 0; k < dist; k += 4) {
+                    var nx = z.x + ux * 4, ny = z.y + uy * 4;
+                    if (!libre(st.scene, nx, ny, z.jefe)) break;
+                    z.x = nx; z.y = ny;
+                  }
+                } }
   };
 })();

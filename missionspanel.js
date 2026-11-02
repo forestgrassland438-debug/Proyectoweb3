@@ -33,6 +33,8 @@ class missionspanel {
     this.destroyed = false;
     this._viewRevision = 0;
     this._refreshing = false;
+    // Entregas en vuelo: siguen aunque se cierre el panel.
+    this._entregando = new Set();
     this.panel = document.getElementById('missions-panel');
     this.overlay = document.getElementById('missions-overlay');
     this.npcTitle = document.getElementById('missions-npc-title');
@@ -210,15 +212,24 @@ class missionspanel {
    * Nombre a mostrar del ítem pedido: manda lo que el administrador escribió
    * en misiones.html para ese idioma; si lo dejó vacío, se genera desde el id.
    */
+  _nombreDelJuego(id) {
+    // (2026-11-02) "Fresh Carrot", no "Zanahoria Buena": todo en inglés.
+    try {
+      const e = window.activeScene;
+      const n = e && typeof e.getItemDisplayName === 'function' ? e.getItemDisplayName(id) : '';
+      return n && n !== id ? n : '';
+    } catch (_) { return ''; }
+  }
+
   _nombreItem(mission, textos) {
     const puesto = textos && typeof textos.itemName === 'string' ? textos.itemName.trim() : '';
-    return puesto || this._bonito(mission.itemId);
+    return puesto || this._nombreDelJuego(mission.itemId) || this._bonito(mission.itemId);
   }
 
   /** Igual que _nombreItem pero para la recompensa. */
   _nombreRecompensa(mission, textos) {
     const puesto = textos && typeof textos.rewardName === 'string' ? textos.rewardName.trim() : '';
-    return puesto || this._bonito(mission.rewardItemId);
+    return puesto || this._nombreDelJuego(mission.rewardItemId) || this._bonito(mission.rewardItemId);
   }
 
   /**
@@ -596,12 +607,14 @@ class missionspanel {
       (completada ? ' completed disabled' : (lista ? ' ready' : ''));
     boton.type = 'button';
     boton.dataset.missionId = mission.missionId;
+    const enviando = this._entregando.has(mission.missionId);
     boton.textContent = completada
       ? (esEspanol ? 'COMPLETADA' : 'COMPLETED')
+      : enviando ? (esEspanol ? 'ENVIANDO…' : 'SENDING…')
       : (lista
         ? (esEspanol ? 'ENTREGAR' : 'HAND IN')
         : (esEspanol ? 'COMPLETAR' : 'COMPLETE'));
-    boton.disabled = completada;
+    boton.disabled = completada || enviando;
     acciones.appendChild(boton);
 
     if (!completada && !lista) {
@@ -626,15 +639,21 @@ class missionspanel {
         boton.disabled = true;
         const textoOriginal = boton.textContent;
         boton.textContent = esEspanol ? 'ENVIANDO…' : 'SENDING…';
+        const idMision = mission.missionId;
         try {
           const escena = this.gameScene;
           if (!escena) return;
-          const hasItems = await escena.checkMissionRequirements(mission.missionId);
+          // (2026-11-02) Cerrar el panel no cancela la entrega: el NPC se apunta aquí, antes de
+          // esperar nada, y la misión queda marcada para que al reabrir no se pueda enviar dos veces.
+          const npcId = escena.currentNpcMission;
+          if (this._entregando.has(idMision)) return;
+          this._entregando.add(idMision);
+          const hasItems = await escena.checkMissionRequirements(idMision);
           if (this.destroyed || this.gameScene !== escena) return;
 
           if (hasItems) {
-            await escena.completeMission(mission.missionId);
-            if (!this.destroyed && this.gameScene) this.render(); // Actualizar panel después de completar
+            await escena.completeMission(idMision, npcId);
+            if (!this.destroyed && this.gameScene && !this.panel.classList.contains('hidden')) this.render(); // Actualizar panel después de completar
           } else if (this.gameScene) {
             this.gameScene.showNotification(
               mission.tipo === 'cazar'
@@ -651,6 +670,8 @@ class missionspanel {
           console.warn('missionspanel: error completando misión:', e && e.message);
           boton.disabled = false;
           boton.textContent = textoOriginal;
+        } finally {
+          this._entregando.delete(idMision);
         }
       });
     }

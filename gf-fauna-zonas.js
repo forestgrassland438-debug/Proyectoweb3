@@ -196,6 +196,188 @@
     return true;
   }
 
+  /* LOS PINGÜINOS AL AGUA (2026-11-02). "Quiero que los pingüinos se metan al agua a nadar, a comer
+     los peces que salgan, que compartan y más." De vez en cuando uno baja a la orilla y salta. Nada
+     medio hundido (solo se le ve de la tripa para arriba) dejando ondas; si ve la sombra de un pez
+     (gf-agua) la persigue y se lo come: el pez desaparece de verdad y vuelve a nacer en otro sitio
+     del río. Con el pez en el pico sale a tierra y, si hay otro pingüino cerca, va hasta él y se lo
+     comen juntos; si no, solo. Es ambiente: no va por la red, como el resto de esta fauna. */
+  var NADO = { ganas: 0.32, vel: 58, veOlor: 240, aire: 0.36, ondaMs: 460, sale: [10000, 22000] };
+  function agua(scene) { var g = scene.__gfAgua; return g && g.clase && g.W ? g : null; }
+  function claseAgua(scene, x, y) {
+    try { return window.GFAgua && window.GFAgua.claseEn ? window.GFAgua.claseEn(scene, x, y) : 0; } catch (e) { return 0; }
+  }
+  /** Un punto de agua (no de orilla) a menos de `radio`, en línea hacia algún lado. */
+  function aguaCerca(scene, x, y, radio) {
+    if (!agua(scene)) return null;
+    for (var i = 0; i < 24; i++) {
+      var ang = Math.random() * Math.PI * 2, r = 40 + Math.random() * radio;
+      var ax = x + Math.cos(ang) * r, ay = y + Math.sin(ang) * r;
+      if (claseAgua(scene, ax, ay) === 2) return { x: ax, y: ay };
+    }
+    return null;
+  }
+  /** Lo último libre yendo en línea recta hacia el agua: el borde desde el que se salta. */
+  function bordeHacia(scene, d, desde, hasta) {
+    var dx = hasta.x - desde.x, dy = hasta.y - desde.y, L = Math.hypot(dx, dy) || 1, ult = null;
+    for (var k = 0; k <= L; k += 6) {
+      var x = desde.x + dx / L * k, y = desde.y + dy / L * k;
+      if (libre(scene, d, x, y) && !claseAgua(scene, x, y)) ult = { x: x, y: y };
+      else if (ult) break;
+    }
+    return ult;
+  }
+  function primerAgua(scene, desde, hasta) {
+    var dx = hasta.x - desde.x, dy = hasta.y - desde.y, L = Math.hypot(dx, dy) || 1;
+    for (var k = 0; k <= L; k += 6) {
+      var x = desde.x + dx / L * k, y = desde.y + dy / L * k;
+      if (claseAgua(scene, x, y) === 2) return { x: x, y: y };
+    }
+    return null;
+  }
+  function texturasAgua(scene) {
+    if (!scene.textures.exists('gff_onda')) {
+      var t = scene.textures.createCanvas('gff_onda', 40, 16), x = t.getContext();
+      x.strokeStyle = 'rgba(235,248,255,0.9)'; x.lineWidth = 1.6;
+      x.beginPath(); x.ellipse(20, 8, 17, 6, 0, 0, Math.PI * 2); x.stroke();
+      t.refresh();
+    }
+    if (!scene.textures.exists('gff_pez')) {
+      var f = scene.textures.createCanvas('gff_pez', 16, 8), c = f.getContext();
+      c.fillStyle = '#26323e';
+      c.beginPath(); c.ellipse(9, 4, 6.5, 3.2, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.moveTo(4, 4); c.lineTo(0, 0.5); c.lineTo(0, 7.5); c.closePath(); c.fill();
+      c.fillStyle = '#b9d2e2';
+      c.beginPath(); c.ellipse(9, 4, 5.4, 2.2, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.moveTo(4.4, 4); c.lineTo(1, 1.6); c.lineTo(1, 6.4); c.closePath(); c.fill();
+      f.refresh();
+    }
+  }
+  function onda(st, a) {
+    var scene = st.scene, o = scene.add.image(a.x, a.y, 'gff_onda').setDepth(a.y - 1).setAlpha(0.75).setScale(0.55);
+    st.fx.add(o);
+    scene.tweens.add({ targets: o, scale: 1.25, alpha: 0, duration: 900, onComplete: function () { st.fx.delete(o); if (o.scene) o.destroy(); } });
+  }
+  function hundir(a, si) {
+    var s = a.spr;
+    if (!si) { s.setCrop(); a.hundido = 0; return; }
+    var h = (s.frame && s.frame.realHeight) || 30, w = (s.frame && s.frame.realWidth) || 26;
+    s.setCrop(0, 0, w, Math.round(h * (1 - NADO.aire)));
+    a.hundido = h * NADO.aire * s.scaleY;
+  }
+  /** El salto, ida o vuelta: un arco corto; al caer al agua, una onda. */
+  function saltar(st, a, a2, alEntrar) {
+    var scene = st.scene, x0 = a.x, y0 = a.y;
+    a.saltando = true;
+    var tw = scene.tweens.addCounter({ from: 0, to: 1, duration: 300, ease: 'Sine.easeInOut', onUpdate: function (t) {
+      var v = t.getValue();
+      a.x = x0 + (a2.x - x0) * v;
+      a.y = y0 + (a2.y - y0) * v - Math.sin(v * Math.PI) * 22;
+    }, onComplete: function () {
+      st.fx.delete(tw);
+      a.saltando = false; a.x = a2.x; a.y = a2.y;
+      if (alEntrar) onda(st, a);
+    } });
+    st.fx.add(tw);
+  }
+  function pezEnElPico(st, a, si) {
+    if (a.pezSpr) { st.fx.delete(a.pezSpr); try { a.pezSpr.destroy(); } catch (e) {} a.pezSpr = null; }
+    if (si) { a.pezSpr = st.scene.add.image(a.x, a.y, 'gff_pez').setScale(1.3); st.fx.add(a.pezSpr); }
+  }
+  function pezCerca(scene, a) {
+    var g = agua(scene), mejor = null, dm = NADO.veOlor;
+    if (!g || !g.peces) return null;
+    g.peces.forEach(function (p) {
+      if (!p.colocado || p.salta || !p.spr || p.spr.alpha <= 0.02 || p.comido) return;
+      var d = Math.hypot(p.spr.x - a.x, p.spr.y - a.y);
+      if (d < dm) { dm = d; mejor = p; }
+    });
+    return mejor;
+  }
+  /** Devuelve true si este pingüino ya tiene quien lo mueva este fotograma. */
+  function tickPinguino(st, a, t, dt) {
+    var scene = st.scene, n = a.nado;
+    if (a.saltando) return true;
+    if (a.comparte) {
+      // Con el pez, hasta el compañero (o solo, si no hay nadie): luego se lo comen.
+      var co = a.comparte, c = co.con;
+      if (co.fase === 'va') {
+        if (!c || !c.spr.scene || c.nado || t > co.hasta) { co.fase = 'come'; co.fin = t + 2600; poner(a, 'come', null); }
+        else if (Math.hypot(c.x - a.x, c.y - a.y) < 30) {
+          co.fase = 'come'; co.fin = t + 3600; a.flip = c.x < a.x; c.flip = !a.flip; c.meta = null;
+          poner(a, 'come', null); poner(c, 'come', null); c.hasta = co.fin + 300;
+        } else {
+          a.meta = { x: c.x + (a.x < c.x ? -24 : 24), y: c.y + 2 }; andar(scene, a, t, dt);
+        }
+        return true;
+      }
+      if (t > co.fin) { pezEnElPico(st, a, false); a.comparte = null; a.hasta = t + entre(1500, 4000); }
+      return true;
+    }
+    if (!n) return false;
+    if (n.fase === 'baja') {
+      var dL = Math.hypot(n.borde.x - a.x, n.borde.y - a.y);
+      if (dL < 8 || t > n.hasta) {
+        var dentro = primerAgua(scene, { x: a.x, y: a.y }, n.agua);
+        if (!dentro) { a.nado = null; a.meta = null; return false; }
+        n.fase = 'nada'; n.salida = { x: a.x, y: a.y }; n.fin = t + entre(NADO.sale[0], NADO.sale[1]); n.destino = null; n.proxOnda = t;
+        a.meta = null; poner(a, 'camina', null); a.sombra.setVisible(false);
+        saltar(st, a, dentro, true);
+        hundir(a, true);
+      } else { a.meta = n.borde; a.prisa = 1.2; a.hasta = t + 4000; andar(scene, a, t, dt); }
+      return true;
+    }
+    if (t > n.proxOnda) { n.proxOnda = t + NADO.ondaMs; onda(st, a); }
+    if (n.fase === 'nada' && !a.pez && t > n.fin) n.fase = 'vuelve';
+    if (n.fase === 'nada') {
+      var pez = pezCerca(scene, a);
+      if (pez) {
+        n.destino = { x: pez.spr.x, y: pez.spr.y };
+        if (Math.hypot(pez.spr.x - a.x, pez.spr.y - a.y) < 15) {
+          // Se lo come de verdad: el pez deja de verse y gf-agua lo hará nacer en otro sitio.
+          pez.spr.setAlpha(0); pez.colocado = false; pez.destino = null;
+          a.pez = true; pezEnElPico(st, a, true); onda(st, a); n.fase = 'vuelve'; n.destino = null;
+        }
+      } else if (!n.destino || Math.hypot(n.destino.x - a.x, n.destino.y - a.y) < 8) {
+        n.destino = aguaCerca(scene, a.x, a.y, 150);
+      }
+    }
+    if (n.fase === 'vuelve') n.destino = n.salida;
+    if (n.destino) {
+      var dx = n.destino.x - a.x, dy = n.destino.y - a.y, L = Math.hypot(dx, dy) || 1, paso = Math.min(L, NADO.vel * dt);
+      var nx = a.x + dx / L * paso, ny = a.y + dy / L * paso;
+      if (claseAgua(scene, nx, ny) > 0) { a.x = nx; a.y = ny; a.flip = dx < 0; a.spr.setFlipX(a.flip); }
+      else if (n.fase === 'nada') n.destino = null;
+      if (n.fase === 'vuelve' && (L < 34 || claseAgua(scene, nx, ny) === 0)) {
+        hundir(a, false);
+        a.sombra.setVisible(true);
+        var aTierra = n.salida;
+        a.nado = null; a.meta = null; a.prisa = 1; a.hasta = t + 1800; poner(a, 'quieto', null);
+        saltar(st, a, aTierra, false);
+        if (a.pez) {
+          a.pez = false;
+          var com = null, dc = 420;
+          st.animales.forEach(function (o) {
+            if (o === a || o.esp !== 'pinguino' || o.nado || o.comparte) return;
+            var dd = Math.hypot(o.x - aTierra.x, o.y - aTierra.y);
+            if (dd < dc) { dc = dd; com = o; }
+          });
+          a.comparte = { con: com, fase: 'va', hasta: t + 9000, fin: 0 };
+        }
+      }
+    }
+    return true;
+  }
+  function quiereNadar(st, a, t) {
+    var scene = st.scene;
+    if (a.esp !== 'pinguino' || a.nado || a.comparte || !agua(scene) || Math.random() > NADO.ganas) return false;
+    var meta = aguaCerca(scene, a.x, a.y, 300);
+    var borde = meta && bordeHacia(scene, a.d, { x: a.x, y: a.y }, meta);
+    if (!borde) return false;
+    a.nado = { fase: 'baja', agua: meta, borde: borde, hasta: t + 9000 };
+    return true;
+  }
+
   // ─────────────────────────────────────────────────────── montar
   function montar(scene) {
     if (!scene || !scene.map || !scene.add) return null;
@@ -203,8 +385,9 @@
     var grupos = lista(scene);
     if (!grupos.length) return null;
     texturaSombra(scene);
-    var st = { scene: scene, animales: [], vivo: true };
+    var st = { scene: scene, animales: [], vivo: true, fx: new Set() };
     scene.__gfFaunaZonas = st;
+    texturasAgua(scene);
     var W = scene.map.widthInPixels, H = scene.map.heightInPixels;
     try {
       grupos.forEach(function (g) {
@@ -235,16 +418,20 @@
         var a = st.animales[i];
         var cerca = !v || (a.x > v.x - LEJOS_CAMARA && a.x < v.right + LEJOS_CAMARA && a.y > v.y - LEJOS_CAMARA && a.y < v.bottom + LEJOS_CAMARA);
         if (cerca !== a.spr.visible) { a.spr.setVisible(cerca); a.sombra.setVisible(cerca); }
-        if (!cerca) continue;
-        if (p && t > a.mirado) {
-          a.mirado = t + 300;
-          var jx = p.x, jy = p.y + 51;
-          if (Math.abs(jx - a.x) < a.d.huye && Math.abs(jy - a.y) < a.d.huye * 0.7 && a.prisa === 1) apartarse(scene, a, jx, jy, t);
+        if (!cerca && !a.nado) continue;
+        var ocupado = a.esp === 'pinguino' && tickPinguino(st, a, t, dt);
+        if (!ocupado) {
+          if (p && t > a.mirado) {
+            a.mirado = t + 300;
+            var jx = p.x, jy = p.y + 51;
+            if (Math.abs(jx - a.x) < a.d.huye && Math.abs(jy - a.y) < a.d.huye * 0.7 && a.prisa === 1) apartarse(scene, a, jx, jy, t);
+          }
+          if (a.meta) andar(scene, a, t, dt);
+          else if (t > a.hasta) { if (!quiereNadar(st, a, t)) decidir(scene, a, t); }
         }
-        if (a.meta) andar(scene, a, t, dt);
-        else if (t > a.hasta) decidir(scene, a, t);
-        a.spr.setPosition(Math.round(a.x), Math.round(a.y)).setDepth(a.y);
+        a.spr.setPosition(Math.round(a.x), Math.round(a.y + (a.hundido || 0))).setDepth(a.y);
         a.sombra.setPosition(a.x, a.y - 1).setDepth(2.5);
+        if (a.pezSpr) a.pezSpr.setPosition(a.x + (a.flip ? -11 : 11), a.y + (a.hundido || 0) - 36).setDepth(a.y + 1).setFlipX(a.flip);
       }
     };
     st.onApagar = function () { desmontar(scene); };
@@ -268,10 +455,12 @@
       try { if (a.sombra && a.sombra.scene) a.sombra.destroy(); } catch (e) {}
     });
     st.animales = [];
+    st.fx.forEach(function (o) { try { if (o.stop) o.stop(); else if (o.scene) { scene.tweens.killTweensOf(o); o.destroy(); } } catch (e) {} });
+    st.fx.clear();
     scene.__gfFaunaZonas = null;
   }
 
   window.GFFaunaZonas = { precargar: precargar, montar: montar, desmontar: desmontar,
-                          _interno: { POR_ESCENA: POR_ESCENA, DATOS: DATOS, libre: libre,
+                          _interno: { POR_ESCENA: POR_ESCENA, DATOS: DATOS, libre: libre, NADO: NADO, quiereNadar: quiereNadar,
                                       estado: function (s) { return s && s.__gfFaunaZonas; } } };
 })();

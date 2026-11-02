@@ -2362,7 +2362,8 @@
     desmontar: desmontar,
     _interno: {
       ESPECIES: ESPECIES, SOLTABLES: SOLTABLES, estado: function (s) { return s && s.__gfSalvaje; },
-      empujarJugador: empujarJugador, recibirTajo: recibirTajo, tajoPvp: tajoPvp, ritmo: ritmo, libre: libre
+      empujarJugador: empujarJugador, recibirTajo: recibirTajo, tajoPvp: tajoPvp, ritmo: ritmo, libre: libre,
+      empujarMonstruo: empujar   // la ráfaga de viento (gf-poderes.js)
     }
   };
 })();

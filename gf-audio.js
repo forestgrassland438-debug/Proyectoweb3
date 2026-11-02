@@ -874,6 +874,53 @@
     } catch (e) { return null; }
   }
 
+  /* EL BOSQUE SUENA AL ACERCARSE (2026-11-02). "Los sonidos de ambiente se deben empezar a oír cada
+     vez más fuerte a medida que me acerco a los bosques, para no desperdiciar memoria reproduciéndolos
+     aunque no esté cerca; así mismo el viento y más."
+
+     Hasta ahora las hojas, el zumbido del campo, los grillos y el viento sonaban en todo el mapa con
+     el mismo volumen, también en mitad del pueblo. Ahora dependen de CUÁNTA VEGETACIÓN hay alrededor
+     (0 = nada, 1 = bosque cerrado), medida en una rejilla de los árboles y matas que hay de verdad en
+     la escena. Lejos de todo el objetivo es 0: el bucle se para, se destruye y, pasado un rato, su
+     audio descodificado sale de la memoria (ver soltarAmbiente). */
+  var BOSQUE = { celda: 160, radio: 640, lleno: 6.5, rehacerMs: 9000, cadaMs: 300, umbral: 0.04 };
+  var ES_ARBOL = /^gfm_cen_|pinos|arbol|abeto|conifer|roble|palmera|sauce|jungla/i;
+  var ES_MATA = /arbust|matorral|helecho|hierba_alta/i;
+
+  function rejillaBosque(st, ahora) {
+    if (st.bosqueRejilla && ahora - st.bosqueHecha < BOSQUE.rehacerMs) return st.bosqueRejilla;
+    var r = new Map(), lista = (st.scene.children && st.scene.children.list) || [];
+    for (var i = 0; i < lista.length; i++) {
+      var o = lista[i], k = o && o.texture && o.texture.key;
+      if (!k || o.visible === false && !(/^gfm_/.test(k))) continue;
+      var peso = ES_ARBOL.test(k) ? 1 : (ES_MATA.test(k) ? 0.45 : 0);
+      if (!peso) continue;
+      var c = Math.floor(o.x / BOSQUE.celda) + ',' + Math.floor(o.y / BOSQUE.celda);
+      r.set(c, (r.get(c) || 0) + peso);
+    }
+    st.bosqueRejilla = r;
+    st.bosqueHecha = ahora;
+    return r;
+  }
+  /** 0..1: lo cerca que está el oyente de la vegetación. Se mide unas tres veces por segundo. */
+  function bosqueCerca(st) {
+    var ahora = Date.now();
+    if (st.bosqueMedido && ahora - st.bosqueMedido < BOSQUE.cadaMs) return st.bosque;
+    st.bosqueMedido = ahora;
+    var oyente = donde(st), r = rejillaBosque(st, ahora), C = BOSQUE.celda, n = Math.ceil(BOSQUE.radio / C);
+    var cx = Math.floor(oyente.x / C), cy = Math.floor(oyente.y / C), suma = 0;
+    for (var f = -n; f <= n; f++) {
+      for (var g = -n; g <= n; g++) {
+        var v = r.get((cx + g) + ',' + (cy + f));
+        if (!v) continue;
+        var d = Math.hypot((cx + g + 0.5) * C - oyente.x, (cy + f + 0.5) * C - oyente.y);
+        if (d < BOSQUE.radio) { var q = 1 - d / BOSQUE.radio; suma += v * q * q; }
+      }
+    }
+    st.bosque = tope(suma / BOSQUE.lleno, 0, 1);
+    return st.bosque;
+  }
+
   /** Qué volumen le toca ahora a cada ambiente. */
   function mezclarAmbiente(st) {
     var o = st.objetivo;
@@ -904,21 +951,28 @@
        rachas por su cuenta cuando el servidor no manda. Lo que se oye es la
        racha de verdad, no la orden. */
     var v = tope(c.viento, 0, 1);
-    o.viento = MEZCLA.viento * v;
+    /* (2026-11-02) Cerca de los árboles el viento se oye de lleno; en campo abierto o en el pueblo,
+       bastante menos. Una racha floja lejos de todo ni se reproduce. */
+    var bosque = bosqueCerca(st), hayBosque = bosque >= BOSQUE.umbral;
+    var aireFuera = 0.3 + 0.7 * bosque;
+    o.viento = (v < 0.12 && !hayBosque) ? 0 : MEZCLA.viento * v * aireFuera;
 
-    /* Las hojas siempre susurran un poco —un bosque nunca está callado— y se
-       levantan con la racha. Con lluvia fuerte se las come el agua. */
-    o.arboles = MEZCLA.arboles * (0.28 + 0.72 * v) * (1 - 0.6 * tope(c.lluvia, 0, 1));
+    /* Las hojas susurran donde hay hojas y se levantan con la racha: el volumen crece al acercarse al
+       bosque. Con lluvia fuerte se las come el agua. */
+    o.arboles = hayBosque ? MEZCLA.arboles * Math.pow(bosque, 0.8) * (0.4 + 0.6 * v) * (1 - 0.6 * tope(c.lluvia, 0, 1)) : 0;
 
     /* De día zumba el campo. Solo con buen tiempo: bajo la lluvia no hay
        insectos, y de noche tampoco. */
     var dia = 1 - noche;
     var despejado = tope(1 - c.lluvia - c.nieve, 0, 1);
     o.soleado = MEZCLA.soleado * dia * despejado * (c.hayClima ? (0.45 + 0.55 * tope(c.sol, 0, 1)) : 0.7);
+    // Los insectos y los grillos viven en la vegetación: suben al acercarse a ella.
+    var campo = hayBosque ? 0.2 + 0.8 * bosque : 0;
+    o.soleado *= campo;
 
     /* Los grillos entran con la oscuridad, no con un interruptor: se les oye
        aparecer al atardecer. Con lluvia se callan. */
-    o.noche = MEZCLA.noche * Math.pow(noche, 1.4) * despejado;
+    o.noche = MEZCLA.noche * Math.pow(noche, 1.4) * despejado * campo;
 
     /* LOS MAPAS NUEVOS (2026-10-19): "haz sonidos nuevos para los mapas
        nuevos". Cada uno con su ambiente siempre puesto (el viento que gime en
@@ -975,6 +1029,7 @@
 
       b.destino = destino;
       b.actual += (destino - b.actual) * paso;
+      if (st.calladoDesde && st.calladoDesde[nombre]) delete st.calladoDesde[nombre];
 
       if (destino <= 0.001 && b.actual <= 0.002) {
         destruirSonido(b.son);
@@ -1270,6 +1325,28 @@
       }
     }
 
+    /* (2026-11-02) LOS MONSTRUOS TAMBIÉN SE OYEN AL ACERCARSE. No tenían voz. Se usan las de los
+       bichos, con el tono bajado: gruñidos que suben según te acercas (la caída de `sonar`). Solo los
+       que están a tiro y solo de vez en cuando; lo que queda lejos ni se crea. */
+    var gruñe = function (lista, viva, voz, alcance, tono) {
+      for (var mi = 0; lista && mi < lista.length; mi++) {
+        var m = lista[mi];
+        if (!m || !viva(m) || (m.proximaVoz && ahora < m.proximaVoz)) continue;
+        var mdx = m.x - oyente.x, mdy = m.y - oyente.y, md = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (md > alcance || Math.random() > (1 - md / alcance) * 0.55) continue;
+        m.proximaVoz = ahora + az(5000, 14000);
+        if (bicho(st.scene, voz(m), m.x, m.y, { vol: 1.05, alcance: alcance, tono: tono(m) })) return true;
+      }
+      return false;
+    };
+    var sv = st.scene.__gfSalvaje, zv = st.scene.__gfZombis, ev = st.scene.__gfEspectros;
+    var bajo = function () { return az(0.55, 0.72); };
+    if (sv && gruñe(sv.bichos, function (m) { return m.vivo && m.spr && m.spr.visible; },
+                    function (m) { var d = m.def || {}; return d.molde === 'golem' ? 'cocodrilo' : d.molde === 'arana' ? 'serpiente' : d.molde === 'brujo' ? 'buho' : 'zorro'; },
+                    620, bajo)) return;
+    if (zv && gruñe(zv.bichos, function (m) { return m.vivo && m.spr && m.spr.visible; }, function () { return 'cerdo'; }, 560, bajo)) return;
+    if (ev && gruñe(ev.mobs, function (m) { return m.alive && m.sprite && m.sprite.visible; }, function () { return 'buho'; }, 560, bajo)) return;
+
     /* Los cuervos van por su cuenta: son de otro módulo.
 
        EL FALLO QUE ARREGLA: aquí ponía `__gfCuervo`, en singular, y gf-cuervo
@@ -1352,9 +1429,16 @@
     var pendiente = st.porCargar.indexOf(archivo);
     if (pendiente >= 0) st.porCargar.splice(pendiente, 1);
     if (st.cargando[archivo]) st.cargando[archivo].cancelar();
-    // En el campo el clima vuelve a cambiar: conservar el buffer evita volver
-    // a descargar y decodificar cada racha. desmontar() lo libera al salir.
-    if (st.tipo === 'campo') return;
+    // En el campo el clima vuelve a cambiar: conservar el buffer un rato evita volver
+    // a descargar y decodificar cada racha. (2026-11-02) Pero no para siempre: lo que lleva
+    // 45 s callado (estás lejos del bosque) sale de la memoria; volverá al acercarse.
+    if (st.tipo === 'campo') {
+      if (!st.scene.cache.audio.exists(clave)) return;
+      var calladoDesde = st.calladoDesde || (st.calladoDesde = {}), ya = Date.now();
+      if (!calladoDesde[nombre]) { calladoDesde[nombre] = ya; return; }
+      if (ya - calladoDesde[nombre] < 45000) return;
+      delete calladoDesde[nombre];
+    }
     if (!st.scene.cache.audio.exists(clave)) return;
     if (!usadasPorOtra(st.scene, clave)) soltar(st.scene, [clave]);
   }

@@ -32,7 +32,7 @@
   // (2026-10-21) + los botones de pescar y de bajar del bote: en pantallas
   // estrechas el panel de poderes caía encima de ellos.
   var OBSTACULOS = '#round-buttons-container .round-btn, #quick-slots-bar, #open-chat-btn, #gf-espada-btn, ' +
-    '#inv-shortcut-btn, .corner-box, #toggle-hud-btn, #gf-jefe-mina, #gf-serpiente-barra, #gf-pesca-btn, #gf-bote-btn';
+    '#inv-shortcut-btn, .corner-box, #toggle-hud-btn, #gf-jefe-mina, #gf-serpiente-barra, #gf-pesca-btn, #gf-bote-btn, #gf-poderes-libres';
 
   function visible(el) {
     if (!el || !el.isConnected || el.hidden || el.closest('[hidden]')) return false;

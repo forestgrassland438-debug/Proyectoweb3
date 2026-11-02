@@ -110,6 +110,15 @@
     if (v !== null && v !== undefined && Number.isFinite(Number(v))) return Math.floor(Number(v));
     return est.bronce !== null ? est.bronce : null;
   }
+  /* (2026-11-02) Lo que vale todo lo que lleva, en bronce: si no llega el bronce el servidor cambia
+     lo justo de plata u oro (1 plata = 1000, 1 oro = 1000 plata) y da la vuelta en bronce. */
+  function valorAhora() {
+    var b = bronceAhora(), s = window.playerStats;
+    if (s && Number.isFinite(Number(s.oro)) && Number.isFinite(Number(s.plata))) {
+      return Math.floor(Number(s.oro)) * 1000000 + Math.floor(Number(s.plata)) * 1000 + (b === null ? 0 : b);
+    }
+    return Number.isFinite(est.valorBronce) ? est.valorBronce : b;
+  }
 
   // ── LOS DATOS (el JSON del dibujo) ─────────────────────────────────────────
   function cargarDatos() {
@@ -149,6 +158,7 @@
         est.vip = !!d.vip;
         est.destinos = d.destinos || {};
         est.bronce = Number.isFinite(Number(d.bronce)) ? Math.floor(Number(d.bronce)) : null;
+        est.valorBronce = Number.isFinite(Number(d.valorBronce)) ? Math.floor(Number(d.valorBronce)) : null;
       } else if (r && r.status === 404) {
         est.sinServicio = true; est.cargado = true;
       } else {
@@ -614,7 +624,7 @@
       botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
     } else if (info.bloqueo === 'vip') {
       cuerpo = '<p class="gfmm-t-texto gfmm-t-mal">👑 You need <b>VIP</b> to enter your island.</p>' +
-               '<p class="gfmm-t-nota">Get it from Rosalind the Weaver, inside Farmer Joe’s house.</p>';
+               '<p class="gfmm-t-nota">Get it from Rosalind the VIP Merchant, inside Farmer Joe’s house.</p>';
       botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
     } else if (info.precio === null) {
       cuerpo = est.cargando || !est.cargado
@@ -623,12 +633,15 @@
       botones = (est.cargando ? '' : '<button type="button" class="gfmm-btn" data-a="otra">↻ Try again</button>') +
                 '<button type="button" class="gfmm-btn" data-a="no">Close</button>';
     } else {
-      var falta = bronce !== null && bronce < info.precio;
+      var valor = valorAhora();
+      var falta = valor !== null && valor < info.precio;
+      var conCambio = !falta && bronce !== null && bronce < info.precio;
       cuerpo = '<p class="gfmm-t-texto">Travel to <b>' + esc(d.nombre) + '</b> for <b>' + moneda + ' ' + num(info.precio) + ' Bronze</b>?</p>' +
                '<p class="gfmm-t-nota">' + (bronce !== null ? 'You have ' + num(bronce) + ' Bronze. ' : '') + 'The farther you are, the more it costs.</p>' +
-               (falta ? '<p class="gfmm-t-nota gfmm-t-mal">You need ' + num(info.precio - bronce) + ' more Bronze.</p>' : '');
+               (conCambio ? '<p class="gfmm-t-nota">Not enough Bronze: the exact value will be exchanged from your Silver or Gold, and the change comes back in Bronze.</p>' : '') +
+               (falta ? '<p class="gfmm-t-nota gfmm-t-mal">All your coins are worth ' + num(valor) + ' Bronze. You need ' + num(info.precio - valor) + ' more.</p>' : '');
       botones = falta
-        ? '<button type="button" class="gfmm-btn" data-a="cambio">🔄 Exchange Silver → Bronze</button><button type="button" class="gfmm-btn" data-a="no">No</button>'
+        ? '<button type="button" class="gfmm-btn" data-a="no">OK</button>'
         : '<button type="button" class="gfmm-btn" data-a="no">No</button><button type="button" class="gfmm-btn gfmm-si" data-a="si"' + (ocupado ? ' disabled' : '') + '>Yes, travel</button>';
     }
     t.className = 'gfmm-tarjeta gfmm-t-' + d.tipo;
@@ -674,6 +687,7 @@
       var x = (r && r.datos) || {};
       if (r && r.ok && x.ok && x.destino) {
         if (window.GFBronce && x.stats) window.GFBronce.adoptarStats(x.stats);
+        if (x.stats && window.playerStats) { ['oro', 'plata', 'bronce'].forEach(function (k) { if (Number.isFinite(Number(x.stats[k]))) window.playerStats[k] = Number(x.stats[k]); }); }
         cerrar();
         var ahora = escena(), fue = false;
         try { fue = window.GFViaje.viajar({ mundo: x.destino.mundo, x: x.destino.x, y: x.destino.y }); } catch (e) { fue = false; }
@@ -684,9 +698,8 @@
       var e = x.error;
       if (r && r.status === 404 && !e) { est.sinServicio = true; mensajeTarjeta = null; pintarTodo(); return; }
       if (e === 'insufficient_funds') {
-        if (Number.isFinite(Number(x.have))) est.bronce = Math.floor(Number(x.have));
-        decir('You need <b>' + num(x.need) + ' Bronze</b> and you have ' + num(x.have) + '.', true,
-              '<button type="button" class="gfmm-btn" data-a="cambio">🔄 Exchange Silver → Bronze</button><button type="button" class="gfmm-btn" data-a="no">OK</button>');
+        decir('You need <b>' + num(x.need) + ' Bronze</b> and all your coins are worth ' + num(x.have) + ' Bronze.', true,
+              '<button type="button" class="gfmm-btn" data-a="no">OK</button>');
       } else if (e === 'precio_cambio') {
         if (est.destinos && est.destinos[d.id]) est.destinos[d.id].precio = Number(x.precio);
         mensajeTarjeta = null;
@@ -695,7 +708,7 @@
       } else if (e === 'nivel_bajo') {
         decir('🔒 This place opens at <b>level ' + num(x.nivelMinimo) + '</b>. You are level ' + num(x.nivel) + '.', true);
       } else if (e === 'vip_required') {
-        decir('👑 You need <b>VIP</b> to enter your island. Get it from Rosalind the Weaver, inside Farmer Joe’s house.', true);
+        decir('👑 You need <b>VIP</b> to enter your island. Get it from Rosalind the VIP Merchant, inside Farmer Joe’s house.', true);
       } else if (e === 'ya_estas_aqui') {
         decir('◎ You are already here.');
       } else if (e === 'sin_posicion') {

@@ -340,6 +340,17 @@ html body .gf-espada-menu {
   font-family: var(--gfh-fuente) !important;
 }
 
+/* (2026-11-02) "El panel de misiones está delante del HUD." Iba en z-index 1001 con el HUD en
+   1000 y tapaba monedas y botones redondos. Ahora va por debajo del HUD (y de los avisos, que van
+   en 10000) y deja libres la franja de arriba y la columna de botones: el HUD no le pisa el texto. */
+html body #missions-overlay { z-index: 990 !important; }
+html body #missions-panel {
+  z-index: 995 !important;
+  top: calc(50% + 26px) !important;
+  max-height: calc(100vh - 150px) !important;
+  max-width: min(800px, calc(100vw - 2 * (var(--gfh-rb, 50px) + 26px))) !important;
+}
+
 /* Las cabeceras: un filo de oro abajo y la luz que lo recorre al abrir. */
 html body #inventory-panel .inv-drag-handle,
 html body .tx-hub-header,

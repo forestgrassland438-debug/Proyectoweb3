@@ -703,10 +703,13 @@
         if (d.motivo === 'precio') {
           var precio = Math.floor(Number(d.precio) || 0), saldo = Math.floor(Number(d.saldo) || 0);
           if (saldo < precio) {
-            aviso('Travelling to ' + n + ' costs ' + precio.toLocaleString('en-US') + ' Bronze. You have ' + saldo.toLocaleString('en-US') + '.', 'error');
+            aviso('Travelling to ' + n + ' costs ' + precio.toLocaleString('en-US') + ' Bronze. All your coins are worth ' + saldo.toLocaleString('en-US') + ' Bronze.', 'error');
             return;
           }
-          if (global.confirm('Travel to ' + n + ' for ' + precio.toLocaleString('en-US') + ' Bronze?\n(The farther away, the more it costs.)')) {
+          // (2026-11-02) Si no llega el bronce, el servidor cambia lo justo de plata u oro.
+          var conCambio = Number.isFinite(Number(d.bronce)) && Number(d.bronce) < precio;
+          if (global.confirm('Travel to ' + n + ' for ' + precio.toLocaleString('en-US') + ' Bronze?\n(The farther away, the more it costs.)' +
+                             (conCambio ? '\nYou do not have enough Bronze: the exact value will be exchanged from your Silver or Gold, and the change comes back in Bronze.' : ''))) {
             socket.emit('friends:ir', { playerName: d.playerName, pagar: true, precio: precio });
           }
           return;
@@ -716,7 +719,7 @@
           otro_canal:   n + ' is playing in channel ' + d.canal + '. Switch to that channel to join them.',
           ocupado:      d.zona === 'battle' ? n + ' is in a battle right now.'
                                             : n + ' is on the move. Try again in a moment.',
-          sin_bronce:   'Not enough Bronze to travel (' + Math.floor(Number(d.precio) || 0).toLocaleString('en-US') + ' needed).',
+          sin_bronce:   'Not enough coins to travel (' + Math.floor(Number(d.precio) || 0).toLocaleString('en-US') + ' Bronze needed).',
           isla_sin_vip: n + ' is on an island that is closed: its owner has no VIP.',
           // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js); el viaje no se cobra.
           nivel:        '🔒 ' + n + ' is in a place that opens at level ' + Math.floor(Number(d.nivelMinimo) || 0) +
@@ -726,6 +729,7 @@
         return;
       }
       if (d.stats && global.GFBronce) global.GFBronce.adoptarStats(d.stats);
+      if (d.stats && global.playerStats) { ['oro', 'plata', 'bronce'].forEach(function (k) { if (Number.isFinite(Number(d.stats[k]))) global.playerStats[k] = Number(d.stats[k]); }); }
       var V = global.GFViaje;
       var mundo = V && V.MUNDO_DE_ZONA[d.zona];
       if (!mundo) { aviso('You cannot travel there.', 'error'); return; }
