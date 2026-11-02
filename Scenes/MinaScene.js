@@ -1641,6 +1641,7 @@ class MinaScene extends GameScene {
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
     // Los demás que lleven 5 minutos quietos se ocultan (gf-reposo.js).
     try { this.cleanInactivePlayers(); } catch (e) {}
+    try { this._refreshRemoteDepths(); } catch (e) {}
 
     // ── La lava, el agua y las luces ───────────────────────────────────────
     this._animarLiquidos(delta);

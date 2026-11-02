@@ -484,6 +484,7 @@ class SalvajeScene extends GameScene {
     try { this._actualizarMascota(); } catch (e) {}
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
     try { this.cleanInactivePlayers(); } catch (e) {}
+    try { this._refreshRemoteDepths(); } catch (e) {}
 
     this._recortarArboles(time);
     this._comprobarSalidas();

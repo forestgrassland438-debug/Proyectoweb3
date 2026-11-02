@@ -16,6 +16,11 @@
  */
 
 
+/* La sombra de los demás jugadores: 6 px por encima de sus pies (igual que la propia, que va
+   a y+45 con los pies en y+51) y a ras de suelo, como la de los NPC. `var`: este archivo y
+   tiendajuego.js son guiones clásicos que comparten ámbito global. */
+var SOMBRA_REMOTA_SOBRE_PIES = 6, SOMBRA_REMOTA_DEPTH = 2.5;
+
 class tiendajuego extends Phaser.Scene {
     constructor() {
       super({ key: "tiendajuego" });
@@ -1451,7 +1456,7 @@ this.player.on('pointerdown', (pointer) => {
     };
 
         
-    this.npcx = this.add.text(685, 1370, 'Johnny Johnson', textStyle);
+    this.npcx = this.add.text(685, 1370, 'Johnny the Shopkeeper', textStyle);
     this.npcx.setOrigin(0.5);
     // Igual que en GameScene: los carteles de los NPC van por encima del
     // jugador y de su mascota (cuya profundidad es la línea de los pies, del
@@ -4036,6 +4041,7 @@ sendPlayerMovement() {
  */
 _soltarJugadorRemoto(p) {
   if (!p) return;
+  if (window.GFMonturas) window.GFMonturas.soltarRemoto(p);
   const fuera = (o) => { try { if (o && o.destroy) o.destroy(); } catch (_) {} };
 
   fuera(p.sprite);
@@ -4109,7 +4115,7 @@ createOtherPlayer(playerInfo) {
 
   const sprite = this.add.sprite(playerInfo.x, playerInfo.y, initialTexture);
   sprite.setScale(2);
-  sprite.setDepth(playerInfo.y + sprite.displayHeight * 0.5);
+  sprite.setDepth(this._piesRemoto(sprite));
 
   /* LA SOMBRA DEL JUGADOR REMOTO. Faltaba aquí igual que en el mapa: se creaba
      el sprite, el nombre, el perro y la sombra DEL PERRO, pero no la del
@@ -4121,10 +4127,10 @@ createOtherPlayer(playerInfo) {
   sombraRemota.fillEllipse(0, 0, 45, 22.5);
   const shadowContainer = this.add.container(
     playerInfo.x,
-    playerInfo.y + sprite.displayHeight * 0.45,
+    this._piesRemoto(sprite) - SOMBRA_REMOTA_SOBRE_PIES,
     [sombraRemota]
   );
-  shadowContainer.setDepth(playerInfo.y + sprite.displayHeight * 0.5 - 1);
+  shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
 
   const nameText = this.add.text(
     playerInfo.x,
@@ -4140,7 +4146,7 @@ createOtherPlayer(playerInfo) {
     }
   );
   nameText.setOrigin(0.5, 1);
-  nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
+  nameText.setDepth(this._piesRemoto(sprite) + 1);
 
   // El color que ESE jugador se eligió. Lo pone el servidor en el paquete de
   // la sala; aquí se vuelve a comprobar que sea '#rrggbb' antes de pintarlo.
@@ -4198,6 +4204,7 @@ createOtherPlayer(playerInfo) {
   }
 
   const remotePlayer = this.otherPlayers[playerInfo.id];
+  if (window.GFMonturas && playerInfo.montura) window.GFMonturas.remoto(this, remotePlayer, playerInfo.montura);
 
   remotePlayer.dog = {
     sprite: this.add.sprite(
@@ -4255,15 +4262,14 @@ updateOtherPlayer(playerInfo) {
   }
   // Modo reposo (gf-reposo.js): si de verdad se movió, se despierta.
   if (window.GFReposo) window.GFReposo.alRecibir(player, playerInfo);
+  const _mitadR = this._piesRemoto(player.sprite) - player.sprite.y;
   if (player._chatContainer) {
-    const sprH = player.sprite.displayHeight || 64;
-    player._chatContainer.setPosition(playerInfo.x, playerInfo.y - sprH*0.5 - 50);
+    player._chatContainer.setPosition(playerInfo.x, playerInfo.y - _mitadR - 50);
     player._chatContainer.setDepth(99998);
   }
   if (player._typingContainer) {
-    const sprH = player.sprite.displayHeight || 64;
     // Dots between name and message: just below name line
-    player._typingContainer.setPosition(playerInfo.x, playerInfo.y - sprH*0.5 - 26);
+    player._typingContainer.setPosition(playerInfo.x, playerInfo.y - _mitadR - 26);
     player._typingContainer.setDepth(99998);
   }
 
@@ -4286,10 +4292,11 @@ updateOtherPlayer(playerInfo) {
   if (player.sprite) {
     player.sprite.setPosition(x, y);
 
-    const remoteFeetY = y + player.sprite.displayHeight * 0.5;
+    const remoteFeetY = this._piesRemoto(player.sprite);
     player.sprite.setDepth(remoteFeetY);
 
     // Personaje de ESTE jugador, no el mío (ver GameScene.updateOtherPlayer).
+    if (window.GFMonturas) window.GFMonturas.remoto(this, player, playerInfo.montura);
     const _SB = window.GFSoulbound;
     if (_SB && _SB.idValido(playerInfo.soulbound) && playerInfo.soulbound !== player._soulbound) {
       player._soulbound = playerInfo.soulbound;
@@ -4345,10 +4352,10 @@ updateOtherPlayer(playerInfo) {
       const g = this.add.graphics();
       g.fillStyle(0x000000, 0.2);
       g.fillEllipse(0, 0, 45, 22.5);
-      player.shadowContainer = this.add.container(x, y + (player.sprite.displayHeight || 64) * 0.45, [g]);
+      player.shadowContainer = this.add.container(x, remoteFeetY - SOMBRA_REMOTA_SOBRE_PIES, [g]);
     }
-    player.shadowContainer.setPosition(x, y + (player.sprite.displayHeight || 64) * 0.45);
-    player.shadowContainer.setDepth(remoteFeetY - 1);
+    player.shadowContainer.setPosition(x, remoteFeetY - SOMBRA_REMOTA_SOBRE_PIES);
+    player.shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
 
     // El color del nombre puede cambiar en caliente.
     if (playerInfo.nameColor !== undefined && player.nameText && window.GFNombreColor) {
@@ -4451,6 +4458,40 @@ updateOtherPlayer(playerInfo) {
   if (window.GFReposo) window.GFReposo.trasRecibir(player);
 }
 
+/* Los pies medidos en el dibujo, no el borde del PNG (ver GameScene._piesRemoto): los
+   personajes personalizados traen 18 px transparentes abajo y salían delante de todo. */
+_piesRemoto(spr) {
+  try {
+    if (window.GFProfundidad && window.GFProfundidad.piesDe) return window.GFProfundidad.piesDe(this, spr);
+  } catch (_) {}
+  return spr.y + (spr.displayHeight || 64) * 0.5;
+}
+
+/* Cada fotograma: un jugador quieto no manda paquetes y su orden se quedaría viejo. */
+_refreshRemoteDepths() {
+  const players = this.otherPlayers;
+  if (!players) return;
+  for (const id in players) {
+    const p = players[id];
+    if (!p) continue;
+    if (p.sprite && p.sprite.active) {
+      const feet = this._piesRemoto(p.sprite);
+      p.sprite.setDepth(feet);
+      if (p.nameText) p.nameText.setDepth(feet + 1);
+      if (p.shadowContainer) {
+        p.shadowContainer.setPosition(p.sprite.x, feet - SOMBRA_REMOTA_SOBRE_PIES);
+        p.shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
+      }
+    }
+    if (p.dog && p.dog.sprite && p.dog.sprite.active) {
+      const dogFeet = p.dog.sprite.y + p.dog.sprite.displayHeight * 0.5;
+      p.dog.sprite.setDepth(dogFeet);
+      if (p.dog.shadowContainer) p.dog.shadowContainer.setDepth(dogFeet - 1);
+      if (p.dog.nameText) p.dog.nameText.setDepth(dogFeet + 1);
+    }
+  }
+}
+
 removeOtherPlayer(playerId) {
   const player = this.otherPlayers[playerId];
   if (!player) return;
@@ -4493,10 +4534,14 @@ removeOtherPlayer(playerId) {
         this._sceneEventHandlers.push([evento, fn]);
       };
 
-      // Evento cuando la escena entra en pausa (al cambiar a otra escena)
+      /* (2026-11-02) "En la tienda, si otro usuario se queda sin moverse desaparece al
+         instante." La tienda se pausa al abrir su panel (tienda_sistema.open, y el del hub con
+         pauseSceneOnOpen), es decir justo cuando alguien se para ante el mostrador a comprar.
+         Y aquí la pausa hacía leaveRoom(): lo mandaba a la sala 'game' en (0,0), los demás
+         recibían playerLeft y dejaba de verse, además de aparecer como fantasma en el mapa.
+         Abrir un panel no es irse: de la tienda se sale por la puerta (performCleanup). */
       registrar('pause', () => {
         console.log('⏸️ Escena tienda pausada');
-        this.leaveRoom();
       });
 
       // Evento cuando la escena se reanuda
@@ -5236,7 +5281,7 @@ removeOtherPlayer(playerId) {
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._chatTimer);
     clearTimeout(op._typingHideTimer);
-    const sprH = op.sprite.displayHeight || 64;
+    const sprH = (this._piesRemoto(op.sprite) - op.sprite.y) * 2;
     const clipped = text.length > 70 ? text.slice(0, 70) + '…' : text;
     op._chatContainer = this.add.text(
       op.sprite.x, op.sprite.y - sprH*0.5 - 50, clipped,
@@ -5253,7 +5298,7 @@ removeOtherPlayer(playerId) {
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._typingHideTimer);
     if (!show || (window.GFReposo && !window.GFReposo.visible(op))) return;
-    const sprH = op.sprite.displayHeight || 64;
+    const sprH = (this._piesRemoto(op.sprite) - op.sprite.y) * 2;
     // Dots appear between name and message: just below name line (-14)
     const dotsY = op.sprite.y - sprH*0.5 - 26;
     op._typingContainer = this.add.text(
@@ -11243,9 +11288,6 @@ _cleanupTutorial() {
             if (resData && resData.inventoryStale) {
                 console.warn('🛡️ El servidor conservó SU inventario (el market escribió después). Recargando.');
                 try {
-                    this.showNotification?.('Your inventory changed elsewhere — reloading it.', 'info');
-                } catch (e) {}
-                try {
                     await this.loadPlayerData();
                     this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
                 } catch (e) {
@@ -12792,7 +12834,7 @@ actualizarBarraComida(porcentaje) {
     // Y-sorting: depth = pies del jugador local cada frame
     // El jugador usa origin (0.5,0.5) → pies = y + displayHeight/2
     // Así se compara correctamente contra objetos con origin (0,1) donde depth = obj.y
-    const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
+    const playerFeetY = this._piesRemoto(this.player);
     this.player.setDepth(playerFeetY);
     if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
 
@@ -12800,9 +12842,10 @@ actualizarBarraComida(porcentaje) {
        ordenación: si compartieran profundidad, Phaser las pintaría en orden de
        creación y la sombra saldría encima de los zapatos. */
     if (this.shadowContainer) {
-      this.shadowContainer.setPosition(this.player.x, this.player.y + 22);
-      this.shadowContainer.setDepth(playerFeetY - 1);
+      this.shadowContainer.setPosition(this.player.x, playerFeetY - SOMBRA_REMOTA_SOBRE_PIES);
+      this.shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
     }
+    this._refreshRemoteDepths();
 
     // Y-SORT PROFESIONAL (one-shot): calibrar estructuras cuando las
     // colisiones del mapa de la tienda ya estén cargadas.

@@ -185,6 +185,7 @@ class ZonaScene extends GameScene {
     if (this.backgroundLayer) this.backgroundLayer.setDepth(0);
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     // El agua que se mueve (gf-agua) y el suelo pintado (gf-suelo).
+    if (c.sinHojas) this._sinHojas = true;   // un lago helado no tiene hojas flotando
     if (window.GFAgua) window.GFAgua.montar(this, { capa: 'suelo', textura: c.tileset, vida: c.vidaAgua || null });
     this._montarSueloPintado('recortadas_' + c.zona, c.zona, [this.backgroundLayer]);
 
@@ -536,6 +537,7 @@ class ZonaScene extends GameScene {
     try { this._actualizarMascota(); } catch (e) {}
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
     try { this.cleanInactivePlayers(); } catch (e) {}
+    try { this._refreshRemoteDepths(); } catch (e) {}
 
     this._recortarVisibles(time);
     this._comprobarSalidas();
@@ -674,7 +676,8 @@ class GlaciarScene extends ZonaScene {
   static get CFG() {
     return GlaciarScene._cfg || (GlaciarScene._cfg = cfgZona('glaciar', {
       escena: 'GlaciarScene', mundo: 10, sala: 'glaciar', titulo: 'The Shattered Glacier',
-      arboles: ['abeto_glaciar', 'pino_glaciar', 'abedul_helado', 'seco_helado'], vidaAgua: null, pisadas: 'nieve', clima: false
+      // (2026-11-02) Con peces: los pingüinos se meten a cazarlos (gf-fauna-zonas.js).
+      arboles: ['abeto_glaciar', 'pino_glaciar', 'abedul_helado', 'seco_helado'], vidaAgua: 'rio', sinHojas: true, pisadas: 'nieve', clima: false
     }));
   }
   constructor() { super('GlaciarScene'); }

@@ -71,7 +71,7 @@ const MSG_SIN_PALA = 'You need a Construction Shovel to dig it up. Buy one in th
 /* EL ESPANTAPÁJAROS (2026-10-05) también se construye: "quiero que esté en la
    tienda para construcción sobre la Lands". Guarda las parcelas de alrededor
    (gf-espantapajaros.js, GUARDA_CASILLAS) y su base es solo el palo (`base`). */
-const COLOCABLES = ['parcela', 'espantapajaros', 'basura', 'cofre1', 'cofre2', 'cofre3', 'cofre4'];
+const COLOCABLES = ['parcela', 'espantapajaros', 'basura', 'cofre1', 'cofre2', 'cofre3', 'cofre4', ...Object.keys(window.GFItemsV2?.colocables || {})];
 const COLOCABLE = {
   parcela: { nombre: 'Land Plot',        icono: './Game/Objetos/construccion/parcela.png', ancho: 2, alto: 2 },
   espantapajaros: { nombre: 'Scarecrow', icono: './Game/Objetos/granja/espantapajaros.png', ancho: 2, alto: 2, objeto: true, base: 22 },
@@ -79,7 +79,9 @@ const COLOCABLE = {
   cofre1:  { nombre: 'Wooden Chest',     icono: './Game/Objetos/cofres/cofre1.png', ancho: 2, alto: 2, objeto: true, capacidad: 5 },
   cofre2:  { nombre: 'Reinforced Chest', icono: './Game/Objetos/cofres/cofre2.png', ancho: 2, alto: 2, objeto: true, capacidad: 7 },
   cofre3:  { nombre: 'Magic Chest',      icono: './Game/Objetos/cofres/cofre3.png', ancho: 2, alto: 2, objeto: true, capacidad: 13 },
-  cofre4:  { nombre: 'Legendary Chest',  icono: './Game/Objetos/cofres/cofre4.png', ancho: 2, alto: 2, objeto: true, capacidad: 20 }
+  cofre4:  { nombre: 'Legendary Chest',  icono: './Game/Objetos/cofres/cofre4.png', ancho: 2, alto: 2, objeto: true, capacidad: 20 },
+  // (2026-11-02) "Quiero más cosas para construir en las Lands." Las 20 de gf-items-v2.js.
+  ...(window.GFItemsV2?.colocables || {})
 };
 /* De donde sale cada uno: va en el aviso de "no tienes". */
 const COMO_CONSEGUIR = {
@@ -89,7 +91,8 @@ const COMO_CONSEGUIR = {
   cofre1: 'Buy one in the shop → Construction.',
   cofre2: 'Craft it from a Wooden Chest (Crafting → Chests).',
   cofre3: 'Craft it from a Reinforced Chest (Crafting → Chests).',
-  cofre4: 'Craft it from a Magic Chest (Crafting → Chests).'
+  cofre4: 'Craft it from a Magic Chest (Crafting → Chests).',
+  ...Object.fromEntries(Object.keys(window.GFItemsV2?.colocables || {}).map((id) => [id, 'Buy one in the shop → Construction.']))
 };
 /* A cuanto hay que estar para abrir un cofre o usar el bote (pixeles, de los
    pies del jugador a la base del objeto). Alejarse mas cierra el cofre. */
@@ -1162,6 +1165,8 @@ class LandsScene extends GameScene {
       this._avisoConstruccion('🧑‍🌾 This scarecrow guards every crop within ' + n + ' tiles: crows perch on it instead of eating.', 'info');
       return;
     }
+    // Lo de adorno (el pozo, la fuente, el banco...) no se abre: se mira.
+    if (reg.tipo !== 'basura' && !def.capacidad) return;
     if (this._distanciaAObjeto(reg) > ALCANCE_OBJETO) {
       this._avisoConstruccion(reg.tipo === 'basura' ? 'Walk up to the trash can to use it.' : 'Walk up to the chest to open it.', 'info');
       return;
@@ -2223,6 +2228,7 @@ class LandsScene extends GameScene {
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
     // Los demás que lleven 5 minutos quietos se ocultan (gf-reposo.js).
     try { this.cleanInactivePlayers(); } catch (e) {}
+    try { this._refreshRemoteDepths(); } catch (e) {}
 
     this._comprobarSalida();
   }

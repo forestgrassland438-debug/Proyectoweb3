@@ -18,6 +18,11 @@
  */
 
 
+/* La sombra de los demás jugadores: 6 px por encima de sus pies (igual que la propia, que va
+   a y+45 con los pies en y+51) y a ras de suelo, como la de los NPC. `var`: este archivo y
+   tiendajuego.js son guiones clásicos que comparten ámbito global. */
+var SOMBRA_REMOTA_SOBRE_PIES = 6, SOMBRA_REMOTA_DEPTH = 2.5;
+
 class GameScene extends Phaser.Scene {
   /**
    * `config` existe para que MinaScene pueda heredar de esta clase con SU
@@ -1422,9 +1427,14 @@ normalizeInventoryData(items) {
 // Método para completar una misión - VERSIÓN CORREGIDA CON INVENTARIO LOCAL
 // Método para completar una misión - VERSIÓN FINAL
 // Método para completar una misión - VERSIÓN FINAL CORREGIDA
-async completeMission(missionId) {
+async completeMission(missionId, npcDelPanel) {
   // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
   if (window.GFMuerte && window.GFMuerte.bloquear(this, 'mission')) return false;
+  /* (2026-11-02) "Le doy al botón, sale HAND IN, cierro el panel y no se completa." Cerrar
+     el panel pone currentNpcMission a null y la petición, que sale después del guardado,
+     se iba sin NPC: el servidor la rechazaba con un 400 ("no tienes los objetos"). El NPC
+     se apunta al pulsar el botón y la entrega sigue aunque se cierre el panel. */
+  const npcMision = npcDelPanel || this.currentNpcMission;
   try {
     console.log(`🎉 INICIANDO COMPLETADO DE MISIÓN: ${missionId}`);
     console.log('==============================================');
@@ -1532,7 +1542,7 @@ async completeMission(missionId) {
     };
     
     const requestBody = {
-      npcId: this.currentNpcMission,
+      npcId: npcMision,
       missionId: missionId,
       day: today,
       playerName: this.playerName
@@ -1577,7 +1587,7 @@ async completeMission(missionId) {
           `You don't have the required items for this mission`,
           'error'
         );
-        await this.loadPlayerData();
+        await this.loadPlayerData({ sinMover: true });
         this.renderAllSlots && this.renderAllSlots();
         return null;
       }
@@ -1585,7 +1595,7 @@ async completeMission(missionId) {
       // Ya estaba entregada (doble clic, o dos pestañas abiertas).
       if (res?.status === 409) {
         this.showNotification('That mission was already handed in', 'warning');
-        await this.loadDailyMissions(this.currentNpcMission);
+        await this.loadDailyMissions(npcMision);
         return null;
       }
 
@@ -1593,7 +1603,7 @@ async completeMission(missionId) {
       // el inventario para reflejar exactamente lo que quedó guardado.
       if (res?.status === 502) {
         this.showNotification('The blockchain transaction was not confirmed. Nothing was taken — try again.', 'error');
-        await this.loadPlayerData();
+        await this.loadPlayerData({ sinMover: true });
         this.renderAllSlots && this.renderAllSlots();
         return null;
       }
@@ -1613,8 +1623,10 @@ async completeMission(missionId) {
       if(Number.isFinite(result.stats.bronce))this.moneda_bronce=result.stats.bronce;
     }
     // 9. El servidor ya movió inventario, experiencia y recompensa: se recarga
-    //    todo desde ahí en vez de adivinarlo en el cliente.
-    await this.loadPlayerData();
+    //    todo desde ahí en vez de adivinarlo en el cliente. SIN mover al jugador
+    //    (2026-11-02): "me recompensa, camino y se me regresa": la recarga lo devolvía
+    //    al sitio guardado, el de antes de echar a andar.
+    await this.loadPlayerData({ sinMover: true });
     this.renderAllSlots && this.renderAllSlots();
 
     this.handleMissionCompletionSuccess(result, missionId);
@@ -5290,6 +5302,7 @@ if (!this.anims.exists('perro_right')) this.anims.create({
        esquivan las colisiones del mapa, usando el mismo índice espacial
        que el jugador. Se desmontan solos en el shutdown de la escena. */
     if (window.GFAnimales) window.GFAnimales.montar(this);
+    if (window.GFVaca) window.GFVaca.montar(this);
 
     /* Mascota (barra de vida y menú de modo), muerte del jugador y el hub
        del alquimista. GFMascota va primero: los otros dos usan su helper
@@ -5744,7 +5757,7 @@ this.npcx1 = _marcarCartel(this.add.text(1829, 3288, 'Farmer Joe', textStyle));
 this.npcx2 = _marcarCartel(this.add.text(3296, 1950, 'Crafter Jack', textStyle));
 this.npcx3 = _marcarCartel(this.add.text(2374, 1515, 'Alchemist Colin', textStyle));
 this.npcx4 = _marcarCartel(this.add.text(3002, 855, 'Guardian Rurik', textStyle));
-this.npcx5 = _marcarCartel(this.add.text(2290, 2283, 'Lord Digby', textStyle));
+this.npcx5 = _marcarCartel(this.add.text(2290, 2283, 'Digby the Seed Mage', textStyle));
 
 
     this.onInnerBtnClick = (e) => {
@@ -8596,10 +8609,8 @@ this.sprite_npc2.on('pointerdown', (pointer) => {
   this.craftingSystem.show();
 });
 
-// Opcional: Asignar tecla C para abrir/cerrar
-this.input.keyboard.on('keydown-C', () => {
-  this.craftingSystem.toggle();
-});
+// (2026-11-02) "En la letra C no debería abrirse el crafteo, eso es un bug": el crafteo se
+// abre hablando con el herrero. La C y la X son ahora los poderes (gf-poderes.js).
 
 
 
@@ -17235,6 +17246,7 @@ sendPlayerMovement() {
  */
 _soltarJugadorRemoto(p) {
   if (!p) return;
+  if (window.GFMonturas) window.GFMonturas.soltarRemoto(p);
   const fuera = (o) => { try { if (o && o.destroy) o.destroy(); } catch (_) {} };
 
   fuera(p.sprite);
@@ -17323,7 +17335,7 @@ createOtherPlayer(playerInfo) {
 
   const sprite = this.add.sprite(playerInfo.x, playerInfo.y, initialTexture);
   sprite.setScale(2);
-  sprite.setDepth(playerInfo.y + sprite.displayHeight * 0.5);
+  sprite.setDepth(this._piesRemoto(sprite));
 
   /* ── LA SOMBRA DEL JUGADOR REMOTO ──────────────────────────────────────
      FALLO QUE ESTO ARREGLA — "a mis amigos no les sale la sombra debajo del
@@ -17347,10 +17359,10 @@ createOtherPlayer(playerInfo) {
   sombraRemota.fillEllipse(0, 0, 45, 22.5);
   const shadowContainer = this.add.container(
     playerInfo.x,
-    playerInfo.y + sprite.displayHeight * 0.45,
+    this._piesRemoto(sprite) - SOMBRA_REMOTA_SOBRE_PIES,
     [sombraRemota]
   );
-  shadowContainer.setDepth(playerInfo.y + sprite.displayHeight * 0.5 - 1);
+  shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
 
   const nameText = this.add.text(
     playerInfo.x,
@@ -17369,7 +17381,7 @@ createOtherPlayer(playerInfo) {
   // Ordenada por la línea de los pies (como el sprite), NO en 99999: así queda
   // por debajo de los carteles de los NPC (NPC_LABEL_DEPTH = 90000) y el
   // jugador remoto pasa por detrás de ellos, igual que el jugador local.
-  nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
+  nameText.setDepth(this._piesRemoto(sprite) + 1);
 
   /* El color que ESE jugador se eligió. Viene en el paquete de la sala y lo
      pone el servidor (ver joinRoom), no el cliente del otro: si viajara en el
@@ -17401,6 +17413,7 @@ createOtherPlayer(playerInfo) {
   };
 
   const remotePlayer = this.otherPlayers[playerInfo.id];
+  if (window.GFMonturas && playerInfo.montura) window.GFMonturas.remoto(this, remotePlayer, playerInfo.montura);
 
   // Traer sus sprites en segundo plano. Cuando lleguen se le cambia la textura
   // en el sitio; hasta entonces se ve con el personaje por defecto.
@@ -17486,13 +17499,14 @@ updateOtherPlayer(playerInfo) {
   if (window.GFReposo) window.GFReposo.alRecibir(player, playerInfo);
 
   // Mover burbujas de chat/typing junto con el sprite
+  // Lo que abulta el dibujo por encima de su centro. No displayHeight/2: un personaje
+  // personalizado trae 18 px transparentes en el PNG (ver _piesRemoto).
+  const _mitadR = this._piesRemoto(player.sprite) - player.sprite.y;
   if (player._chatText) {
-    const sprH5 = player.sprite.displayHeight || 64;
-    player._chatText.setPosition(playerInfo.x, playerInfo.y - sprH5 * 0.5 - 28);
+    player._chatText.setPosition(playerInfo.x, playerInfo.y - _mitadR - 28);
   }
   if (player._chatTypingText) {
-    const sprH5 = player.sprite.displayHeight || 64;
-    player._chatTypingText.setPosition(playerInfo.x, playerInfo.y - sprH5 * 0.5 - 22);
+    player._chatTypingText.setPosition(playerInfo.x, playerInfo.y - _mitadR - 22);
   }
   // Update display name if it changed
   if (playerInfo.username) player._displayName = playerInfo.username;
@@ -17508,24 +17522,23 @@ updateOtherPlayer(playerInfo) {
   // carteles morados. Ahora se ordena por la línea de sus pies, igual que el
   // sprite, así que queda siempre por debajo de NPC_LABEL_DEPTH.
   if (player.nameText) {
-    const sprH6 = player.sprite.displayHeight || 64;
-    player.nameText.setPosition(playerInfo.x, playerInfo.y - sprH6 * 0.5 - 14);
-    player.nameText.setDepth(playerInfo.y + sprH6 * 0.5 + 1);
+    player.nameText.setPosition(playerInfo.x, playerInfo.y - _mitadR - 14);
+    player.nameText.setDepth(playerInfo.y + _mitadR + 1);
   }
 
   /* La sombra va pegada a los pies. Si el jugador se creó antes de que este
      código existiera (o si por lo que sea le falta), se le pone ahora: así no
      hace falta que salga y vuelva a entrar para tener sombra. */
   {
-    const sprH8 = player.sprite.displayHeight || 64;
+    const _sombraY = playerInfo.y + _mitadR - SOMBRA_REMOTA_SOBRE_PIES;
     if (!player.shadowContainer) {
       const g = this.add.graphics();
       g.fillStyle(0x000000, 0.2);
       g.fillEllipse(0, 0, 45, 22.5);
-      player.shadowContainer = this.add.container(playerInfo.x, playerInfo.y + sprH8 * 0.45, [g]);
+      player.shadowContainer = this.add.container(playerInfo.x, _sombraY, [g]);
     }
-    player.shadowContainer.setPosition(playerInfo.x, playerInfo.y + sprH8 * 0.45);
-    player.shadowContainer.setDepth(playerInfo.y + sprH8 * 0.5 - 1);
+    player.shadowContainer.setPosition(playerInfo.x, _sombraY);
+    player.shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
   }
 
   // El color del nombre puede llegar más tarde que el primer paquete.
@@ -17538,14 +17551,12 @@ updateOtherPlayer(playerInfo) {
   }
   // Move new chat/typing containers
   if (player._chatContainer) {
-    const sprH7 = player.sprite.displayHeight || 64;
-    player._chatContainer.setPosition(playerInfo.x, playerInfo.y - sprH7 * 0.5 - 50);
+    player._chatContainer.setPosition(playerInfo.x, playerInfo.y - _mitadR - 50);
     player._chatContainer.setDepth(99998);
   }
   if (player._typingContainer) {
-    const sprH7 = player.sprite.displayHeight || 64;
     // Dots between name (-14) and message top (-50): position just below name
-    const dotsY = playerInfo.y - sprH7 * 0.5 - 26;
+    const dotsY = playerInfo.y - _mitadR - 26;
     player._typingContainer.setPosition(playerInfo.x, dotsY);
     player._typingContainer.setDepth(99998);
   }
@@ -17569,7 +17580,7 @@ updateOtherPlayer(playerInfo) {
   if (player.sprite) {
     player.sprite.setPosition(x, y);
 
-    const remoteFeetY = y + player.sprite.displayHeight * 0.5;
+    const remoteFeetY = this._piesRemoto(player.sprite);
     player.sprite.setDepth(remoteFeetY);
 
     // ── PERSONAJE DE ESTE JUGADOR, NO EL MÍO ─────────────────────────────
@@ -17577,6 +17588,7 @@ updateOtherPlayer(playerInfo) {
     // yo me pongo otro personaje. Aquí se usan las de su personaje; si aún no
     // han terminado de cargar, GFSoulbound devuelve las globales para que se
     // le siga viendo mientras tanto.
+    if (window.GFMonturas) window.GFMonturas.remoto(this, player, playerInfo.montura);
     const _SB = window.GFSoulbound;
     if (_SB && _SB.idValido(playerInfo.soulbound) && playerInfo.soulbound !== player._soulbound) {
       // Se cambió de personaje en marcha: traer el nuevo y repintarlo.
@@ -18673,7 +18685,7 @@ removeOtherPlayer(playerId) {
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._chatTimer);
     clearTimeout(op._typingHideTimer);
-    const sprH = op.sprite.displayHeight || 64;
+    const sprH = (this._piesRemoto(op.sprite) - op.sprite.y) * 2;
     // Show only the message — name is already floating above the sprite
     const clipped = text.length > 70 ? text.slice(0, 70) + '\u2026' : text;
     op._chatContainer = this.add.text(
@@ -18696,7 +18708,7 @@ removeOtherPlayer(playerId) {
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._typingHideTimer);
     if (!show || (window.GFReposo && !window.GFReposo.visible(op))) return;
-    const sprH = op.sprite.displayHeight || 64;
+    const sprH = (this._piesRemoto(op.sprite) - op.sprite.y) * 2;
     // Dots appear above the sprite, just below where a message would be (origin=1 top of msg zone)
     // Name is at -14, message at -50 (origin 1 = bottom of text), dots go just below name
     const dotsY = op.sprite.y - sprH * 0.5 - 26;
@@ -23523,8 +23535,10 @@ async loadAdminTimeOnly() {
   }
 }
 // 2) Load player data (renamed to avoid conflict) - FUNCIÓN CORREGIDA
-async loadPlayerData() {
+async loadPlayerData(opciones) {
   const sceneRunId = this._sceneRunId;
+  // Una recarga en plena partida (misión, inventario obsoleto) trae datos, no un viaje.
+  const sinMover = !!(opciones && opciones.sinMover);
   console.log('📥 Cargando datos del jugador...');
   
   try {
@@ -23640,6 +23654,7 @@ async loadPlayerData() {
     // La experiencia de la mascota NO va en la lista: la aplica
     // _aplicarNivelMascota, más abajo, junto con su nivel.
     playerProps.forEach(prop => {
+      if (sinMover && (prop === 'posicionplayerx' || prop === 'posicionplayery')) return;
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
 
@@ -23657,14 +23672,14 @@ async loadPlayerData() {
       const _mundoGuardado = Number(data.mundo);
       if (_mundoDeEscena) this.mundo = _mundoDeEscena;
       // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
-      if (_mundoDeEscena === 1 && _mundoGuardado === 2 && !this._anclaPropia) {
+      if (!sinMover && _mundoDeEscena === 1 && _mundoGuardado === 2 && !this._anclaPropia) {
         this.posicionplayerx = 1552;
         this.posicionplayery = 1531;
       }
       // Con coordenadas del mapa salvaje (157 casillas de 32, otro mapa): al
       // camino del oeste, por donde se vuelve de allí.
       // (Y con las de los mapas que salen del salvaje: 7, 8 y 9.)
-      if (_mundoDeEscena === 1 && (_mundoGuardado === 6 || _mundoGuardado === 7 || _mundoGuardado === 8 || _mundoGuardado === 9) && !this._anclaPropia) {
+      if (!sinMover && _mundoDeEscena === 1 && (_mundoGuardado === 6 || _mundoGuardado === 7 || _mundoGuardado === 8 || _mundoGuardado === 9) && !this._anclaPropia) {
         this.posicionplayerx = 90;
         this.posicionplayery = 2224;
       }
@@ -23723,7 +23738,7 @@ async loadPlayerData() {
     // solo en el reloj de create(): la mina y la isla no tienen ese reloj.
     try { this._nivelDesdeExp(); } catch (e) { console.warn('nivel desde exp:', e); }
     // Posicionar al jugador si existe
-    if (this.player) {
+    if (this.player && !sinMover) {
       this.player.setVisible(true);
 
       /* SALVO QUE LA ESCENA TENGA SU PROPIO PUNTO DE APARICION.
@@ -23971,7 +23986,7 @@ startWorldTutorial() {
     this._startWorldPinePhase();
   } else if (step === 5) {
     // Entregar la madera a Lord Digby (sprite real, no el texto del nombre).
-    this._showTutorialBanner('Now go and give the wood to Lord Digby.');
+    this._showTutorialBanner('Now go and give the wood to Digby the Seed Mage.');
     this._aimAtSprite('sprite_npc5', 2290, 2283);
     this._ensureTutorialPathTimer();
   } else if (step === 6) {
@@ -24117,7 +24132,7 @@ _nearestPlotCenter() {
 
 // Paso 2 (mundo): guiar a Lord Digby (sprite_npc5) para ENTREGAR semillas.
 _startWorldDigbyPhase() {
-  this._showTutorialBanner('Now go and give the seeds to Lord Digby.');
+  this._showTutorialBanner('Now go and give the seeds to Digby the Seed Mage.');
   this._aimAtSprite('sprite_npc5', 2290, 2283);
   this._ensureTutorialPathTimer();
 }
@@ -24783,12 +24798,13 @@ _cleanupTutorial() {
             // recargarlo: si no, el jugador seguiría jugando con la copia
             // vieja y no vería lo que compró.
             if (resData && resData.inventoryStale) {
-                console.warn('🛡️ El inventario estaba obsoleto (compra en el market) — recargando');
+                console.warn('🛡️ El inventario estaba obsoleto — recargando');
                 try {
-                    if (typeof this.notifications?.show === 'function') {
-                        this.notifications.show('Your marketplace purchase arrived. Refreshing your bag…', 'info');
-                    }
-                    await this.loadPlayerData();
+                    /* (2026-11-02) "Camino, se me regresa y sale un aviso." Esta marca la pone
+                       también el servidor al entregar una misión, una compra o una cosecha, no
+                       solo el mercado: el aviso decía algo falso y la recarga devolvía al
+                       jugador a su sitio guardado. Se pone al día en silencio, sin moverlo. */
+                    await this.loadPlayerData({ sinMover: true });
                 } catch (err) {
                     console.warn('⚠️ No se pudo recargar el inventario:', err);
                 }
@@ -26285,6 +26301,21 @@ _handleAccessDenied(body) {
 // paquetes, su perro conservaba un depth viejo (o el de creación) y tu personaje
 // —que sí se reordena cada frame— quedaba siempre delante. Ahora los remotos se
 // reordenan por la línea de sus pies en cada frame, igual que el jugador local.
+/* LOS PIES DE UN JUGADOR REMOTO, MEDIDOS EN EL DIBUJO (2026-11-02).
+
+   "Los otros jugadores están encima del perro" y "sus sombras están mal". Se contaba
+   `y + displayHeight/2`, el borde del PNG, y los personajes personalizados
+   ('personajeN--…') traen un PNG de 33x69 con 9 filas transparentes abajo: sus pies quedan
+   18 px más arriba de esa cuenta. Por eso iban delante de su perro y de lo que tuvieran al
+   lado, y su sombra (0,45 de la altura) salía 11 px por debajo de los pies. Es la misma
+   medida que usa el jugador local. */
+_piesRemoto(spr) {
+  try {
+    if (window.GFProfundidad && window.GFProfundidad.piesDe) return window.GFProfundidad.piesDe(this, spr);
+  } catch (_) {}
+  return spr.y + (spr.displayHeight || 64) * 0.5;
+}
+
 _refreshRemoteDepths() {
   const players = this.otherPlayers;
   if (!players) return;
@@ -26293,16 +26324,15 @@ _refreshRemoteDepths() {
     if (!p) continue;
 
     if (p.sprite && p.sprite.active) {
-      const feet = p.sprite.y + p.sprite.displayHeight * 0.5;
+      const feet = this._piesRemoto(p.sprite);
       p.sprite.setDepth(feet);
       if (p.nameText) p.nameText.setDepth(feet + 1);
-      /* La sombra se reordena aquí igual que el sprite y por el mismo motivo
-         que el perro: un jugador QUIETO no manda paquetes de movimiento, así
-         que su sombra se quedaría con la profundidad del último paso y podría
-         acabar dibujada por encima de quien pase por delante. */
+      /* La sombra sigue a los pies pero va pegada al SUELO (como la de los NPC): por
+         profundidad de pies acababa dibujada encima de su propio perro y de las piernas
+         de quien pasara por detrás. Un jugador quieto no manda paquetes: por eso aquí. */
       if (p.shadowContainer) {
-        p.shadowContainer.setPosition(p.sprite.x, p.sprite.y + p.sprite.displayHeight * 0.45);
-        p.shadowContainer.setDepth(feet - 1);
+        p.shadowContainer.setPosition(p.sprite.x, feet - SOMBRA_REMOTA_SOBRE_PIES);
+        p.shadowContainer.setDepth(SOMBRA_REMOTA_DEPTH);
       }
     }
 
@@ -26416,6 +26446,8 @@ CONSUMABLES_WATER = { balde_con_agua: 20 };
 
 // Devuelve { isWater, gain } si el ítem es consumible, o null.
 _consumableInfo(itemId) {
+  // (2026-11-02) La leche no quita el hambre: sube un poquito la vida.
+  if (itemId === 'balde_leche') return { isWater: false, isLife: true, gain: window.GFItemsV2?.vidaLeche || 8 };
   const isWater = this.CONSUMABLES_WATER[itemId] != null;
   const gain = isWater ? this.CONSUMABLES_WATER[itemId] : (this.CONSUMABLES_FOOD[itemId] || 0);
   return gain ? { isWater, gain } : null;
@@ -26485,20 +26517,20 @@ _openConsumePanel(itemId, info, available) {
   const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
   const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
   const img = def && def.src ? def.src : '';
-  const unit = info.isWater ? 'Water' : 'Food';
+  const unit = info.isLife ? 'Life' : info.isWater ? 'Water' : 'Food';
 
   // TOPE REAL: agua, comida y vida son porcentajes ENTEROS de 0 a 100. El
   // máximo no puede ser "todo lo que tengas en el inventario": antes, con el
   // agua en 33 y 10 baldes (20 cada uno), el panel dejaba consumir los 10 — la
   // barra se quedaba en 100 igual y los 7 baldes sobrantes se perdían.
   // Ahora el tope son las unidades que de verdad caben.
-  const actual = this._vitalActual(info.isWater ? 'aguaPorcentaje' : 'comidaPorcentaje');
+  const actual = this._vitalActual(info.isLife ? 'vidaPorcentaje' : info.isWater ? 'aguaPorcentaje' : 'comidaPorcentaje');
   const falta  = Math.max(0, this.VITAL_MAX_CLIENT - actual);
   if (falta <= 0) {
     // Se dice el valor REAL, no un 100 fijo: si algún día vuelve a
     // descuadrarse, el propio aviso lo delata en vez de esconderlo.
     this.notifications.show(
-      (info.isWater ? 'Water' : 'Food') + ' is already full (' + actual + '%)',
+      unit + ' is already full (' + actual + '%)',
       'warning'
     );
     return;
@@ -29601,7 +29633,7 @@ getPlayerIntentDirection() {
       this.npcx2.setText('Crafter Jack');
       this.npcx3.setText('Alchemist Colin');
       this.npcx4.setText('Guardian Rurik');
-      this.npcx5.setText('Lord Digby');
+      this.npcx5.setText('Digby the Seed Mage');
       this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
@@ -29635,7 +29667,7 @@ getPlayerIntentDirection() {
       this.npcx2.setText('Crafter Jack');
       this.npcx3.setText('Alchemist Colin');
       this.npcx4.setText('Guardian Rurik');
-      this.npcx5.setText('Lord Digby');
+      this.npcx5.setText('Digby the Seed Mage');
       this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
@@ -29668,7 +29700,7 @@ getPlayerIntentDirection() {
       this.npcx2.setText('Artesano Jack');
       this.npcx3.setText('Alquimista Colin');
       this.npcx4.setText('Guardián Rurik');
-      this.npcx5.setText('Señor Digby');
+      this.npcx5.setText('Digby the Seed Mage');
       this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
@@ -29702,7 +29734,7 @@ getPlayerIntentDirection() {
       this.npcx2.setText('Artesão Jack');
       this.npcx3.setText('Alquimista Colin');
       this.npcx4.setText('Guardião Rurik');
-      this.npcx5.setText('Lorde Digby');
+      this.npcx5.setText('Digby the Seed Mage');
       this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
