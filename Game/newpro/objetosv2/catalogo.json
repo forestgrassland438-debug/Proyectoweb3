@@ -1,0 +1,7504 @@
+{
+ "casas": [
+  {
+   "id": "casa_001",
+   "nombre": "Brick Gabled Cottage",
+   "techo": "frente",
+   "muro": "ladrillo",
+   "tejado": "pizarra_verde",
+   "ancho": 182,
+   "alto": 215,
+   "ruta": "casas/casa_001.png"
+  },
+  {
+   "id": "casa_002",
+   "nombre": "Sky Gabled House",
+   "techo": "frente",
+   "muro": "estuco_azul",
+   "tejado": "teja_turquesa",
+   "ancho": 198,
+   "alto": 215,
+   "ruta": "casas/casa_002.png"
+  },
+  {
+   "id": "casa_003",
+   "nombre": "Sage Gabled Lodge",
+   "techo": "frente",
+   "muro": "estuco_verde",
+   "tejado": "teja_rosa",
+   "ancho": 213,
+   "alto": 215,
+   "ruta": "casas/casa_003.png"
+  },
+  {
+   "id": "casa_004",
+   "nombre": "Crimson Gabled Manor",
+   "techo": "frente",
+   "muro": "tablas_rojo",
+   "tejado": "teja_naranja",
+   "ancho": 229,
+   "alto": 224,
+   "ruta": "casas/casa_004.png"
+  },
+  {
+   "id": "casa_005",
+   "nombre": "Forest Gabled Retreat",
+   "techo": "frente",
+   "muro": "tablas_verde",
+   "tejado": "pizarra_morada",
+   "ancho": 182,
+   "alto": 215,
+   "ruta": "casas/casa_005.png"
+  },
+  {
+   "id": "casa_006",
+   "nombre": "Marble Gabled Hall",
+   "techo": "frente",
+   "muro": "marmol",
+   "tejado": "teja_naranja",
+   "ancho": 198,
+   "alto": 215,
+   "ruta": "casas/casa_006.png"
+  },
+  {
+   "id": "casa_007",
+   "nombre": "Brick Gabled Home",
+   "techo": "frente",
+   "muro": "ladrillo",
+   "tejado": "pizarra_morada",
+   "ancho": 213,
+   "alto": 215,
+   "ruta": "casas/casa_007.png"
+  },
+  {
+   "id": "casa_008",
+   "nombre": "Sky Gabled Villa",
+   "techo": "frente",
+   "muro": "estuco_azul",
+   "tejado": "pizarra_verde",
+   "ancho": 229,
+   "alto": 215,
+   "ruta": "casas/casa_008.png"
+  },
+  {
+   "id": "casa_009",
+   "nombre": "Sage Gabled Cabin",
+   "techo": "frente",
+   "muro": "estuco_verde",
+   "tejado": "teja_turquesa",
+   "ancho": 182,
+   "alto": 224,
+   "ruta": "casas/casa_009.png"
+  },
+  {
+   "id": "casa_010",
+   "nombre": "Crimson Gabled Dwelling",
+   "techo": "frente",
+   "muro": "tablas_rojo",
+   "tejado": "teja_rosa",
+   "ancho": 198,
+   "alto": 215,
+   "ruta": "casas/casa_010.png"
+  },
+  {
+   "id": "casa_011",
+   "nombre": "Cream Long Cottage",
+   "techo": "lado",
+   "muro": "estuco",
+   "tejado": "paja",
+   "ancho": 229,
+   "alto": 188,
+   "ruta": "casas/casa_011.png"
+  },
+  {
+   "id": "casa_012",
+   "nombre": "Timber Long House",
+   "techo": "lado",
+   "muro": "entramado",
+   "tejado": "teja_roja",
+   "ancho": 245,
+   "alto": 176,
+   "ruta": "casas/casa_012.png"
+  },
+  {
+   "id": "casa_013",
+   "nombre": "Harbor Long Lodge",
+   "techo": "lado",
+   "muro": "tablas_azul",
+   "tejado": "madera",
+   "ancho": 261,
+   "alto": 188,
+   "ruta": "casas/casa_013.png"
+  },
+  {
+   "id": "casa_014",
+   "nombre": "Dark Brick Long Manor",
+   "techo": "lado",
+   "muro": "ladrillo_oscuro",
+   "tejado": "paja",
+   "ancho": 277,
+   "alto": 188,
+   "ruta": "casas/casa_014.png"
+  },
+  {
+   "id": "casa_015",
+   "nombre": "Rose Long Retreat",
+   "techo": "lado",
+   "muro": "estuco_rosa",
+   "tejado": "teja_roja",
+   "ancho": 229,
+   "alto": 176,
+   "ruta": "casas/casa_015.png"
+  },
+  {
+   "id": "casa_016",
+   "nombre": "Log Long Hall",
+   "techo": "lado",
+   "muro": "troncos",
+   "tejado": "negro",
+   "ancho": 245,
+   "alto": 188,
+   "ruta": "casas/casa_016.png"
+  },
+  {
+   "id": "casa_017",
+   "nombre": "Cream Long Home",
+   "techo": "lado",
+   "muro": "estuco",
+   "tejado": "paja_vieja",
+   "ancho": 261,
+   "alto": 188,
+   "ruta": "casas/casa_017.png"
+  },
+  {
+   "id": "casa_018",
+   "nombre": "Timber Long Villa",
+   "techo": "lado",
+   "muro": "entramado",
+   "tejado": "musgo",
+   "ancho": 277,
+   "alto": 176,
+   "ruta": "casas/casa_018.png"
+  },
+  {
+   "id": "casa_019",
+   "nombre": "Harbor Long Cabin",
+   "techo": "lado",
+   "muro": "tablas_azul",
+   "tejado": "negro",
+   "ancho": 229,
+   "alto": 188,
+   "ruta": "casas/casa_019.png"
+  },
+  {
+   "id": "casa_020",
+   "nombre": "Dark Brick Long Dwelling",
+   "techo": "lado",
+   "muro": "ladrillo_oscuro",
+   "tejado": "paja_vieja",
+   "ancho": 245,
+   "alto": 188,
+   "ruta": "casas/casa_020.png"
+  },
+  {
+   "id": "casa_021",
+   "nombre": "Rose Hipped Cottage",
+   "techo": "cuatro",
+   "muro": "estuco_rosa",
+   "tejado": "teja_azul",
+   "ancho": 217,
+   "alto": 180,
+   "ruta": "casas/casa_021.png"
+  },
+  {
+   "id": "casa_022",
+   "nombre": "Marble Hipped House",
+   "techo": "cuatro",
+   "muro": "marmol",
+   "tejado": "zinc",
+   "ancho": 233,
+   "alto": 180,
+   "ruta": "casas/casa_022.png"
+  },
+  {
+   "id": "casa_023",
+   "nombre": "Brick Hipped Lodge",
+   "techo": "cuatro",
+   "muro": "ladrillo",
+   "tejado": "teja_turquesa",
+   "ancho": 249,
+   "alto": 180,
+   "ruta": "casas/casa_023.png"
+  },
+  {
+   "id": "casa_024",
+   "nombre": "Timber Hipped Manor",
+   "techo": "cuatro",
+   "muro": "entramado",
+   "tejado": "teja_roja",
+   "ancho": 265,
+   "alto": 194,
+   "ruta": "casas/casa_024.png"
+  },
+  {
+   "id": "casa_025",
+   "nombre": "Sky Hipped Retreat",
+   "techo": "cuatro",
+   "muro": "estuco_azul",
+   "tejado": "pizarra_morada",
+   "ancho": 217,
+   "alto": 180,
+   "ruta": "casas/casa_025.png"
+  },
+  {
+   "id": "casa_026",
+   "nombre": "Plank Hipped Hall",
+   "techo": "cuatro",
+   "muro": "tablas",
+   "tejado": "teja_roja",
+   "ancho": 233,
+   "alto": 180,
+   "ruta": "casas/casa_026.png"
+  },
+  {
+   "id": "casa_027",
+   "nombre": "Rose Hipped Home",
+   "techo": "cuatro",
+   "muro": "estuco_rosa",
+   "tejado": "pizarra_morada",
+   "ancho": 249,
+   "alto": 180,
+   "ruta": "casas/casa_027.png"
+  },
+  {
+   "id": "casa_028",
+   "nombre": "Marble Hipped Villa",
+   "techo": "cuatro",
+   "muro": "marmol",
+   "tejado": "teja_azul",
+   "ancho": 265,
+   "alto": 180,
+   "ruta": "casas/casa_028.png"
+  },
+  {
+   "id": "casa_029",
+   "nombre": "Brick Hipped Cabin",
+   "techo": "cuatro",
+   "muro": "ladrillo",
+   "tejado": "zinc",
+   "ancho": 217,
+   "alto": 194,
+   "ruta": "casas/casa_029.png"
+  },
+  {
+   "id": "casa_030",
+   "nombre": "Timber Hipped Dwelling",
+   "techo": "cuatro",
+   "muro": "entramado",
+   "tejado": "teja_turquesa",
+   "ancho": 233,
+   "alto": 180,
+   "ruta": "casas/casa_030.png"
+  },
+  {
+   "id": "casa_031",
+   "nombre": "Dark Brick Mansard Cottage",
+   "techo": "mansarda",
+   "muro": "ladrillo_oscuro",
+   "tejado": "negro",
+   "ancho": 209,
+   "alto": 212,
+   "ruta": "casas/casa_031.png"
+  },
+  {
+   "id": "casa_032",
+   "nombre": "Cream Mansard House",
+   "techo": "mansarda",
+   "muro": "estuco",
+   "tejado": "cobre",
+   "ancho": 225,
+   "alto": 202,
+   "ruta": "casas/casa_032.png"
+  },
+  {
+   "id": "casa_033",
+   "nombre": "Marble Mansard Lodge",
+   "techo": "mansarda",
+   "muro": "marmol",
+   "tejado": "teja_azul",
+   "ancho": 241,
+   "alto": 212,
+   "ruta": "casas/casa_033.png"
+  },
+  {
+   "id": "casa_034",
+   "nombre": "Sage Mansard Manor",
+   "techo": "mansarda",
+   "muro": "estuco_verde",
+   "tejado": "zinc",
+   "ancho": 257,
+   "alto": 212,
+   "ruta": "casas/casa_034.png"
+  },
+  {
+   "id": "casa_035",
+   "nombre": "Brick Mansard Retreat",
+   "techo": "mansarda",
+   "muro": "ladrillo",
+   "tejado": "pizarra_morada",
+   "ancho": 209,
+   "alto": 202,
+   "ruta": "casas/casa_035.png"
+  },
+  {
+   "id": "casa_036",
+   "nombre": "Dark Brick Mansard Hall",
+   "techo": "mansarda",
+   "muro": "ladrillo_oscuro",
+   "tejado": "zinc",
+   "ancho": 225,
+   "alto": 212,
+   "ruta": "casas/casa_036.png"
+  },
+  {
+   "id": "casa_037",
+   "nombre": "Cream Mansard Home",
+   "techo": "mansarda",
+   "muro": "estuco",
+   "tejado": "pizarra_morada",
+   "ancho": 241,
+   "alto": 212,
+   "ruta": "casas/casa_037.png"
+  },
+  {
+   "id": "casa_038",
+   "nombre": "Marble Mansard Villa",
+   "techo": "mansarda",
+   "muro": "marmol",
+   "tejado": "negro",
+   "ancho": 257,
+   "alto": 202,
+   "ruta": "casas/casa_038.png"
+  },
+  {
+   "id": "casa_039",
+   "nombre": "Sage Mansard Cabin",
+   "techo": "mansarda",
+   "muro": "estuco_verde",
+   "tejado": "cobre",
+   "ancho": 209,
+   "alto": 212,
+   "ruta": "casas/casa_039.png"
+  },
+  {
+   "id": "casa_040",
+   "nombre": "Brick Mansard Dwelling",
+   "techo": "mansarda",
+   "muro": "ladrillo",
+   "tejado": "teja_azul",
+   "ancho": 225,
+   "alto": 212,
+   "ruta": "casas/casa_040.png"
+  },
+  {
+   "id": "casa_041",
+   "nombre": "Crimson Barn Cottage",
+   "techo": "granero",
+   "muro": "tablas_rojo",
+   "tejado": "zinc",
+   "ancho": 209,
+   "alto": 215,
+   "ruta": "casas/casa_041.png"
+  },
+  {
+   "id": "casa_042",
+   "nombre": "Forest Barn House",
+   "techo": "granero",
+   "muro": "tablas_verde",
+   "tejado": "negro",
+   "ancho": 225,
+   "alto": 209,
+   "ruta": "casas/casa_042.png"
+  },
+  {
+   "id": "casa_043",
+   "nombre": "Harbor Barn Lodge",
+   "techo": "granero",
+   "muro": "tablas_azul",
+   "tejado": "teja_roja",
+   "ancho": 241,
+   "alto": 215,
+   "ruta": "casas/casa_043.png"
+  },
+  {
+   "id": "casa_044",
+   "nombre": "Plank Barn Manor",
+   "techo": "granero",
+   "muro": "tablas",
+   "tejado": "madera",
+   "ancho": 257,
+   "alto": 218,
+   "ruta": "casas/casa_044.png"
+  },
+  {
+   "id": "casa_045",
+   "nombre": "Log Barn Retreat",
+   "techo": "granero",
+   "muro": "troncos",
+   "tejado": "musgo",
+   "ancho": 209,
+   "alto": 209,
+   "ruta": "casas/casa_045.png"
+  },
+  {
+   "id": "casa_046",
+   "nombre": "Crimson Barn Hall",
+   "techo": "granero",
+   "muro": "tablas_rojo",
+   "tejado": "madera",
+   "ancho": 225,
+   "alto": 215,
+   "ruta": "casas/casa_046.png"
+  },
+  {
+   "id": "casa_047",
+   "nombre": "Forest Barn Home",
+   "techo": "granero",
+   "muro": "tablas_verde",
+   "tejado": "musgo",
+   "ancho": 241,
+   "alto": 215,
+   "ruta": "casas/casa_047.png"
+  },
+  {
+   "id": "casa_048",
+   "nombre": "Harbor Barn Villa",
+   "techo": "granero",
+   "muro": "tablas_azul",
+   "tejado": "zinc",
+   "ancho": 257,
+   "alto": 209,
+   "ruta": "casas/casa_048.png"
+  },
+  {
+   "id": "casa_049",
+   "nombre": "Plank Barn Cabin",
+   "techo": "granero",
+   "muro": "tablas",
+   "tejado": "negro",
+   "ancho": 209,
+   "alto": 218,
+   "ruta": "casas/casa_049.png"
+  },
+  {
+   "id": "casa_050",
+   "nombre": "Log Barn Dwelling",
+   "techo": "granero",
+   "muro": "troncos",
+   "tejado": "teja_roja",
+   "ancho": 225,
+   "alto": 215,
+   "ruta": "casas/casa_050.png"
+  },
+  {
+   "id": "casa_051",
+   "nombre": "Cream Pagoda Cottage",
+   "techo": "pagoda",
+   "muro": "estuco",
+   "tejado": "teja_turquesa",
+   "ancho": 205,
+   "alto": 229,
+   "ruta": "casas/casa_051.png"
+  },
+  {
+   "id": "casa_052",
+   "nombre": "Bamboo Pagoda House",
+   "techo": "pagoda",
+   "muro": "bambu",
+   "tejado": "negro",
+   "ancho": 221,
+   "alto": 229,
+   "ruta": "casas/casa_052.png"
+  },
+  {
+   "id": "casa_053",
+   "nombre": "Marble Pagoda Lodge",
+   "techo": "pagoda",
+   "muro": "marmol",
+   "tejado": "oro",
+   "ancho": 237,
+   "alto": 229,
+   "ruta": "casas/casa_053.png"
+  },
+  {
+   "id": "casa_054",
+   "nombre": "Rose Pagoda Manor",
+   "techo": "pagoda",
+   "muro": "estuco_rosa",
+   "tejado": "teja_roja",
+   "ancho": 253,
+   "alto": 229,
+   "ruta": "casas/casa_054.png"
+  },
+  {
+   "id": "casa_055",
+   "nombre": "Crimson Pagoda Retreat",
+   "techo": "pagoda",
+   "muro": "tablas_rojo",
+   "tejado": "cobre",
+   "ancho": 205,
+   "alto": 229,
+   "ruta": "casas/casa_055.png"
+  },
+  {
+   "id": "casa_056",
+   "nombre": "Cream Pagoda Hall",
+   "techo": "pagoda",
+   "muro": "estuco",
+   "tejado": "teja_roja",
+   "ancho": 221,
+   "alto": 229,
+   "ruta": "casas/casa_056.png"
+  },
+  {
+   "id": "casa_057",
+   "nombre": "Bamboo Pagoda Home",
+   "techo": "pagoda",
+   "muro": "bambu",
+   "tejado": "cobre",
+   "ancho": 237,
+   "alto": 229,
+   "ruta": "casas/casa_057.png"
+  },
+  {
+   "id": "casa_058",
+   "nombre": "Marble Pagoda Villa",
+   "techo": "pagoda",
+   "muro": "marmol",
+   "tejado": "teja_turquesa",
+   "ancho": 253,
+   "alto": 229,
+   "ruta": "casas/casa_058.png"
+  },
+  {
+   "id": "casa_059",
+   "nombre": "Rose Pagoda Cabin",
+   "techo": "pagoda",
+   "muro": "estuco_rosa",
+   "tejado": "negro",
+   "ancho": 205,
+   "alto": 229,
+   "ruta": "casas/casa_059.png"
+  },
+  {
+   "id": "casa_060",
+   "nombre": "Crimson Pagoda Dwelling",
+   "techo": "pagoda",
+   "muro": "tablas_rojo",
+   "tejado": "oro",
+   "ancho": 221,
+   "alto": 229,
+   "ruta": "casas/casa_060.png"
+  },
+  {
+   "id": "casa_061",
+   "nombre": "Adobe Terrace Cottage",
+   "techo": "plano",
+   "muro": "adobe",
+   "tejado": "teja_turquesa",
+   "ancho": 200,
+   "alto": 151,
+   "ruta": "casas/casa_061.png"
+  },
+  {
+   "id": "casa_062",
+   "nombre": "Cream Terrace House",
+   "techo": "plano",
+   "muro": "estuco",
+   "tejado": "cobre",
+   "ancho": 216,
+   "alto": 153,
+   "ruta": "casas/casa_062.png"
+  },
+  {
+   "id": "casa_063",
+   "nombre": "Rose Terrace Lodge",
+   "techo": "plano",
+   "muro": "estuco_rosa",
+   "tejado": "teja_naranja",
+   "ancho": 232,
+   "alto": 155,
+   "ruta": "casas/casa_063.png"
+  },
+  {
+   "id": "casa_064",
+   "nombre": "Marble Terrace Manor",
+   "techo": "plano",
+   "muro": "marmol",
+   "tejado": "oro",
+   "ancho": 248,
+   "alto": 170,
+   "ruta": "casas/casa_064.png"
+  },
+  {
+   "id": "casa_065",
+   "nombre": "Sky Terrace Retreat",
+   "techo": "plano",
+   "muro": "estuco_azul",
+   "tejado": "teja_azul",
+   "ancho": 200,
+   "alto": 151,
+   "ruta": "casas/casa_065.png"
+  },
+  {
+   "id": "casa_066",
+   "nombre": "Adobe Terrace Hall",
+   "techo": "plano",
+   "muro": "adobe",
+   "tejado": "oro",
+   "ancho": 216,
+   "alto": 153,
+   "ruta": "casas/casa_066.png"
+  },
+  {
+   "id": "casa_067",
+   "nombre": "Cream Terrace Home",
+   "techo": "plano",
+   "muro": "estuco",
+   "tejado": "teja_azul",
+   "ancho": 232,
+   "alto": 155,
+   "ruta": "casas/casa_067.png"
+  },
+  {
+   "id": "casa_068",
+   "nombre": "Rose Terrace Villa",
+   "techo": "plano",
+   "muro": "estuco_rosa",
+   "tejado": "teja_turquesa",
+   "ancho": 248,
+   "alto": 159,
+   "ruta": "casas/casa_068.png"
+  },
+  {
+   "id": "casa_069",
+   "nombre": "Marble Terrace Cabin",
+   "techo": "plano",
+   "muro": "marmol",
+   "tejado": "cobre",
+   "ancho": 200,
+   "alto": 170,
+   "ruta": "casas/casa_069.png"
+  },
+  {
+   "id": "casa_070",
+   "nombre": "Sky Terrace Dwelling",
+   "techo": "plano",
+   "muro": "estuco_azul",
+   "tejado": "teja_naranja",
+   "ancho": 216,
+   "alto": 153,
+   "ruta": "casas/casa_070.png"
+  },
+  {
+   "id": "casa_071",
+   "nombre": "Stone Tower Cottage",
+   "techo": "chapitel",
+   "muro": "piedra",
+   "tejado": "pizarra_morada",
+   "ancho": 234,
+   "alto": 227,
+   "ruta": "casas/casa_071.png"
+  },
+  {
+   "id": "casa_072",
+   "nombre": "Marble Tower House",
+   "techo": "chapitel",
+   "muro": "marmol",
+   "tejado": "teja_azul",
+   "ancho": 250,
+   "alto": 227,
+   "ruta": "casas/casa_072.png"
+  },
+  {
+   "id": "casa_073",
+   "nombre": "Brick Tower Lodge",
+   "techo": "chapitel",
+   "muro": "ladrillo",
+   "tejado": "negro",
+   "ancho": 266,
+   "alto": 227,
+   "ruta": "casas/casa_073.png"
+  },
+  {
+   "id": "casa_074",
+   "nombre": "Sky Tower Manor",
+   "techo": "chapitel",
+   "muro": "estuco_azul",
+   "tejado": "cobre",
+   "ancho": 282,
+   "alto": 230,
+   "ruta": "casas/casa_074.png"
+  },
+  {
+   "id": "casa_075",
+   "nombre": "Timber Tower Retreat",
+   "techo": "chapitel",
+   "muro": "entramado",
+   "tejado": "teja_roja",
+   "ancho": 234,
+   "alto": 227,
+   "ruta": "casas/casa_075.png"
+  },
+  {
+   "id": "casa_076",
+   "nombre": "Stone Tower Hall",
+   "techo": "chapitel",
+   "muro": "piedra",
+   "tejado": "cobre",
+   "ancho": 250,
+   "alto": 227,
+   "ruta": "casas/casa_076.png"
+  },
+  {
+   "id": "casa_077",
+   "nombre": "Marble Tower Home",
+   "techo": "chapitel",
+   "muro": "marmol",
+   "tejado": "teja_roja",
+   "ancho": 266,
+   "alto": 227,
+   "ruta": "casas/casa_077.png"
+  },
+  {
+   "id": "casa_078",
+   "nombre": "Brick Tower Villa",
+   "techo": "chapitel",
+   "muro": "ladrillo",
+   "tejado": "pizarra_morada",
+   "ancho": 282,
+   "alto": 227,
+   "ruta": "casas/casa_078.png"
+  },
+  {
+   "id": "casa_079",
+   "nombre": "Sky Tower Cabin",
+   "techo": "chapitel",
+   "muro": "estuco_azul",
+   "tejado": "teja_azul",
+   "ancho": 234,
+   "alto": 230,
+   "ruta": "casas/casa_079.png"
+  },
+  {
+   "id": "casa_080",
+   "nombre": "Timber Tower Dwelling",
+   "techo": "chapitel",
+   "muro": "entramado",
+   "tejado": "negro",
+   "ancho": 250,
+   "alto": 227,
+   "ruta": "casas/casa_080.png"
+  },
+  {
+   "id": "casa_081",
+   "nombre": "Marble Domed Cottage",
+   "techo": "cupula",
+   "muro": "marmol",
+   "tejado": "cobre",
+   "ancho": 194,
+   "alto": 212,
+   "ruta": "casas/casa_081.png"
+  },
+  {
+   "id": "casa_082",
+   "nombre": "Adobe Domed House",
+   "techo": "cupula",
+   "muro": "adobe",
+   "tejado": "teja_turquesa",
+   "ancho": 210,
+   "alto": 212,
+   "ruta": "casas/casa_082.png"
+  },
+  {
+   "id": "casa_083",
+   "nombre": "Sky Domed Lodge",
+   "techo": "cupula",
+   "muro": "estuco_azul",
+   "tejado": "pizarra_morada",
+   "ancho": 226,
+   "alto": 212,
+   "ruta": "casas/casa_083.png"
+  },
+  {
+   "id": "casa_084",
+   "nombre": "Cream Domed Manor",
+   "techo": "cupula",
+   "muro": "estuco",
+   "tejado": "oro",
+   "ancho": 242,
+   "alto": 212,
+   "ruta": "casas/casa_084.png"
+  },
+  {
+   "id": "casa_085",
+   "nombre": "Rose Domed Retreat",
+   "techo": "cupula",
+   "muro": "estuco_rosa",
+   "tejado": "teja_azul",
+   "ancho": 194,
+   "alto": 212,
+   "ruta": "casas/casa_085.png"
+  },
+  {
+   "id": "casa_086",
+   "nombre": "Marble Domed Hall",
+   "techo": "cupula",
+   "muro": "marmol",
+   "tejado": "oro",
+   "ancho": 210,
+   "alto": 212,
+   "ruta": "casas/casa_086.png"
+  },
+  {
+   "id": "casa_087",
+   "nombre": "Adobe Domed Home",
+   "techo": "cupula",
+   "muro": "adobe",
+   "tejado": "teja_azul",
+   "ancho": 226,
+   "alto": 212,
+   "ruta": "casas/casa_087.png"
+  },
+  {
+   "id": "casa_088",
+   "nombre": "Sky Domed Villa",
+   "techo": "cupula",
+   "muro": "estuco_azul",
+   "tejado": "cobre",
+   "ancho": 242,
+   "alto": 212,
+   "ruta": "casas/casa_088.png"
+  },
+  {
+   "id": "casa_089",
+   "nombre": "Cream Domed Cabin",
+   "techo": "cupula",
+   "muro": "estuco",
+   "tejado": "teja_turquesa",
+   "ancho": 194,
+   "alto": 212,
+   "ruta": "casas/casa_089.png"
+  },
+  {
+   "id": "casa_090",
+   "nombre": "Rose Domed Dwelling",
+   "techo": "cupula",
+   "muro": "estuco_rosa",
+   "tejado": "pizarra_morada",
+   "ancho": 210,
+   "alto": 212,
+   "ruta": "casas/casa_090.png"
+  },
+  {
+   "id": "casa_091",
+   "nombre": "Plank A-Frame Cottage",
+   "techo": "triangulo",
+   "muro": "tablas",
+   "tejado": "madera",
+   "ancho": 191,
+   "alto": 203,
+   "ruta": "casas/casa_091.png"
+  },
+  {
+   "id": "casa_092",
+   "nombre": "Harbor A-Frame House",
+   "techo": "triangulo",
+   "muro": "tablas_azul",
+   "tejado": "musgo",
+   "ancho": 207,
+   "alto": 203,
+   "ruta": "casas/casa_092.png"
+  },
+  {
+   "id": "casa_093",
+   "nombre": "Bamboo A-Frame Lodge",
+   "techo": "triangulo",
+   "muro": "bambu",
+   "tejado": "paja",
+   "ancho": 223,
+   "alto": 203,
+   "ruta": "casas/casa_093.png"
+  },
+  {
+   "id": "casa_094",
+   "nombre": "Log A-Frame Manor",
+   "techo": "triangulo",
+   "muro": "troncos",
+   "tejado": "nieve",
+   "ancho": 239,
+   "alto": 212,
+   "ruta": "casas/casa_094.png"
+  },
+  {
+   "id": "casa_095",
+   "nombre": "Forest A-Frame Retreat",
+   "techo": "triangulo",
+   "muro": "tablas_verde",
+   "tejado": "zinc",
+   "ancho": 191,
+   "alto": 203,
+   "ruta": "casas/casa_095.png"
+  },
+  {
+   "id": "casa_096",
+   "nombre": "Plank A-Frame Hall",
+   "techo": "triangulo",
+   "muro": "tablas",
+   "tejado": "nieve",
+   "ancho": 207,
+   "alto": 203,
+   "ruta": "casas/casa_096.png"
+  },
+  {
+   "id": "casa_097",
+   "nombre": "Harbor A-Frame Home",
+   "techo": "triangulo",
+   "muro": "tablas_azul",
+   "tejado": "zinc",
+   "ancho": 223,
+   "alto": 203,
+   "ruta": "casas/casa_097.png"
+  },
+  {
+   "id": "casa_098",
+   "nombre": "Bamboo A-Frame Villa",
+   "techo": "triangulo",
+   "muro": "bambu",
+   "tejado": "madera",
+   "ancho": 239,
+   "alto": 203,
+   "ruta": "casas/casa_098.png"
+  },
+  {
+   "id": "casa_099",
+   "nombre": "Log A-Frame Cabin",
+   "techo": "triangulo",
+   "muro": "troncos",
+   "tejado": "musgo",
+   "ancho": 191,
+   "alto": 212,
+   "ruta": "casas/casa_099.png"
+  },
+  {
+   "id": "casa_100",
+   "nombre": "Forest A-Frame Dwelling",
+   "techo": "triangulo",
+   "muro": "tablas_verde",
+   "tejado": "paja",
+   "ancho": 207,
+   "alto": 203,
+   "ruta": "casas/casa_100.png"
+  }
+ ],
+ "arboles": [
+  {
+   "id": "arbol_001",
+   "nombre": "Summer Oak",
+   "forma": "redondo",
+   "ancho": 103,
+   "alto": 135,
+   "ruta": "arboles/arbol_001.png"
+  },
+  {
+   "id": "arbol_002",
+   "nombre": "Spring Oak",
+   "forma": "redondo",
+   "ancho": 107,
+   "alto": 144,
+   "ruta": "arboles/arbol_002.png"
+  },
+  {
+   "id": "arbol_003",
+   "nombre": "Autumn Oak",
+   "forma": "redondo",
+   "ancho": 113,
+   "alto": 134,
+   "ruta": "arboles/arbol_003.png"
+  },
+  {
+   "id": "arbol_004",
+   "nombre": "Deep Oak",
+   "forma": "redondo",
+   "ancho": 101,
+   "alto": 144,
+   "ruta": "arboles/arbol_004.png"
+  },
+  {
+   "id": "arbol_005",
+   "nombre": "Golden Oak",
+   "forma": "redondo",
+   "ancho": 109,
+   "alto": 138,
+   "ruta": "arboles/arbol_005.png"
+  },
+  {
+   "id": "arbol_006",
+   "nombre": "Green Beech",
+   "forma": "grande",
+   "ancho": 110,
+   "alto": 142,
+   "ruta": "arboles/arbol_006.png"
+  },
+  {
+   "id": "arbol_007",
+   "nombre": "Copper Beech",
+   "forma": "grande",
+   "ancho": 114,
+   "alto": 150,
+   "ruta": "arboles/arbol_007.png"
+  },
+  {
+   "id": "arbol_008",
+   "nombre": "Young Beech",
+   "forma": "grande",
+   "ancho": 123,
+   "alto": 144,
+   "ruta": "arboles/arbol_008.png"
+  },
+  {
+   "id": "arbol_009",
+   "nombre": "Shade Beech",
+   "forma": "grande",
+   "ancho": 110,
+   "alto": 150,
+   "ruta": "arboles/arbol_009.png"
+  },
+  {
+   "id": "arbol_010",
+   "nombre": "Amber Beech",
+   "forma": "grande",
+   "ancho": 117,
+   "alto": 144,
+   "ruta": "arboles/arbol_010.png"
+  },
+  {
+   "id": "arbol_011",
+   "nombre": "Green Poplar",
+   "forma": "ovalado",
+   "ancho": 52,
+   "alto": 152,
+   "ruta": "arboles/arbol_011.png"
+  },
+  {
+   "id": "arbol_012",
+   "nombre": "Silver Poplar",
+   "forma": "ovalado",
+   "ancho": 57,
+   "alto": 159,
+   "ruta": "arboles/arbol_012.png"
+  },
+  {
+   "id": "arbol_013",
+   "nombre": "Yellow Poplar",
+   "forma": "ovalado",
+   "ancho": 61,
+   "alto": 151,
+   "ruta": "arboles/arbol_013.png"
+  },
+  {
+   "id": "arbol_014",
+   "nombre": "Dark Poplar",
+   "forma": "ovalado",
+   "ancho": 53,
+   "alto": 160,
+   "ruta": "arboles/arbol_014.png"
+  },
+  {
+   "id": "arbol_015",
+   "nombre": "Fresh Poplar",
+   "forma": "ovalado",
+   "ancho": 57,
+   "alto": 150,
+   "ruta": "arboles/arbol_015.png"
+  },
+  {
+   "id": "arbol_016",
+   "nombre": "Crimson Maple",
+   "forma": "redondo",
+   "ancho": 99,
+   "alto": 132,
+   "ruta": "arboles/arbol_016.png"
+  },
+  {
+   "id": "arbol_017",
+   "nombre": "Fire Maple",
+   "forma": "redondo",
+   "ancho": 105,
+   "alto": 140,
+   "ruta": "arboles/arbol_017.png"
+  },
+  {
+   "id": "arbol_018",
+   "nombre": "Gold Maple",
+   "forma": "redondo",
+   "ancho": 110,
+   "alto": 133,
+   "ruta": "arboles/arbol_018.png"
+  },
+  {
+   "id": "arbol_019",
+   "nombre": "Green Maple",
+   "forma": "redondo",
+   "ancho": 99,
+   "alto": 141,
+   "ruta": "arboles/arbol_019.png"
+  },
+  {
+   "id": "arbol_020",
+   "nombre": "Royal Maple",
+   "forma": "redondo",
+   "ancho": 105,
+   "alto": 131,
+   "ruta": "arboles/arbol_020.png"
+  },
+  {
+   "id": "arbol_021",
+   "nombre": "Blossom Cherry",
+   "forma": "grande",
+   "ancho": 101,
+   "alto": 126,
+   "ruta": "arboles/arbol_021.png"
+  },
+  {
+   "id": "arbol_022",
+   "nombre": "Rose Cherry",
+   "forma": "grande",
+   "ancho": 104,
+   "alto": 134,
+   "ruta": "arboles/arbol_022.png"
+  },
+  {
+   "id": "arbol_023",
+   "nombre": "Pale Cherry",
+   "forma": "grande",
+   "ancho": 112,
+   "alto": 125,
+   "ruta": "arboles/arbol_023.png"
+  },
+  {
+   "id": "arbol_024",
+   "nombre": "Lilac Cherry",
+   "forma": "grande",
+   "ancho": 101,
+   "alto": 131,
+   "ruta": "arboles/arbol_024.png"
+  },
+  {
+   "id": "arbol_025",
+   "nombre": "Leafy Cherry",
+   "forma": "grande",
+   "ancho": 107,
+   "alto": 125,
+   "ruta": "arboles/arbol_025.png"
+  },
+  {
+   "id": "arbol_026",
+   "nombre": "Violet Jacaranda",
+   "forma": "sombrilla",
+   "ancho": 108,
+   "alto": 125,
+   "ruta": "arboles/arbol_026.png"
+  },
+  {
+   "id": "arbol_027",
+   "nombre": "Pink Jacaranda",
+   "forma": "sombrilla",
+   "ancho": 109,
+   "alto": 132,
+   "ruta": "arboles/arbol_027.png"
+  },
+  {
+   "id": "arbol_028",
+   "nombre": "Blue Jacaranda",
+   "forma": "sombrilla",
+   "ancho": 112,
+   "alto": 125,
+   "ruta": "arboles/arbol_028.png"
+  },
+  {
+   "id": "arbol_029",
+   "nombre": "Dusk Jacaranda",
+   "forma": "sombrilla",
+   "ancho": 93,
+   "alto": 133,
+   "ruta": "arboles/arbol_029.png"
+  },
+  {
+   "id": "arbol_030",
+   "nombre": "Pale Jacaranda",
+   "forma": "sombrilla",
+   "ancho": 109,
+   "alto": 126,
+   "ruta": "arboles/arbol_030.png"
+  },
+  {
+   "id": "arbol_031",
+   "nombre": "Savanna Acacia",
+   "forma": "sombrilla",
+   "ancho": 114,
+   "alto": 119,
+   "ruta": "arboles/arbol_031.png"
+  },
+  {
+   "id": "arbol_032",
+   "nombre": "Dry Acacia",
+   "forma": "sombrilla",
+   "ancho": 104,
+   "alto": 121,
+   "ruta": "arboles/arbol_032.png"
+  },
+  {
+   "id": "arbol_033",
+   "nombre": "Green Acacia",
+   "forma": "sombrilla",
+   "ancho": 118,
+   "alto": 112,
+   "ruta": "arboles/arbol_033.png"
+  },
+  {
+   "id": "arbol_034",
+   "nombre": "Dusty Acacia",
+   "forma": "sombrilla",
+   "ancho": 113,
+   "alto": 126,
+   "ruta": "arboles/arbol_034.png"
+  },
+  {
+   "id": "arbol_035",
+   "nombre": "Deep Acacia",
+   "forma": "sombrilla",
+   "ancho": 103,
+   "alto": 114,
+   "ruta": "arboles/arbol_035.png"
+  },
+  {
+   "id": "arbol_036",
+   "nombre": "Green Willow",
+   "forma": "lloron",
+   "ancho": 111,
+   "alto": 139,
+   "ruta": "arboles/arbol_036.png"
+  },
+  {
+   "id": "arbol_037",
+   "nombre": "Pale Willow",
+   "forma": "lloron",
+   "ancho": 116,
+   "alto": 147,
+   "ruta": "arboles/arbol_037.png"
+  },
+  {
+   "id": "arbol_038",
+   "nombre": "Spring Willow",
+   "forma": "lloron",
+   "ancho": 121,
+   "alto": 139,
+   "ruta": "arboles/arbol_038.png"
+  },
+  {
+   "id": "arbol_039",
+   "nombre": "Golden Willow",
+   "forma": "lloron",
+   "ancho": 110,
+   "alto": 147,
+   "ruta": "arboles/arbol_039.png"
+  },
+  {
+   "id": "arbol_040",
+   "nombre": "Night Willow",
+   "forma": "lloron",
+   "ancho": 115,
+   "alto": 139,
+   "ruta": "arboles/arbol_040.png"
+  },
+  {
+   "id": "arbol_041",
+   "nombre": "Rose Weeping Cherry",
+   "forma": "lloron",
+   "ancho": 104,
+   "alto": 133,
+   "ruta": "arboles/arbol_041.png"
+  },
+  {
+   "id": "arbol_042",
+   "nombre": "Violet Weeping Cherry",
+   "forma": "lloron",
+   "ancho": 110,
+   "alto": 141,
+   "ruta": "arboles/arbol_042.png"
+  },
+  {
+   "id": "arbol_043",
+   "nombre": "Ember Weeping Cherry",
+   "forma": "lloron",
+   "ancho": 114,
+   "alto": 133,
+   "ruta": "arboles/arbol_043.png"
+  },
+  {
+   "id": "arbol_044",
+   "nombre": "Frost Weeping Cherry",
+   "forma": "lloron",
+   "ancho": 105,
+   "alto": 141,
+   "ruta": "arboles/arbol_044.png"
+  },
+  {
+   "id": "arbol_045",
+   "nombre": "Coral Weeping Cherry",
+   "forma": "lloron",
+   "ancho": 111,
+   "alto": 133,
+   "ruta": "arboles/arbol_045.png"
+  },
+  {
+   "id": "arbol_046",
+   "nombre": "Green Pine",
+   "forma": "pino",
+   "ancho": 94,
+   "alto": 148,
+   "ruta": "arboles/arbol_046.png"
+  },
+  {
+   "id": "arbol_047",
+   "nombre": "Blue Pine",
+   "forma": "pino",
+   "ancho": 98,
+   "alto": 156,
+   "ruta": "arboles/arbol_047.png"
+  },
+  {
+   "id": "arbol_048",
+   "nombre": "Dark Pine",
+   "forma": "pino",
+   "ancho": 104,
+   "alto": 148,
+   "ruta": "arboles/arbol_048.png"
+  },
+  {
+   "id": "arbol_049",
+   "nombre": "Young Pine",
+   "forma": "pino",
+   "ancho": 94,
+   "alto": 156,
+   "ruta": "arboles/arbol_049.png"
+  },
+  {
+   "id": "arbol_050",
+   "nombre": "Sea Pine",
+   "forma": "pino",
+   "ancho": 98,
+   "alto": 148,
+   "ruta": "arboles/arbol_050.png"
+  },
+  {
+   "id": "arbol_051",
+   "nombre": "Forest Fir",
+   "forma": "abeto",
+   "ancho": 90,
+   "alto": 161,
+   "ruta": "arboles/arbol_051.png"
+  },
+  {
+   "id": "arbol_052",
+   "nombre": "Green Fir",
+   "forma": "abeto",
+   "ancho": 96,
+   "alto": 169,
+   "ruta": "arboles/arbol_052.png"
+  },
+  {
+   "id": "arbol_053",
+   "nombre": "Silver Fir",
+   "forma": "abeto",
+   "ancho": 100,
+   "alto": 161,
+   "ruta": "arboles/arbol_053.png"
+  },
+  {
+   "id": "arbol_054",
+   "nombre": "Teal Fir",
+   "forma": "abeto",
+   "ancho": 90,
+   "alto": 169,
+   "ruta": "arboles/arbol_054.png"
+  },
+  {
+   "id": "arbol_055",
+   "nombre": "Larch Fir",
+   "forma": "abeto",
+   "ancho": 96,
+   "alto": 161,
+   "ruta": "arboles/arbol_055.png"
+  },
+  {
+   "id": "arbol_056",
+   "nombre": "Winter Snow Fir",
+   "forma": "nevado",
+   "ancho": 94,
+   "alto": 157,
+   "ruta": "arboles/arbol_056.png"
+  },
+  {
+   "id": "arbol_057",
+   "nombre": "Ice Snow Fir",
+   "forma": "nevado",
+   "ancho": 98,
+   "alto": 165,
+   "ruta": "arboles/arbol_057.png"
+  },
+  {
+   "id": "arbol_058",
+   "nombre": "Polar Snow Fir",
+   "forma": "nevado",
+   "ancho": 104,
+   "alto": 157,
+   "ruta": "arboles/arbol_058.png"
+  },
+  {
+   "id": "arbol_059",
+   "nombre": "Glacier Snow Fir",
+   "forma": "nevado",
+   "ancho": 94,
+   "alto": 165,
+   "ruta": "arboles/arbol_059.png"
+  },
+  {
+   "id": "arbol_060",
+   "nombre": "Pale Snow Fir",
+   "forma": "nevado",
+   "ancho": 98,
+   "alto": 157,
+   "ruta": "arboles/arbol_060.png"
+  },
+  {
+   "id": "arbol_061",
+   "nombre": "Green Cypress",
+   "forma": "cipres",
+   "ancho": 42,
+   "alto": 147,
+   "ruta": "arboles/arbol_061.png"
+  },
+  {
+   "id": "arbol_062",
+   "nombre": "Olive Cypress",
+   "forma": "cipres",
+   "ancho": 46,
+   "alto": 155,
+   "ruta": "arboles/arbol_062.png"
+  },
+  {
+   "id": "arbol_063",
+   "nombre": "Sea Cypress",
+   "forma": "cipres",
+   "ancho": 52,
+   "alto": 147,
+   "ruta": "arboles/arbol_063.png"
+  },
+  {
+   "id": "arbol_064",
+   "nombre": "Sun Cypress",
+   "forma": "cipres",
+   "ancho": 42,
+   "alto": 155,
+   "ruta": "arboles/arbol_064.png"
+  },
+  {
+   "id": "arbol_065",
+   "nombre": "Mint Cypress",
+   "forma": "cipres",
+   "ancho": 46,
+   "alto": 147,
+   "ruta": "arboles/arbol_065.png"
+  },
+  {
+   "id": "arbol_066",
+   "nombre": "Island Palm",
+   "forma": "palmera",
+   "ancho": 102,
+   "alto": 131,
+   "ruta": "arboles/arbol_066.png"
+  },
+  {
+   "id": "arbol_067",
+   "nombre": "Coast Palm",
+   "forma": "palmera",
+   "ancho": 104,
+   "alto": 137,
+   "ruta": "arboles/arbol_067.png"
+  },
+  {
+   "id": "arbol_068",
+   "nombre": "Sea Palm",
+   "forma": "palmera",
+   "ancho": 106,
+   "alto": 131,
+   "ruta": "arboles/arbol_068.png"
+  },
+  {
+   "id": "arbol_069",
+   "nombre": "Sunset Palm",
+   "forma": "palmera",
+   "ancho": 101,
+   "alto": 137,
+   "ruta": "arboles/arbol_069.png"
+  },
+  {
+   "id": "arbol_070",
+   "nombre": "Oasis Palm",
+   "forma": "palmera",
+   "ancho": 104,
+   "alto": 131,
+   "ruta": "arboles/arbol_070.png"
+  },
+  {
+   "id": "arbol_071",
+   "nombre": "Green Date Palm",
+   "forma": "palmera",
+   "ancho": 112,
+   "alto": 144,
+   "ruta": "arboles/arbol_071.png"
+  },
+  {
+   "id": "arbol_072",
+   "nombre": "Dry Date Palm",
+   "forma": "palmera",
+   "ancho": 116,
+   "alto": 150,
+   "ruta": "arboles/arbol_072.png"
+  },
+  {
+   "id": "arbol_073",
+   "nombre": "Blue Date Palm",
+   "forma": "palmera",
+   "ancho": 117,
+   "alto": 144,
+   "ruta": "arboles/arbol_073.png"
+  },
+  {
+   "id": "arbol_074",
+   "nombre": "Young Date Palm",
+   "forma": "palmera",
+   "ancho": 110,
+   "alto": 150,
+   "ruta": "arboles/arbol_074.png"
+  },
+  {
+   "id": "arbol_075",
+   "nombre": "Red Date Palm",
+   "forma": "palmera",
+   "ancho": 122,
+   "alto": 144,
+   "ruta": "arboles/arbol_075.png"
+  },
+  {
+   "id": "arbol_076",
+   "nombre": "Old Baobab",
+   "forma": "baobab",
+   "ancho": 124,
+   "alto": 125,
+   "ruta": "arboles/arbol_076.png"
+  },
+  {
+   "id": "arbol_077",
+   "nombre": "Dry Baobab",
+   "forma": "baobab",
+   "ancho": 130,
+   "alto": 132,
+   "ruta": "arboles/arbol_077.png"
+  },
+  {
+   "id": "arbol_078",
+   "nombre": "Rain Baobab",
+   "forma": "baobab",
+   "ancho": 136,
+   "alto": 125,
+   "ruta": "arboles/arbol_078.png"
+  },
+  {
+   "id": "arbol_079",
+   "nombre": "Red Baobab",
+   "forma": "baobab",
+   "ancho": 124,
+   "alto": 132,
+   "ruta": "arboles/arbol_079.png"
+  },
+  {
+   "id": "arbol_080",
+   "nombre": "Dusk Baobab",
+   "forma": "baobab",
+   "ancho": 130,
+   "alto": 125,
+   "ruta": "arboles/arbol_080.png"
+  },
+  {
+   "id": "arbol_081",
+   "nombre": "White Birch",
+   "forma": "abedul",
+   "ancho": 71,
+   "alto": 145,
+   "ruta": "arboles/arbol_081.png"
+  },
+  {
+   "id": "arbol_082",
+   "nombre": "Autumn Birch",
+   "forma": "abedul",
+   "ancho": 75,
+   "alto": 153,
+   "ruta": "arboles/arbol_082.png"
+  },
+  {
+   "id": "arbol_083",
+   "nombre": "Green Birch",
+   "forma": "abedul",
+   "ancho": 79,
+   "alto": 145,
+   "ruta": "arboles/arbol_083.png"
+  },
+  {
+   "id": "arbol_084",
+   "nombre": "Silver Birch",
+   "forma": "abedul",
+   "ancho": 71,
+   "alto": 153,
+   "ruta": "arboles/arbol_084.png"
+  },
+  {
+   "id": "arbol_085",
+   "nombre": "Copper Birch",
+   "forma": "abedul",
+   "ancho": 75,
+   "alto": 145,
+   "ruta": "arboles/arbol_085.png"
+  },
+  {
+   "id": "arbol_086",
+   "nombre": "Ash Dead Tree",
+   "forma": "seco",
+   "ancho": 93,
+   "alto": 118,
+   "ruta": "arboles/arbol_086.png"
+  },
+  {
+   "id": "arbol_087",
+   "nombre": "Dry Dead Tree",
+   "forma": "seco",
+   "ancho": 92,
+   "alto": 121,
+   "ruta": "arboles/arbol_087.png"
+  },
+  {
+   "id": "arbol_088",
+   "nombre": "Burnt Dead Tree",
+   "forma": "seco",
+   "ancho": 102,
+   "alto": 119,
+   "ruta": "arboles/arbol_088.png"
+  },
+  {
+   "id": "arbol_089",
+   "nombre": "Hollow Dead Tree",
+   "forma": "seco",
+   "ancho": 91,
+   "alto": 126,
+   "ruta": "arboles/arbol_089.png"
+  },
+  {
+   "id": "arbol_090",
+   "nombre": "Pale Dead Tree",
+   "forma": "seco",
+   "ancho": 95,
+   "alto": 116,
+   "ruta": "arboles/arbol_090.png"
+  },
+  {
+   "id": "arbol_091",
+   "nombre": "Teal Fairy Tree",
+   "forma": "grande",
+   "ancho": 103,
+   "alto": 136,
+   "ruta": "arboles/arbol_091.png"
+  },
+  {
+   "id": "arbol_092",
+   "nombre": "Pink Fairy Tree",
+   "forma": "grande",
+   "ancho": 108,
+   "alto": 145,
+   "ruta": "arboles/arbol_092.png"
+  },
+  {
+   "id": "arbol_093",
+   "nombre": "Moon Fairy Tree",
+   "forma": "grande",
+   "ancho": 113,
+   "alto": 136,
+   "ruta": "arboles/arbol_093.png"
+  },
+  {
+   "id": "arbol_094",
+   "nombre": "Dream Fairy Tree",
+   "forma": "grande",
+   "ancho": 100,
+   "alto": 145,
+   "ruta": "arboles/arbol_094.png"
+  },
+  {
+   "id": "arbol_095",
+   "nombre": "Sun Fairy Tree",
+   "forma": "grande",
+   "ancho": 108,
+   "alto": 138,
+   "ruta": "arboles/arbol_095.png"
+  },
+  {
+   "id": "arbol_096",
+   "nombre": "Green Round Bush Tree",
+   "forma": "redondo",
+   "ancho": 79,
+   "alto": 101,
+   "ruta": "arboles/arbol_096.png"
+  },
+  {
+   "id": "arbol_097",
+   "nombre": "Bright Round Bush Tree",
+   "forma": "redondo",
+   "ancho": 83,
+   "alto": 110,
+   "ruta": "arboles/arbol_097.png"
+  },
+  {
+   "id": "arbol_098",
+   "nombre": "Fire Round Bush Tree",
+   "forma": "redondo",
+   "ancho": 89,
+   "alto": 102,
+   "ruta": "arboles/arbol_098.png"
+  },
+  {
+   "id": "arbol_099",
+   "nombre": "Rose Round Bush Tree",
+   "forma": "redondo",
+   "ancho": 79,
+   "alto": 110,
+   "ruta": "arboles/arbol_099.png"
+  },
+  {
+   "id": "arbol_100",
+   "nombre": "Sea Round Bush Tree",
+   "forma": "redondo",
+   "ancho": 85,
+   "alto": 103,
+   "ruta": "arboles/arbol_100.png"
+  }
+ ],
+ "monturas": [
+  {
+   "id": "montura_001",
+   "especie": "horse",
+   "nombre": "Chestnut Horse",
+   "nivel": 14,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.0,
+    "abajo": 37.0,
+    "arriba": 37.0
+   },
+   "ruta": "monturas/montura_001.png"
+  },
+  {
+   "id": "montura_002",
+   "especie": "horse",
+   "nombre": "Black Horse",
+   "nivel": 14,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.0,
+    "abajo": 37.0,
+    "arriba": 37.0
+   },
+   "ruta": "monturas/montura_002.png"
+  },
+  {
+   "id": "montura_003",
+   "especie": "horse",
+   "nombre": "White Horse",
+   "nivel": 15,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.0,
+    "abajo": 37.0,
+    "arriba": 37.0
+   },
+   "ruta": "monturas/montura_003.png"
+  },
+  {
+   "id": "montura_004",
+   "especie": "horse",
+   "nombre": "Palomino Horse",
+   "nivel": 15,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.0,
+    "abajo": 37.0,
+    "arriba": 37.0
+   },
+   "ruta": "monturas/montura_004.png"
+  },
+  {
+   "id": "montura_005",
+   "especie": "horse",
+   "nombre": "Dapple Grey Horse",
+   "nivel": 16,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.0,
+    "abajo": 37.0,
+    "arriba": 37.0
+   },
+   "ruta": "monturas/montura_005.png"
+  },
+  {
+   "id": "montura_006",
+   "especie": "pony",
+   "nombre": "Bay Pony",
+   "nivel": 6,
+   "velocidad": 1.22,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.2,
+    "abajo": 31.2,
+    "arriba": 31.2
+   },
+   "ruta": "monturas/montura_006.png"
+  },
+  {
+   "id": "montura_007",
+   "especie": "pony",
+   "nombre": "Cream Pony",
+   "nivel": 6,
+   "velocidad": 1.22,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.2,
+    "abajo": 31.2,
+    "arriba": 31.2
+   },
+   "ruta": "monturas/montura_007.png"
+  },
+  {
+   "id": "montura_008",
+   "especie": "pony",
+   "nombre": "Blue Roan Pony",
+   "nivel": 7,
+   "velocidad": 1.22,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.2,
+    "abajo": 31.2,
+    "arriba": 31.2
+   },
+   "ruta": "monturas/montura_008.png"
+  },
+  {
+   "id": "montura_009",
+   "especie": "pony",
+   "nombre": "Rose Pony",
+   "nivel": 7,
+   "velocidad": 1.22,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.2,
+    "abajo": 31.2,
+    "arriba": 31.2
+   },
+   "ruta": "monturas/montura_009.png"
+  },
+  {
+   "id": "montura_010",
+   "especie": "pony",
+   "nombre": "Sooty Pony",
+   "nivel": 8,
+   "velocidad": 1.22,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.2,
+    "abajo": 31.2,
+    "arriba": 31.2
+   },
+   "ruta": "monturas/montura_010.png"
+  },
+  {
+   "id": "montura_011",
+   "especie": "donkey",
+   "nombre": "Grey Donkey",
+   "nivel": 5,
+   "velocidad": 1.2,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 33.2,
+    "abajo": 33.2,
+    "arriba": 33.2
+   },
+   "ruta": "monturas/montura_011.png"
+  },
+  {
+   "id": "montura_012",
+   "especie": "donkey",
+   "nombre": "Brown Donkey",
+   "nivel": 5,
+   "velocidad": 1.2,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 33.2,
+    "abajo": 33.2,
+    "arriba": 33.2
+   },
+   "ruta": "monturas/montura_012.png"
+  },
+  {
+   "id": "montura_013",
+   "especie": "donkey",
+   "nombre": "Silver Donkey",
+   "nivel": 6,
+   "velocidad": 1.2,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 33.2,
+    "abajo": 33.2,
+    "arriba": 33.2
+   },
+   "ruta": "monturas/montura_013.png"
+  },
+  {
+   "id": "montura_014",
+   "especie": "donkey",
+   "nombre": "Dusty Donkey",
+   "nivel": 6,
+   "velocidad": 1.2,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 33.2,
+    "abajo": 33.2,
+    "arriba": 33.2
+   },
+   "ruta": "monturas/montura_014.png"
+  },
+  {
+   "id": "montura_015",
+   "especie": "donkey",
+   "nombre": "Dark Donkey",
+   "nivel": 7,
+   "velocidad": 1.2,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 33.2,
+    "abajo": 33.2,
+    "arriba": 33.2
+   },
+   "ruta": "monturas/montura_015.png"
+  },
+  {
+   "id": "montura_016",
+   "especie": "zebra",
+   "nombre": "Plains Zebra",
+   "nivel": 15,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 36.0,
+    "abajo": 36.0,
+    "arriba": 36.0
+   },
+   "ruta": "monturas/montura_016.png"
+  },
+  {
+   "id": "montura_017",
+   "especie": "zebra",
+   "nombre": "Mountain Zebra",
+   "nivel": 15,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 36.0,
+    "abajo": 36.0,
+    "arriba": 36.0
+   },
+   "ruta": "monturas/montura_017.png"
+  },
+  {
+   "id": "montura_018",
+   "especie": "zebra",
+   "nombre": "Golden Zebra",
+   "nivel": 16,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 36.0,
+    "abajo": 36.0,
+    "arriba": 36.0
+   },
+   "ruta": "monturas/montura_018.png"
+  },
+  {
+   "id": "montura_019",
+   "especie": "zebra",
+   "nombre": "Azure Zebra",
+   "nivel": 16,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 36.0,
+    "abajo": 36.0,
+    "arriba": 36.0
+   },
+   "ruta": "monturas/montura_019.png"
+  },
+  {
+   "id": "montura_020",
+   "especie": "zebra",
+   "nombre": "Crimson Zebra",
+   "nivel": 17,
+   "velocidad": 1.4,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 36.0,
+    "abajo": 36.0,
+    "arriba": 36.0
+   },
+   "ruta": "monturas/montura_020.png"
+  },
+  {
+   "id": "montura_021",
+   "especie": "camel",
+   "nombre": "Desert Camel",
+   "nivel": 12,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.2,
+    "abajo": 39.2,
+    "arriba": 39.2
+   },
+   "ruta": "monturas/montura_021.png"
+  },
+  {
+   "id": "montura_022",
+   "especie": "camel",
+   "nombre": "Dune Camel",
+   "nivel": 12,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.2,
+    "abajo": 39.2,
+    "arriba": 39.2
+   },
+   "ruta": "monturas/montura_022.png"
+  },
+  {
+   "id": "montura_023",
+   "especie": "camel",
+   "nombre": "Mocha Camel",
+   "nivel": 13,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.2,
+    "abajo": 39.2,
+    "arriba": 39.2
+   },
+   "ruta": "monturas/montura_023.png"
+  },
+  {
+   "id": "montura_024",
+   "especie": "camel",
+   "nombre": "Pale Camel",
+   "nivel": 13,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.2,
+    "abajo": 39.2,
+    "arriba": 39.2
+   },
+   "ruta": "monturas/montura_024.png"
+  },
+  {
+   "id": "montura_025",
+   "especie": "camel",
+   "nombre": "Rust Camel",
+   "nivel": 14,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.2,
+    "abajo": 39.2,
+    "arriba": 39.2
+   },
+   "ruta": "monturas/montura_025.png"
+  },
+  {
+   "id": "montura_026",
+   "especie": "llama",
+   "nombre": "Cream Llama",
+   "nivel": 8,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.6,
+    "abajo": 34.6,
+    "arriba": 34.6
+   },
+   "ruta": "monturas/montura_026.png"
+  },
+  {
+   "id": "montura_027",
+   "especie": "llama",
+   "nombre": "Cocoa Llama",
+   "nivel": 8,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.6,
+    "abajo": 34.6,
+    "arriba": 34.6
+   },
+   "ruta": "monturas/montura_027.png"
+  },
+  {
+   "id": "montura_028",
+   "especie": "llama",
+   "nombre": "Spotless Grey Llama",
+   "nivel": 9,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.6,
+    "abajo": 34.6,
+    "arriba": 34.6
+   },
+   "ruta": "monturas/montura_028.png"
+  },
+  {
+   "id": "montura_029",
+   "especie": "llama",
+   "nombre": "Rose Llama",
+   "nivel": 9,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.6,
+    "abajo": 34.6,
+    "arriba": 34.6
+   },
+   "ruta": "monturas/montura_029.png"
+  },
+  {
+   "id": "montura_030",
+   "especie": "llama",
+   "nombre": "Ebony Llama",
+   "nivel": 10,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.6,
+    "abajo": 34.6,
+    "arriba": 34.6
+   },
+   "ruta": "monturas/montura_030.png"
+  },
+  {
+   "id": "montura_031",
+   "especie": "reindeer",
+   "nombre": "Northern Reindeer",
+   "nivel": 16,
+   "velocidad": 1.42,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.2,
+    "abajo": 35.2,
+    "arriba": 35.2
+   },
+   "ruta": "monturas/montura_031.png"
+  },
+  {
+   "id": "montura_032",
+   "especie": "reindeer",
+   "nombre": "Snow Reindeer",
+   "nivel": 16,
+   "velocidad": 1.42,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.2,
+    "abajo": 35.2,
+    "arriba": 35.2
+   },
+   "ruta": "monturas/montura_032.png"
+  },
+  {
+   "id": "montura_033",
+   "especie": "reindeer",
+   "nombre": "Bark Reindeer",
+   "nivel": 17,
+   "velocidad": 1.42,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.2,
+    "abajo": 35.2,
+    "arriba": 35.2
+   },
+   "ruta": "monturas/montura_033.png"
+  },
+  {
+   "id": "montura_034",
+   "especie": "reindeer",
+   "nombre": "Frost Reindeer",
+   "nivel": 17,
+   "velocidad": 1.42,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.2,
+    "abajo": 35.2,
+    "arriba": 35.2
+   },
+   "ruta": "monturas/montura_034.png"
+  },
+  {
+   "id": "montura_035",
+   "especie": "reindeer",
+   "nombre": "Ember Reindeer",
+   "nivel": 18,
+   "velocidad": 1.42,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.2,
+    "abajo": 35.2,
+    "arriba": 35.2
+   },
+   "ruta": "monturas/montura_035.png"
+  },
+  {
+   "id": "montura_036",
+   "especie": "elk",
+   "nombre": "Bull Elk",
+   "nivel": 19,
+   "velocidad": 1.44,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.6,
+    "abajo": 39.6,
+    "arriba": 39.6
+   },
+   "ruta": "monturas/montura_036.png"
+  },
+  {
+   "id": "montura_037",
+   "especie": "elk",
+   "nombre": "Pale Elk",
+   "nivel": 19,
+   "velocidad": 1.44,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.6,
+    "abajo": 39.6,
+    "arriba": 39.6
+   },
+   "ruta": "monturas/montura_037.png"
+  },
+  {
+   "id": "montura_038",
+   "especie": "elk",
+   "nombre": "Dark Elk",
+   "nivel": 20,
+   "velocidad": 1.44,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.6,
+    "abajo": 39.6,
+    "arriba": 39.6
+   },
+   "ruta": "monturas/montura_038.png"
+  },
+  {
+   "id": "montura_039",
+   "especie": "elk",
+   "nombre": "Silver Elk",
+   "nivel": 20,
+   "velocidad": 1.44,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.6,
+    "abajo": 39.6,
+    "arriba": 39.6
+   },
+   "ruta": "monturas/montura_039.png"
+  },
+  {
+   "id": "montura_040",
+   "especie": "elk",
+   "nombre": "Royal Elk",
+   "nivel": 21,
+   "velocidad": 1.44,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 39.6,
+    "abajo": 39.6,
+    "arriba": 39.6
+   },
+   "ruta": "monturas/montura_040.png"
+  },
+  {
+   "id": "montura_041",
+   "especie": "ox",
+   "nombre": "Field Ox",
+   "nivel": 11,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.1,
+    "abajo": 37.1,
+    "arriba": 37.1
+   },
+   "ruta": "monturas/montura_041.png"
+  },
+  {
+   "id": "montura_042",
+   "especie": "ox",
+   "nombre": "White Ox",
+   "nivel": 11,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.1,
+    "abajo": 37.1,
+    "arriba": 37.1
+   },
+   "ruta": "monturas/montura_042.png"
+  },
+  {
+   "id": "montura_043",
+   "especie": "ox",
+   "nombre": "Black Ox",
+   "nivel": 12,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.1,
+    "abajo": 37.1,
+    "arriba": 37.1
+   },
+   "ruta": "monturas/montura_043.png"
+  },
+  {
+   "id": "montura_044",
+   "especie": "ox",
+   "nombre": "Red Ox",
+   "nivel": 12,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.1,
+    "abajo": 37.1,
+    "arriba": 37.1
+   },
+   "ruta": "monturas/montura_044.png"
+  },
+  {
+   "id": "montura_045",
+   "especie": "ox",
+   "nombre": "Dun Ox",
+   "nivel": 13,
+   "velocidad": 1.25,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 37.1,
+    "abajo": 37.1,
+    "arriba": 37.1
+   },
+   "ruta": "monturas/montura_045.png"
+  },
+  {
+   "id": "montura_046",
+   "especie": "yak",
+   "nombre": "Mountain Yak",
+   "nivel": 17,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_046.png"
+  },
+  {
+   "id": "montura_047",
+   "especie": "yak",
+   "nombre": "Snow Yak",
+   "nivel": 17,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_047.png"
+  },
+  {
+   "id": "montura_048",
+   "especie": "yak",
+   "nombre": "Rust Yak",
+   "nivel": 18,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_048.png"
+  },
+  {
+   "id": "montura_049",
+   "especie": "yak",
+   "nombre": "Slate Yak",
+   "nivel": 18,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_049.png"
+  },
+  {
+   "id": "montura_050",
+   "especie": "yak",
+   "nombre": "Honey Yak",
+   "nivel": 19,
+   "velocidad": 1.3,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_050.png"
+  },
+  {
+   "id": "montura_051",
+   "especie": "boar",
+   "nombre": "Wild Boar",
+   "nivel": 10,
+   "velocidad": 1.28,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_051.png"
+  },
+  {
+   "id": "montura_052",
+   "especie": "boar",
+   "nombre": "Bristle Boar",
+   "nivel": 10,
+   "velocidad": 1.28,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_052.png"
+  },
+  {
+   "id": "montura_053",
+   "especie": "boar",
+   "nombre": "Ginger Boar",
+   "nivel": 11,
+   "velocidad": 1.28,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_053.png"
+  },
+  {
+   "id": "montura_054",
+   "especie": "boar",
+   "nombre": "Ash Boar",
+   "nivel": 11,
+   "velocidad": 1.28,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_054.png"
+  },
+  {
+   "id": "montura_055",
+   "especie": "boar",
+   "nombre": "Night Boar",
+   "nivel": 12,
+   "velocidad": 1.28,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_055.png"
+  },
+  {
+   "id": "montura_056",
+   "especie": "ram",
+   "nombre": "Wool Ram",
+   "nivel": 9,
+   "velocidad": 1.26,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.6,
+    "abajo": 32.6,
+    "arriba": 32.6
+   },
+   "ruta": "monturas/montura_056.png"
+  },
+  {
+   "id": "montura_057",
+   "especie": "ram",
+   "nombre": "Black Ram",
+   "nivel": 9,
+   "velocidad": 1.26,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.6,
+    "abajo": 32.6,
+    "arriba": 32.6
+   },
+   "ruta": "monturas/montura_057.png"
+  },
+  {
+   "id": "montura_058",
+   "especie": "ram",
+   "nombre": "Honey Ram",
+   "nivel": 10,
+   "velocidad": 1.26,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.6,
+    "abajo": 32.6,
+    "arriba": 32.6
+   },
+   "ruta": "monturas/montura_058.png"
+  },
+  {
+   "id": "montura_059",
+   "especie": "ram",
+   "nombre": "Blue Ram",
+   "nivel": 10,
+   "velocidad": 1.26,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.6,
+    "abajo": 32.6,
+    "arriba": 32.6
+   },
+   "ruta": "monturas/montura_059.png"
+  },
+  {
+   "id": "montura_060",
+   "especie": "ram",
+   "nombre": "Rust Ram",
+   "nivel": 11,
+   "velocidad": 1.26,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.6,
+    "abajo": 32.6,
+    "arriba": 32.6
+   },
+   "ruta": "monturas/montura_060.png"
+  },
+  {
+   "id": "montura_061",
+   "especie": "wolf",
+   "nombre": "Timber Wolf",
+   "nivel": 22,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 30.8,
+    "abajo": 30.8,
+    "arriba": 30.8
+   },
+   "ruta": "monturas/montura_061.png"
+  },
+  {
+   "id": "montura_062",
+   "especie": "wolf",
+   "nombre": "Arctic Wolf",
+   "nivel": 22,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 30.8,
+    "abajo": 30.8,
+    "arriba": 30.8
+   },
+   "ruta": "monturas/montura_062.png"
+  },
+  {
+   "id": "montura_063",
+   "especie": "wolf",
+   "nombre": "Black Wolf",
+   "nivel": 23,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 30.8,
+    "abajo": 30.8,
+    "arriba": 30.8
+   },
+   "ruta": "monturas/montura_063.png"
+  },
+  {
+   "id": "montura_064",
+   "especie": "wolf",
+   "nombre": "Red Wolf",
+   "nivel": 23,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 30.8,
+    "abajo": 30.8,
+    "arriba": 30.8
+   },
+   "ruta": "monturas/montura_064.png"
+  },
+  {
+   "id": "montura_065",
+   "especie": "wolf",
+   "nombre": "Storm Wolf",
+   "nivel": 24,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 30.8,
+    "abajo": 30.8,
+    "arriba": 30.8
+   },
+   "ruta": "monturas/montura_065.png"
+  },
+  {
+   "id": "montura_066",
+   "especie": "bear",
+   "nombre": "Brown Bear",
+   "nivel": 24,
+   "velocidad": 1.38,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_066.png"
+  },
+  {
+   "id": "montura_067",
+   "especie": "bear",
+   "nombre": "Polar Bear",
+   "nivel": 24,
+   "velocidad": 1.38,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_067.png"
+  },
+  {
+   "id": "montura_068",
+   "especie": "bear",
+   "nombre": "Black Bear",
+   "nivel": 25,
+   "velocidad": 1.38,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_068.png"
+  },
+  {
+   "id": "montura_069",
+   "especie": "bear",
+   "nombre": "Cinnamon Bear",
+   "nivel": 25,
+   "velocidad": 1.38,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_069.png"
+  },
+  {
+   "id": "montura_070",
+   "especie": "bear",
+   "nombre": "Moon Bear",
+   "nivel": 26,
+   "velocidad": 1.38,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 35.1,
+    "abajo": 35.1,
+    "arriba": 35.1
+   },
+   "ruta": "monturas/montura_070.png"
+  },
+  {
+   "id": "montura_071",
+   "especie": "lion",
+   "nombre": "Savanna Lion",
+   "nivel": 30,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.2,
+    "abajo": 32.2,
+    "arriba": 32.2
+   },
+   "ruta": "monturas/montura_071.png"
+  },
+  {
+   "id": "montura_072",
+   "especie": "lion",
+   "nombre": "White Lion",
+   "nivel": 30,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.2,
+    "abajo": 32.2,
+    "arriba": 32.2
+   },
+   "ruta": "monturas/montura_072.png"
+  },
+  {
+   "id": "montura_073",
+   "especie": "lion",
+   "nombre": "Dusk Lion",
+   "nivel": 31,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.2,
+    "abajo": 32.2,
+    "arriba": 32.2
+   },
+   "ruta": "monturas/montura_073.png"
+  },
+  {
+   "id": "montura_074",
+   "especie": "lion",
+   "nombre": "Ash Lion",
+   "nivel": 31,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.2,
+    "abajo": 32.2,
+    "arriba": 32.2
+   },
+   "ruta": "monturas/montura_074.png"
+  },
+  {
+   "id": "montura_075",
+   "especie": "lion",
+   "nombre": "Royal Lion",
+   "nivel": 32,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.2,
+    "abajo": 32.2,
+    "arriba": 32.2
+   },
+   "ruta": "monturas/montura_075.png"
+  },
+  {
+   "id": "montura_076",
+   "especie": "tiger",
+   "nombre": "Bengal Tiger",
+   "nivel": 28,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.4,
+    "abajo": 31.4,
+    "arriba": 31.4
+   },
+   "ruta": "monturas/montura_076.png"
+  },
+  {
+   "id": "montura_077",
+   "especie": "tiger",
+   "nombre": "White Tiger",
+   "nivel": 28,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.4,
+    "abajo": 31.4,
+    "arriba": 31.4
+   },
+   "ruta": "monturas/montura_077.png"
+  },
+  {
+   "id": "montura_078",
+   "especie": "tiger",
+   "nombre": "Golden Tiger",
+   "nivel": 29,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.4,
+    "abajo": 31.4,
+    "arriba": 31.4
+   },
+   "ruta": "monturas/montura_078.png"
+  },
+  {
+   "id": "montura_079",
+   "especie": "tiger",
+   "nombre": "Blue Tiger",
+   "nivel": 29,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.4,
+    "abajo": 31.4,
+    "arriba": 31.4
+   },
+   "ruta": "monturas/montura_079.png"
+  },
+  {
+   "id": "montura_080",
+   "especie": "tiger",
+   "nombre": "Red Tiger",
+   "nivel": 30,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 31.4,
+    "abajo": 31.4,
+    "arriba": 31.4
+   },
+   "ruta": "monturas/montura_080.png"
+  },
+  {
+   "id": "montura_081",
+   "especie": "panther",
+   "nombre": "Night Panther",
+   "nivel": 26,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_081.png"
+  },
+  {
+   "id": "montura_082",
+   "especie": "panther",
+   "nombre": "Cougar Panther",
+   "nivel": 26,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_082.png"
+  },
+  {
+   "id": "montura_083",
+   "especie": "panther",
+   "nombre": "Grey Panther",
+   "nivel": 27,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_083.png"
+  },
+  {
+   "id": "montura_084",
+   "especie": "panther",
+   "nombre": "Violet Panther",
+   "nivel": 27,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_084.png"
+  },
+  {
+   "id": "montura_085",
+   "especie": "panther",
+   "nombre": "Teal Panther",
+   "nivel": 28,
+   "velocidad": 1.56,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 29.8,
+    "abajo": 29.8,
+    "arriba": 29.8
+   },
+   "ruta": "monturas/montura_085.png"
+  },
+  {
+   "id": "montura_086",
+   "especie": "rhino",
+   "nombre": "Stone Rhino",
+   "nivel": 36,
+   "velocidad": 1.46,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.1,
+    "abajo": 34.1,
+    "arriba": 34.1
+   },
+   "ruta": "monturas/montura_086.png"
+  },
+  {
+   "id": "montura_087",
+   "especie": "rhino",
+   "nombre": "Dark Rhino",
+   "nivel": 36,
+   "velocidad": 1.46,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.1,
+    "abajo": 34.1,
+    "arriba": 34.1
+   },
+   "ruta": "monturas/montura_087.png"
+  },
+  {
+   "id": "montura_088",
+   "especie": "rhino",
+   "nombre": "Clay Rhino",
+   "nivel": 37,
+   "velocidad": 1.46,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.1,
+    "abajo": 34.1,
+    "arriba": 34.1
+   },
+   "ruta": "monturas/montura_088.png"
+  },
+  {
+   "id": "montura_089",
+   "especie": "rhino",
+   "nombre": "Iron Rhino",
+   "nivel": 37,
+   "velocidad": 1.46,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.1,
+    "abajo": 34.1,
+    "arriba": 34.1
+   },
+   "ruta": "monturas/montura_089.png"
+  },
+  {
+   "id": "montura_090",
+   "especie": "rhino",
+   "nombre": "Moss Rhino",
+   "nivel": 38,
+   "velocidad": 1.46,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 34.1,
+    "abajo": 34.1,
+    "arriba": 34.1
+   },
+   "ruta": "monturas/montura_090.png"
+  },
+  {
+   "id": "montura_091",
+   "especie": "ostrich",
+   "nombre": "Black Ostrich",
+   "nivel": 20,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 41.3,
+    "abajo": 44.8,
+    "arriba": 44.8
+   },
+   "ruta": "monturas/montura_091.png"
+  },
+  {
+   "id": "montura_092",
+   "especie": "ostrich",
+   "nombre": "Sand Ostrich",
+   "nivel": 20,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 41.3,
+    "abajo": 44.8,
+    "arriba": 44.8
+   },
+   "ruta": "monturas/montura_092.png"
+  },
+  {
+   "id": "montura_093",
+   "especie": "ostrich",
+   "nombre": "Blue Ostrich",
+   "nivel": 21,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 41.3,
+    "abajo": 44.8,
+    "arriba": 44.8
+   },
+   "ruta": "monturas/montura_093.png"
+  },
+  {
+   "id": "montura_094",
+   "especie": "ostrich",
+   "nombre": "Rose Ostrich",
+   "nivel": 21,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 41.3,
+    "abajo": 44.8,
+    "arriba": 44.8
+   },
+   "ruta": "monturas/montura_094.png"
+  },
+  {
+   "id": "montura_095",
+   "especie": "ostrich",
+   "nombre": "Emerald Ostrich",
+   "nivel": 22,
+   "velocidad": 1.5,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 41.3,
+    "abajo": 44.8,
+    "arriba": 44.8
+   },
+   "ruta": "monturas/montura_095.png"
+  },
+  {
+   "id": "montura_096",
+   "especie": "raptor",
+   "nombre": "Jungle Raptor",
+   "nivel": 33,
+   "velocidad": 1.62,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.9,
+    "abajo": 35.0,
+    "arriba": 35.0
+   },
+   "ruta": "monturas/montura_096.png"
+  },
+  {
+   "id": "montura_097",
+   "especie": "raptor",
+   "nombre": "Desert Raptor",
+   "nivel": 33,
+   "velocidad": 1.62,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.9,
+    "abajo": 35.0,
+    "arriba": 35.0
+   },
+   "ruta": "monturas/montura_097.png"
+  },
+  {
+   "id": "montura_098",
+   "especie": "raptor",
+   "nombre": "Night Raptor",
+   "nivel": 34,
+   "velocidad": 1.62,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.9,
+    "abajo": 35.0,
+    "arriba": 35.0
+   },
+   "ruta": "monturas/montura_098.png"
+  },
+  {
+   "id": "montura_099",
+   "especie": "raptor",
+   "nombre": "Crimson Raptor",
+   "nivel": 34,
+   "velocidad": 1.62,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.9,
+    "abajo": 35.0,
+    "arriba": 35.0
+   },
+   "ruta": "monturas/montura_099.png"
+  },
+  {
+   "id": "montura_100",
+   "especie": "raptor",
+   "nombre": "Teal Raptor",
+   "nivel": 35,
+   "velocidad": 1.62,
+   "cuadro": [
+    84,
+    68
+   ],
+   "silla": {
+    "lado": 32.9,
+    "abajo": 35.0,
+    "arriba": 35.0
+   },
+   "ruta": "monturas/montura_100.png"
+  }
+ ],
+ "comida": [
+  {
+   "id": "pan_hogaza",
+   "nombre": "Country Loaf",
+   "ruta": "comida/pan_hogaza.png"
+  },
+  {
+   "id": "pan_molde",
+   "nombre": "Sandwich Loaf",
+   "ruta": "comida/pan_molde.png"
+  },
+  {
+   "id": "pan_baguette",
+   "nombre": "Baguette",
+   "ruta": "comida/pan_baguette.png"
+  },
+  {
+   "id": "pan_bollo",
+   "nombre": "Milk Bun",
+   "ruta": "comida/pan_bollo.png"
+  },
+  {
+   "id": "pan_integral",
+   "nombre": "Whole Wheat Loaf",
+   "ruta": "comida/pan_integral.png"
+  },
+  {
+   "id": "pan_plano",
+   "nombre": "Flatbread",
+   "ruta": "comida/pan_plano.png"
+  },
+  {
+   "id": "pan_croissant",
+   "nombre": "Butter Croissant",
+   "ruta": "comida/pan_croissant.png"
+  },
+  {
+   "id": "pan_trenza",
+   "nombre": "Egg Braid",
+   "ruta": "comida/pan_trenza.png"
+  },
+  {
+   "id": "pan_pretzel",
+   "nombre": "Pretzel",
+   "ruta": "comida/pan_pretzel.png"
+  },
+  {
+   "id": "pan_ajo",
+   "nombre": "Garlic Bread",
+   "ruta": "comida/pan_ajo.png"
+  },
+  {
+   "id": "pan_cebolla",
+   "nombre": "Onion Roll",
+   "ruta": "comida/pan_cebolla.png"
+  },
+  {
+   "id": "pan_zanahoria",
+   "nombre": "Carrot Loaf",
+   "ruta": "comida/pan_zanahoria.png"
+  },
+  {
+   "id": "pan_tomate",
+   "nombre": "Tomato Focaccia",
+   "ruta": "comida/pan_tomate.png"
+  },
+  {
+   "id": "pan_espinaca",
+   "nombre": "Spinach Twist",
+   "ruta": "comida/pan_espinaca.png"
+  },
+  {
+   "id": "pan_calabaza",
+   "nombre": "Pumpkin Loaf",
+   "ruta": "comida/pan_calabaza.png"
+  },
+  {
+   "id": "pan_patata",
+   "nombre": "Potato Ring",
+   "ruta": "comida/pan_patata.png"
+  },
+  {
+   "id": "pan_romero",
+   "nombre": "Rosemary Focaccia",
+   "ruta": "comida/pan_romero.png"
+  },
+  {
+   "id": "pan_platano",
+   "nombre": "Banana Bread",
+   "ruta": "comida/pan_platano.png"
+  },
+  {
+   "id": "pan_manzana",
+   "nombre": "Apple Spiral",
+   "ruta": "comida/pan_manzana.png"
+  },
+  {
+   "id": "pan_chocolate",
+   "nombre": "Chocolate Brioche",
+   "ruta": "comida/pan_chocolate.png"
+  },
+  {
+   "id": "torta_vainilla",
+   "nombre": "Vanilla Sponge",
+   "ruta": "comida/torta_vainilla.png"
+  },
+  {
+   "id": "torta_cupcake",
+   "nombre": "Cream Cupcake",
+   "ruta": "comida/torta_cupcake.png"
+  },
+  {
+   "id": "torta_fresa",
+   "nombre": "Strawberry Cake",
+   "ruta": "comida/torta_fresa.png"
+  },
+  {
+   "id": "torta_chocolate",
+   "nombre": "Chocolate Cake",
+   "ruta": "comida/torta_chocolate.png"
+  },
+  {
+   "id": "torta_zanahoria",
+   "nombre": "Carrot Cake",
+   "ruta": "comida/torta_zanahoria.png"
+  },
+  {
+   "id": "torta_calabaza",
+   "nombre": "Pumpkin Pie",
+   "ruta": "comida/torta_calabaza.png"
+  },
+  {
+   "id": "torta_rollo",
+   "nombre": "Cream Roll",
+   "ruta": "comida/torta_rollo.png"
+  },
+  {
+   "id": "torta_manzana",
+   "nombre": "Apple Pie",
+   "ruta": "comida/torta_manzana.png"
+  },
+  {
+   "id": "torta_limon",
+   "nombre": "Lemon Tart",
+   "ruta": "comida/torta_limon.png"
+  },
+  {
+   "id": "torta_naranja",
+   "nombre": "Orange Bundt",
+   "ruta": "comida/torta_naranja.png"
+  },
+  {
+   "id": "torta_melocoton",
+   "nombre": "Peach Slice",
+   "ruta": "comida/torta_melocoton.png"
+  },
+  {
+   "id": "torta_pera",
+   "nombre": "Pear Tart",
+   "ruta": "comida/torta_pera.png"
+  },
+  {
+   "id": "torta_ciruela",
+   "nombre": "Plum Cake",
+   "ruta": "comida/torta_ciruela.png"
+  },
+  {
+   "id": "torta_higo",
+   "nombre": "Fig Slice",
+   "ruta": "comida/torta_higo.png"
+  },
+  {
+   "id": "torta_platano",
+   "nombre": "Banana Cream Cake",
+   "ruta": "comida/torta_platano.png"
+  },
+  {
+   "id": "torta_mango",
+   "nombre": "Mango Cheesecake",
+   "ruta": "comida/torta_mango.png"
+  },
+  {
+   "id": "torta_melon",
+   "nombre": "Melon Chiffon",
+   "ruta": "comida/torta_melon.png"
+  },
+  {
+   "id": "torta_sandia",
+   "nombre": "Watermelon Cake",
+   "ruta": "comida/torta_sandia.png"
+  },
+  {
+   "id": "torta_jengibre",
+   "nombre": "Ginger Bundt",
+   "ruta": "comida/torta_jengibre.png"
+  },
+  {
+   "id": "torta_boda",
+   "nombre": "Royal Tier Cake",
+   "ruta": "comida/torta_boda.png"
+  },
+  {
+   "id": "harina",
+   "nombre": "Flour",
+   "ruta": "comida/harina.png"
+  },
+  {
+   "id": "azucar",
+   "nombre": "Sugar",
+   "ruta": "comida/azucar.png"
+  },
+  {
+   "id": "huevo",
+   "nombre": "Eggs",
+   "ruta": "comida/huevo.png"
+  },
+  {
+   "id": "mantequilla",
+   "nombre": "Butter",
+   "ruta": "comida/mantequilla.png"
+  },
+  {
+   "id": "crema",
+   "nombre": "Cream",
+   "ruta": "comida/crema.png"
+  },
+  {
+   "id": "levadura",
+   "nombre": "Yeast",
+   "ruta": "comida/levadura.png"
+  },
+  {
+   "id": "chocolate",
+   "nombre": "Chocolate",
+   "ruta": "comida/chocolate.png"
+  },
+  {
+   "id": "balde_leche",
+   "nombre": "Bucket of Milk",
+   "ruta": "comida/balde_leche.png"
+  }
+ ],
+ "armas": [
+  {
+   "id": "espada_piedra",
+   "nombre": "Stone Sword",
+   "ruta": "armas/espada_piedra.png"
+  },
+  {
+   "id": "espada_acero",
+   "nombre": "Steel Sword",
+   "ruta": "armas/espada_acero.png"
+  },
+  {
+   "id": "espada_plata",
+   "nombre": "Silver Rapier",
+   "ruta": "armas/espada_plata.png"
+  },
+  {
+   "id": "espada_oro",
+   "nombre": "Golden Sword",
+   "ruta": "armas/espada_oro.png"
+  },
+  {
+   "id": "espada_hielo",
+   "nombre": "Frost Blade",
+   "ruta": "armas/espada_hielo.png"
+  },
+  {
+   "id": "espada_fuego",
+   "nombre": "Fire Scimitar",
+   "ruta": "armas/espada_fuego.png"
+  },
+  {
+   "id": "espada_sombra",
+   "nombre": "Shadow Blade",
+   "ruta": "armas/espada_sombra.png"
+  },
+  {
+   "id": "espada_dragon",
+   "nombre": "Dragon Greatsword",
+   "ruta": "armas/espada_dragon.png"
+  },
+  {
+   "id": "arco_corto",
+   "nombre": "Short Bow",
+   "ruta": "armas/arco_corto.png"
+  },
+  {
+   "id": "arco_cazador",
+   "nombre": "Hunter Bow",
+   "ruta": "armas/arco_cazador.png"
+  },
+  {
+   "id": "arco_largo",
+   "nombre": "Long Bow",
+   "ruta": "armas/arco_largo.png"
+  },
+  {
+   "id": "arco_hielo",
+   "nombre": "Frost Bow",
+   "ruta": "armas/arco_hielo.png"
+  },
+  {
+   "id": "arco_elfico",
+   "nombre": "Elven Bow",
+   "ruta": "armas/arco_elfico.png"
+  },
+  {
+   "id": "arco_dragon",
+   "nombre": "Dragon Bow",
+   "ruta": "armas/arco_dragon.png"
+  },
+  {
+   "id": "cana_bambu",
+   "nombre": "Bamboo Rod",
+   "ruta": "armas/cana_bambu.png"
+  },
+  {
+   "id": "cana_roble",
+   "nombre": "Oak Rod",
+   "ruta": "armas/cana_roble.png"
+  },
+  {
+   "id": "cana_acero",
+   "nombre": "Steel Rod",
+   "ruta": "armas/cana_acero.png"
+  },
+  {
+   "id": "cana_plata",
+   "nombre": "Silver Rod",
+   "ruta": "armas/cana_plata.png"
+  },
+  {
+   "id": "cana_oro",
+   "nombre": "Golden Rod",
+   "ruta": "armas/cana_oro.png"
+  },
+  {
+   "id": "cana_leyenda",
+   "nombre": "Legend Rod",
+   "ruta": "armas/cana_leyenda.png"
+  }
+ ],
+ "obras": [
+  {
+   "id": "obra_pozo",
+   "nombre": "Stone Well",
+   "ancho": 3,
+   "alto": 3,
+   "ruta": "construcciones/obra_pozo.png"
+  },
+  {
+   "id": "obra_fuente",
+   "nombre": "Garden Fountain",
+   "ancho": 4,
+   "alto": 4,
+   "ruta": "construcciones/obra_fuente.png"
+  },
+  {
+   "id": "obra_banco",
+   "nombre": "Park Bench",
+   "ancho": 3,
+   "alto": 2,
+   "ruta": "construcciones/obra_banco.png"
+  },
+  {
+   "id": "obra_parterre",
+   "nombre": "Flower Bed",
+   "ancho": 3,
+   "alto": 2,
+   "ruta": "construcciones/obra_parterre.png"
+  },
+  {
+   "id": "obra_farol",
+   "nombre": "Street Lamp",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_farol.png",
+   "base": 14
+  },
+  {
+   "id": "obra_heno",
+   "nombre": "Hay Stack",
+   "ancho": 3,
+   "alto": 3,
+   "ruta": "construcciones/obra_heno.png"
+  },
+  {
+   "id": "obra_caseta",
+   "nombre": "Dog House",
+   "ancho": 3,
+   "alto": 3,
+   "ruta": "construcciones/obra_caseta.png"
+  },
+  {
+   "id": "obra_pajarera",
+   "nombre": "Bird House",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_pajarera.png",
+   "base": 14
+  },
+  {
+   "id": "obra_colmena",
+   "nombre": "Bee Hive",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_colmena.png"
+  },
+  {
+   "id": "obra_puesto",
+   "nombre": "Market Stall",
+   "ancho": 4,
+   "alto": 3,
+   "ruta": "construcciones/obra_puesto.png"
+  },
+  {
+   "id": "obra_cenador",
+   "nombre": "Garden Gazebo",
+   "ancho": 5,
+   "alto": 5,
+   "ruta": "construcciones/obra_cenador.png"
+  },
+  {
+   "id": "obra_estatua",
+   "nombre": "Hero Statue",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_estatua.png"
+  },
+  {
+   "id": "obra_buzon",
+   "nombre": "Mailbox",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_buzon.png",
+   "base": 12
+  },
+  {
+   "id": "obra_valla",
+   "nombre": "Picket Fence",
+   "ancho": 2,
+   "alto": 1,
+   "ruta": "construcciones/obra_valla.png"
+  },
+  {
+   "id": "obra_muro",
+   "nombre": "Stone Wall",
+   "ancho": 2,
+   "alto": 1,
+   "ruta": "construcciones/obra_muro.png"
+  },
+  {
+   "id": "obra_abrevadero",
+   "nombre": "Water Trough",
+   "ancho": 3,
+   "alto": 2,
+   "ruta": "construcciones/obra_abrevadero.png"
+  },
+  {
+   "id": "obra_hoguera",
+   "nombre": "Campfire",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_hoguera.png"
+  },
+  {
+   "id": "obra_lena",
+   "nombre": "Wood Pile",
+   "ancho": 3,
+   "alto": 2,
+   "ruta": "construcciones/obra_lena.png"
+  },
+  {
+   "id": "obra_poste_senal",
+   "nombre": "Signpost",
+   "ancho": 2,
+   "alto": 2,
+   "ruta": "construcciones/obra_poste_senal.png",
+   "base": 12
+  },
+  {
+   "id": "obra_invernadero",
+   "nombre": "Greenhouse",
+   "ancho": 6,
+   "alto": 5,
+   "ruta": "construcciones/obra_invernadero.png"
+  }
+ ],
+ "mascotas": [
+  {
+   "id": "mascota_001",
+   "especie": "puppy",
+   "nombre": "Golden Puppy",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_001.png"
+  },
+  {
+   "id": "mascota_002",
+   "especie": "puppy",
+   "nombre": "Choco Puppy",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_002.png"
+  },
+  {
+   "id": "mascota_003",
+   "especie": "puppy",
+   "nombre": "Snowy Puppy",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_003.png"
+  },
+  {
+   "id": "mascota_004",
+   "especie": "puppy",
+   "nombre": "Spotless Black Puppy",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_004.png"
+  },
+  {
+   "id": "mascota_005",
+   "especie": "puppy",
+   "nombre": "Ginger Puppy",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_005.png"
+  },
+  {
+   "id": "mascota_006",
+   "especie": "kitten",
+   "nombre": "Ginger Kitten",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_006.png"
+  },
+  {
+   "id": "mascota_007",
+   "especie": "kitten",
+   "nombre": "Grey Kitten",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_007.png"
+  },
+  {
+   "id": "mascota_008",
+   "especie": "kitten",
+   "nombre": "Cream Kitten",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_008.png"
+  },
+  {
+   "id": "mascota_009",
+   "especie": "kitten",
+   "nombre": "Midnight Kitten",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_009.png"
+  },
+  {
+   "id": "mascota_010",
+   "especie": "kitten",
+   "nombre": "Lilac Kitten",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_010.png"
+  },
+  {
+   "id": "mascota_011",
+   "especie": "bunny",
+   "nombre": "White Bunny",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_011.png"
+  },
+  {
+   "id": "mascota_012",
+   "especie": "bunny",
+   "nombre": "Cocoa Bunny",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_012.png"
+  },
+  {
+   "id": "mascota_013",
+   "especie": "bunny",
+   "nombre": "Grey Bunny",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_013.png"
+  },
+  {
+   "id": "mascota_014",
+   "especie": "bunny",
+   "nombre": "Honey Bunny",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_014.png"
+  },
+  {
+   "id": "mascota_015",
+   "especie": "bunny",
+   "nombre": "Blue Bunny",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_015.png"
+  },
+  {
+   "id": "mascota_016",
+   "especie": "fox",
+   "nombre": "Red Fox Kit",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_016.png"
+  },
+  {
+   "id": "mascota_017",
+   "especie": "fox",
+   "nombre": "Arctic Fox Kit",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_017.png"
+  },
+  {
+   "id": "mascota_018",
+   "especie": "fox",
+   "nombre": "Silver Fox Kit",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_018.png"
+  },
+  {
+   "id": "mascota_019",
+   "especie": "fox",
+   "nombre": "Desert Fox Kit",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_019.png"
+  },
+  {
+   "id": "mascota_020",
+   "especie": "fox",
+   "nombre": "Shadow Fox Kit",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_020.png"
+  },
+  {
+   "id": "mascota_021",
+   "especie": "raccoon",
+   "nombre": "Forest Raccoon",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_021.png"
+  },
+  {
+   "id": "mascota_022",
+   "especie": "raccoon",
+   "nombre": "Silver Raccoon",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_022.png"
+  },
+  {
+   "id": "mascota_023",
+   "especie": "raccoon",
+   "nombre": "Rust Raccoon",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_023.png"
+  },
+  {
+   "id": "mascota_024",
+   "especie": "raccoon",
+   "nombre": "Sand Raccoon",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_024.png"
+  },
+  {
+   "id": "mascota_025",
+   "especie": "raccoon",
+   "nombre": "Dusk Raccoon",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_025.png"
+  },
+  {
+   "id": "mascota_026",
+   "especie": "redpanda",
+   "nombre": "Ember Red Panda",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_026.png"
+  },
+  {
+   "id": "mascota_027",
+   "especie": "redpanda",
+   "nombre": "Maple Red Panda",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_027.png"
+  },
+  {
+   "id": "mascota_028",
+   "especie": "redpanda",
+   "nombre": "Amber Red Panda",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_028.png"
+  },
+  {
+   "id": "mascota_029",
+   "especie": "redpanda",
+   "nombre": "Berry Red Panda",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_029.png"
+  },
+  {
+   "id": "mascota_030",
+   "especie": "redpanda",
+   "nombre": "Moss Red Panda",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_030.png"
+  },
+  {
+   "id": "mascota_031",
+   "especie": "otter",
+   "nombre": "River Otter",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_031.png"
+  },
+  {
+   "id": "mascota_032",
+   "especie": "otter",
+   "nombre": "Dark Otter",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_032.png"
+  },
+  {
+   "id": "mascota_033",
+   "especie": "otter",
+   "nombre": "Sea Otter",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_033.png"
+  },
+  {
+   "id": "mascota_034",
+   "especie": "otter",
+   "nombre": "Gold Otter",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_034.png"
+  },
+  {
+   "id": "mascota_035",
+   "especie": "otter",
+   "nombre": "Rust Otter",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_035.png"
+  },
+  {
+   "id": "mascota_036",
+   "especie": "ferret",
+   "nombre": "Sable Ferret",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_036.png"
+  },
+  {
+   "id": "mascota_037",
+   "especie": "ferret",
+   "nombre": "Albino Ferret",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_037.png"
+  },
+  {
+   "id": "mascota_038",
+   "especie": "ferret",
+   "nombre": "Silver Ferret",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_038.png"
+  },
+  {
+   "id": "mascota_039",
+   "especie": "ferret",
+   "nombre": "Cinnamon Ferret",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_039.png"
+  },
+  {
+   "id": "mascota_040",
+   "especie": "ferret",
+   "nombre": "Champagne Ferret",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_040.png"
+  },
+  {
+   "id": "mascota_041",
+   "especie": "piglet",
+   "nombre": "Pink Piglet",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_041.png"
+  },
+  {
+   "id": "mascota_042",
+   "especie": "piglet",
+   "nombre": "Spotless Tan Piglet",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_042.png"
+  },
+  {
+   "id": "mascota_043",
+   "especie": "piglet",
+   "nombre": "Black Piglet",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_043.png"
+  },
+  {
+   "id": "mascota_044",
+   "especie": "piglet",
+   "nombre": "Rose Piglet",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_044.png"
+  },
+  {
+   "id": "mascota_045",
+   "especie": "piglet",
+   "nombre": "Cream Piglet",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_045.png"
+  },
+  {
+   "id": "mascota_046",
+   "especie": "lamb",
+   "nombre": "White Lamb",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_046.png"
+  },
+  {
+   "id": "mascota_047",
+   "especie": "lamb",
+   "nombre": "Cream Lamb",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_047.png"
+  },
+  {
+   "id": "mascota_048",
+   "especie": "lamb",
+   "nombre": "Black Lamb",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_048.png"
+  },
+  {
+   "id": "mascota_049",
+   "especie": "lamb",
+   "nombre": "Rose Lamb",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_049.png"
+  },
+  {
+   "id": "mascota_050",
+   "especie": "lamb",
+   "nombre": "Sky Lamb",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_050.png"
+  },
+  {
+   "id": "mascota_051",
+   "especie": "kid",
+   "nombre": "White Goat Kid",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_051.png"
+  },
+  {
+   "id": "mascota_052",
+   "especie": "kid",
+   "nombre": "Brown Goat Kid",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_052.png"
+  },
+  {
+   "id": "mascota_053",
+   "especie": "kid",
+   "nombre": "Black Goat Kid",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_053.png"
+  },
+  {
+   "id": "mascota_054",
+   "especie": "kid",
+   "nombre": "Tan Goat Kid",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_054.png"
+  },
+  {
+   "id": "mascota_055",
+   "especie": "kid",
+   "nombre": "Grey Goat Kid",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_055.png"
+  },
+  {
+   "id": "mascota_056",
+   "especie": "fawn",
+   "nombre": "Spring Fawn",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_056.png"
+  },
+  {
+   "id": "mascota_057",
+   "especie": "fawn",
+   "nombre": "Autumn Fawn",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_057.png"
+  },
+  {
+   "id": "mascota_058",
+   "especie": "fawn",
+   "nombre": "Snow Fawn",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_058.png"
+  },
+  {
+   "id": "mascota_059",
+   "especie": "fawn",
+   "nombre": "Dusk Fawn",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_059.png"
+  },
+  {
+   "id": "mascota_060",
+   "especie": "fawn",
+   "nombre": "Ash Fawn",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_060.png"
+  },
+  {
+   "id": "mascota_061",
+   "especie": "tigercub",
+   "nombre": "Amber Tiger Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_061.png"
+  },
+  {
+   "id": "mascota_062",
+   "especie": "tigercub",
+   "nombre": "White Tiger Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_062.png"
+  },
+  {
+   "id": "mascota_063",
+   "especie": "tigercub",
+   "nombre": "Gold Tiger Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_063.png"
+  },
+  {
+   "id": "mascota_064",
+   "especie": "tigercub",
+   "nombre": "Smoke Tiger Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_064.png"
+  },
+  {
+   "id": "mascota_065",
+   "especie": "tigercub",
+   "nombre": "Crimson Tiger Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_065.png"
+  },
+  {
+   "id": "mascota_066",
+   "especie": "wolfpup",
+   "nombre": "Grey Wolf Pup",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_066.png"
+  },
+  {
+   "id": "mascota_067",
+   "especie": "wolfpup",
+   "nombre": "Snow Wolf Pup",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_067.png"
+  },
+  {
+   "id": "mascota_068",
+   "especie": "wolfpup",
+   "nombre": "Black Wolf Pup",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_068.png"
+  },
+  {
+   "id": "mascota_069",
+   "especie": "wolfpup",
+   "nombre": "Timber Wolf Pup",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_069.png"
+  },
+  {
+   "id": "mascota_070",
+   "especie": "wolfpup",
+   "nombre": "Dusk Wolf Pup",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_070.png"
+  },
+  {
+   "id": "mascota_071",
+   "especie": "bearcub",
+   "nombre": "Brown Bear Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_071.png"
+  },
+  {
+   "id": "mascota_072",
+   "especie": "bearcub",
+   "nombre": "Honey Bear Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_072.png"
+  },
+  {
+   "id": "mascota_073",
+   "especie": "bearcub",
+   "nombre": "Black Bear Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_073.png"
+  },
+  {
+   "id": "mascota_074",
+   "especie": "bearcub",
+   "nombre": "Polar Bear Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_074.png"
+  },
+  {
+   "id": "mascota_075",
+   "especie": "bearcub",
+   "nombre": "Cinnamon Bear Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_075.png"
+  },
+  {
+   "id": "mascota_076",
+   "especie": "pandacub",
+   "nombre": "Classic Panda Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_076.png"
+  },
+  {
+   "id": "mascota_077",
+   "especie": "pandacub",
+   "nombre": "Brown Panda Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_077.png"
+  },
+  {
+   "id": "mascota_078",
+   "especie": "pandacub",
+   "nombre": "Rosy Panda Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_078.png"
+  },
+  {
+   "id": "mascota_079",
+   "especie": "pandacub",
+   "nombre": "Moon Panda Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_079.png"
+  },
+  {
+   "id": "mascota_080",
+   "especie": "pandacub",
+   "nombre": "Sage Panda Cub",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_080.png"
+  },
+  {
+   "id": "mascota_081",
+   "especie": "hamster",
+   "nombre": "Honey Hamster",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_081.png"
+  },
+  {
+   "id": "mascota_082",
+   "especie": "hamster",
+   "nombre": "Grey Hamster",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_082.png"
+  },
+  {
+   "id": "mascota_083",
+   "especie": "hamster",
+   "nombre": "Rose Hamster",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_083.png"
+  },
+  {
+   "id": "mascota_084",
+   "especie": "hamster",
+   "nombre": "Cocoa Hamster",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_084.png"
+  },
+  {
+   "id": "mascota_085",
+   "especie": "hamster",
+   "nombre": "Snowy Hamster",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_085.png"
+  },
+  {
+   "id": "mascota_086",
+   "especie": "chick",
+   "nombre": "Yellow Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_086.png"
+  },
+  {
+   "id": "mascota_087",
+   "especie": "chick",
+   "nombre": "Cream Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_087.png"
+  },
+  {
+   "id": "mascota_088",
+   "especie": "chick",
+   "nombre": "Rusty Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_088.png"
+  },
+  {
+   "id": "mascota_089",
+   "especie": "chick",
+   "nombre": "Mint Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_089.png"
+  },
+  {
+   "id": "mascota_090",
+   "especie": "chick",
+   "nombre": "Rose Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_090.png"
+  },
+  {
+   "id": "mascota_091",
+   "especie": "penguin",
+   "nombre": "Emperor Penguin Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_091.png"
+  },
+  {
+   "id": "mascota_092",
+   "especie": "penguin",
+   "nombre": "Blue Penguin Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_092.png"
+  },
+  {
+   "id": "mascota_093",
+   "especie": "penguin",
+   "nombre": "Brown Penguin Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_093.png"
+  },
+  {
+   "id": "mascota_094",
+   "especie": "penguin",
+   "nombre": "Ice Penguin Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_094.png"
+  },
+  {
+   "id": "mascota_095",
+   "especie": "penguin",
+   "nombre": "Royal Penguin Chick",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_095.png"
+  },
+  {
+   "id": "mascota_096",
+   "especie": "dragonling",
+   "nombre": "Emerald Dragonling",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_096.png"
+  },
+  {
+   "id": "mascota_097",
+   "especie": "dragonling",
+   "nombre": "Ruby Dragonling",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_097.png"
+  },
+  {
+   "id": "mascota_098",
+   "especie": "dragonling",
+   "nombre": "Sapphire Dragonling",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_098.png"
+  },
+  {
+   "id": "mascota_099",
+   "especie": "dragonling",
+   "nombre": "Amethyst Dragonling",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_099.png"
+  },
+  {
+   "id": "mascota_100",
+   "especie": "dragonling",
+   "nombre": "Obsidian Dragonling",
+   "cuadro": [
+    48,
+    44
+   ],
+   "filas": {
+    "anda": 4,
+    "quieta": 2
+   },
+   "ruta": "mascotas/mascota_100.png"
+  }
+ ],
+ "muebles": [
+  {
+   "id": "mueble_001",
+   "tipo": "cama",
+   "nombre": "Walnut Bed",
+   "ruta": "muebles/mueble_001.png"
+  },
+  {
+   "id": "mueble_002",
+   "tipo": "cama",
+   "nombre": "Oak Bed",
+   "ruta": "muebles/mueble_002.png"
+  },
+  {
+   "id": "mueble_003",
+   "tipo": "cama",
+   "nombre": "Birch Bed",
+   "ruta": "muebles/mueble_003.png"
+  },
+  {
+   "id": "mueble_004",
+   "tipo": "cama",
+   "nombre": "Ebony Bed",
+   "ruta": "muebles/mueble_004.png"
+  },
+  {
+   "id": "mueble_005",
+   "tipo": "cama",
+   "nombre": "Cherry Bed",
+   "ruta": "muebles/mueble_005.png"
+  },
+  {
+   "id": "mueble_006",
+   "tipo": "armario",
+   "nombre": "Walnut Wardrobe",
+   "ruta": "muebles/mueble_006.png"
+  },
+  {
+   "id": "mueble_007",
+   "tipo": "armario",
+   "nombre": "Oak Wardrobe",
+   "ruta": "muebles/mueble_007.png"
+  },
+  {
+   "id": "mueble_008",
+   "tipo": "armario",
+   "nombre": "Birch Wardrobe",
+   "ruta": "muebles/mueble_008.png"
+  },
+  {
+   "id": "mueble_009",
+   "tipo": "armario",
+   "nombre": "Ebony Wardrobe",
+   "ruta": "muebles/mueble_009.png"
+  },
+  {
+   "id": "mueble_010",
+   "tipo": "armario",
+   "nombre": "Cherry Wardrobe",
+   "ruta": "muebles/mueble_010.png"
+  },
+  {
+   "id": "mueble_011",
+   "tipo": "comoda",
+   "nombre": "Walnut Dresser",
+   "ruta": "muebles/mueble_011.png"
+  },
+  {
+   "id": "mueble_012",
+   "tipo": "comoda",
+   "nombre": "Oak Dresser",
+   "ruta": "muebles/mueble_012.png"
+  },
+  {
+   "id": "mueble_013",
+   "tipo": "comoda",
+   "nombre": "Birch Dresser",
+   "ruta": "muebles/mueble_013.png"
+  },
+  {
+   "id": "mueble_014",
+   "tipo": "comoda",
+   "nombre": "Ebony Dresser",
+   "ruta": "muebles/mueble_014.png"
+  },
+  {
+   "id": "mueble_015",
+   "tipo": "comoda",
+   "nombre": "Cherry Dresser",
+   "ruta": "muebles/mueble_015.png"
+  },
+  {
+   "id": "mueble_016",
+   "tipo": "mesa_redonda",
+   "nombre": "Walnut Round Table",
+   "ruta": "muebles/mueble_016.png"
+  },
+  {
+   "id": "mueble_017",
+   "tipo": "mesa_redonda",
+   "nombre": "Oak Round Table",
+   "ruta": "muebles/mueble_017.png"
+  },
+  {
+   "id": "mueble_018",
+   "tipo": "mesa_redonda",
+   "nombre": "Birch Round Table",
+   "ruta": "muebles/mueble_018.png"
+  },
+  {
+   "id": "mueble_019",
+   "tipo": "mesa_redonda",
+   "nombre": "Ebony Round Table",
+   "ruta": "muebles/mueble_019.png"
+  },
+  {
+   "id": "mueble_020",
+   "tipo": "mesa_redonda",
+   "nombre": "Cherry Round Table",
+   "ruta": "muebles/mueble_020.png"
+  },
+  {
+   "id": "mueble_021",
+   "tipo": "mesa_larga",
+   "nombre": "Walnut Long Table",
+   "ruta": "muebles/mueble_021.png"
+  },
+  {
+   "id": "mueble_022",
+   "tipo": "mesa_larga",
+   "nombre": "Oak Long Table",
+   "ruta": "muebles/mueble_022.png"
+  },
+  {
+   "id": "mueble_023",
+   "tipo": "mesa_larga",
+   "nombre": "Birch Long Table",
+   "ruta": "muebles/mueble_023.png"
+  },
+  {
+   "id": "mueble_024",
+   "tipo": "mesa_larga",
+   "nombre": "Ebony Long Table",
+   "ruta": "muebles/mueble_024.png"
+  },
+  {
+   "id": "mueble_025",
+   "tipo": "mesa_larga",
+   "nombre": "Cherry Long Table",
+   "ruta": "muebles/mueble_025.png"
+  },
+  {
+   "id": "mueble_026",
+   "tipo": "silla",
+   "nombre": "Walnut Chair",
+   "ruta": "muebles/mueble_026.png"
+  },
+  {
+   "id": "mueble_027",
+   "tipo": "silla",
+   "nombre": "Oak Chair",
+   "ruta": "muebles/mueble_027.png"
+  },
+  {
+   "id": "mueble_028",
+   "tipo": "silla",
+   "nombre": "Birch Chair",
+   "ruta": "muebles/mueble_028.png"
+  },
+  {
+   "id": "mueble_029",
+   "tipo": "silla",
+   "nombre": "Ebony Chair",
+   "ruta": "muebles/mueble_029.png"
+  },
+  {
+   "id": "mueble_030",
+   "tipo": "silla",
+   "nombre": "Cherry Chair",
+   "ruta": "muebles/mueble_030.png"
+  },
+  {
+   "id": "mueble_031",
+   "tipo": "sofa",
+   "nombre": "Walnut Sofa",
+   "ruta": "muebles/mueble_031.png"
+  },
+  {
+   "id": "mueble_032",
+   "tipo": "sofa",
+   "nombre": "Oak Sofa",
+   "ruta": "muebles/mueble_032.png"
+  },
+  {
+   "id": "mueble_033",
+   "tipo": "sofa",
+   "nombre": "Birch Sofa",
+   "ruta": "muebles/mueble_033.png"
+  },
+  {
+   "id": "mueble_034",
+   "tipo": "sofa",
+   "nombre": "Ebony Sofa",
+   "ruta": "muebles/mueble_034.png"
+  },
+  {
+   "id": "mueble_035",
+   "tipo": "sofa",
+   "nombre": "Cherry Sofa",
+   "ruta": "muebles/mueble_035.png"
+  },
+  {
+   "id": "mueble_036",
+   "tipo": "sillon",
+   "nombre": "Walnut Armchair",
+   "ruta": "muebles/mueble_036.png"
+  },
+  {
+   "id": "mueble_037",
+   "tipo": "sillon",
+   "nombre": "Oak Armchair",
+   "ruta": "muebles/mueble_037.png"
+  },
+  {
+   "id": "mueble_038",
+   "tipo": "sillon",
+   "nombre": "Birch Armchair",
+   "ruta": "muebles/mueble_038.png"
+  },
+  {
+   "id": "mueble_039",
+   "tipo": "sillon",
+   "nombre": "Ebony Armchair",
+   "ruta": "muebles/mueble_039.png"
+  },
+  {
+   "id": "mueble_040",
+   "tipo": "sillon",
+   "nombre": "Cherry Armchair",
+   "ruta": "muebles/mueble_040.png"
+  },
+  {
+   "id": "mueble_041",
+   "tipo": "alfombra",
+   "nombre": "Walnut Rug",
+   "ruta": "muebles/mueble_041.png"
+  },
+  {
+   "id": "mueble_042",
+   "tipo": "alfombra",
+   "nombre": "Oak Rug",
+   "ruta": "muebles/mueble_042.png"
+  },
+  {
+   "id": "mueble_043",
+   "tipo": "alfombra",
+   "nombre": "Birch Rug",
+   "ruta": "muebles/mueble_043.png"
+  },
+  {
+   "id": "mueble_044",
+   "tipo": "alfombra",
+   "nombre": "Ebony Rug",
+   "ruta": "muebles/mueble_044.png"
+  },
+  {
+   "id": "mueble_045",
+   "tipo": "alfombra",
+   "nombre": "Cherry Rug",
+   "ruta": "muebles/mueble_045.png"
+  },
+  {
+   "id": "mueble_046",
+   "tipo": "librero",
+   "nombre": "Walnut Bookcase",
+   "ruta": "muebles/mueble_046.png"
+  },
+  {
+   "id": "mueble_047",
+   "tipo": "librero",
+   "nombre": "Oak Bookcase",
+   "ruta": "muebles/mueble_047.png"
+  },
+  {
+   "id": "mueble_048",
+   "tipo": "librero",
+   "nombre": "Birch Bookcase",
+   "ruta": "muebles/mueble_048.png"
+  },
+  {
+   "id": "mueble_049",
+   "tipo": "librero",
+   "nombre": "Ebony Bookcase",
+   "ruta": "muebles/mueble_049.png"
+  },
+  {
+   "id": "mueble_050",
+   "tipo": "librero",
+   "nombre": "Cherry Bookcase",
+   "ruta": "muebles/mueble_050.png"
+  },
+  {
+   "id": "mueble_051",
+   "tipo": "lampara",
+   "nombre": "Walnut Floor Lamp",
+   "ruta": "muebles/mueble_051.png"
+  },
+  {
+   "id": "mueble_052",
+   "tipo": "lampara",
+   "nombre": "Oak Floor Lamp",
+   "ruta": "muebles/mueble_052.png"
+  },
+  {
+   "id": "mueble_053",
+   "tipo": "lampara",
+   "nombre": "Birch Floor Lamp",
+   "ruta": "muebles/mueble_053.png"
+  },
+  {
+   "id": "mueble_054",
+   "tipo": "lampara",
+   "nombre": "Ebony Floor Lamp",
+   "ruta": "muebles/mueble_054.png"
+  },
+  {
+   "id": "mueble_055",
+   "tipo": "lampara",
+   "nombre": "Cherry Floor Lamp",
+   "ruta": "muebles/mueble_055.png"
+  },
+  {
+   "id": "mueble_056",
+   "tipo": "maceta",
+   "nombre": "Walnut Potted Plant",
+   "ruta": "muebles/mueble_056.png"
+  },
+  {
+   "id": "mueble_057",
+   "tipo": "maceta",
+   "nombre": "Oak Potted Plant",
+   "ruta": "muebles/mueble_057.png"
+  },
+  {
+   "id": "mueble_058",
+   "tipo": "maceta",
+   "nombre": "Birch Potted Plant",
+   "ruta": "muebles/mueble_058.png"
+  },
+  {
+   "id": "mueble_059",
+   "tipo": "maceta",
+   "nombre": "Ebony Potted Plant",
+   "ruta": "muebles/mueble_059.png"
+  },
+  {
+   "id": "mueble_060",
+   "tipo": "maceta",
+   "nombre": "Cherry Potted Plant",
+   "ruta": "muebles/mueble_060.png"
+  },
+  {
+   "id": "mueble_061",
+   "tipo": "cuadro",
+   "nombre": "Walnut Painting",
+   "ruta": "muebles/mueble_061.png"
+  },
+  {
+   "id": "mueble_062",
+   "tipo": "cuadro",
+   "nombre": "Oak Painting",
+   "ruta": "muebles/mueble_062.png"
+  },
+  {
+   "id": "mueble_063",
+   "tipo": "cuadro",
+   "nombre": "Birch Painting",
+   "ruta": "muebles/mueble_063.png"
+  },
+  {
+   "id": "mueble_064",
+   "tipo": "cuadro",
+   "nombre": "Ebony Painting",
+   "ruta": "muebles/mueble_064.png"
+  },
+  {
+   "id": "mueble_065",
+   "tipo": "cuadro",
+   "nombre": "Cherry Painting",
+   "ruta": "muebles/mueble_065.png"
+  },
+  {
+   "id": "mueble_066",
+   "tipo": "chimenea",
+   "nombre": "Walnut Fireplace",
+   "ruta": "muebles/mueble_066.png"
+  },
+  {
+   "id": "mueble_067",
+   "tipo": "chimenea",
+   "nombre": "Oak Fireplace",
+   "ruta": "muebles/mueble_067.png"
+  },
+  {
+   "id": "mueble_068",
+   "tipo": "chimenea",
+   "nombre": "Birch Fireplace",
+   "ruta": "muebles/mueble_068.png"
+  },
+  {
+   "id": "mueble_069",
+   "tipo": "chimenea",
+   "nombre": "Ebony Fireplace",
+   "ruta": "muebles/mueble_069.png"
+  },
+  {
+   "id": "mueble_070",
+   "tipo": "chimenea",
+   "nombre": "Cherry Fireplace",
+   "ruta": "muebles/mueble_070.png"
+  },
+  {
+   "id": "mueble_071",
+   "tipo": "horno",
+   "nombre": "Walnut Stove",
+   "ruta": "muebles/mueble_071.png"
+  },
+  {
+   "id": "mueble_072",
+   "tipo": "horno",
+   "nombre": "Oak Stove",
+   "ruta": "muebles/mueble_072.png"
+  },
+  {
+   "id": "mueble_073",
+   "tipo": "horno",
+   "nombre": "Birch Stove",
+   "ruta": "muebles/mueble_073.png"
+  },
+  {
+   "id": "mueble_074",
+   "tipo": "horno",
+   "nombre": "Ebony Stove",
+   "ruta": "muebles/mueble_074.png"
+  },
+  {
+   "id": "mueble_075",
+   "tipo": "horno",
+   "nombre": "Cherry Stove",
+   "ruta": "muebles/mueble_075.png"
+  },
+  {
+   "id": "mueble_076",
+   "tipo": "pila",
+   "nombre": "Walnut Washstand",
+   "ruta": "muebles/mueble_076.png"
+  },
+  {
+   "id": "mueble_077",
+   "tipo": "pila",
+   "nombre": "Oak Washstand",
+   "ruta": "muebles/mueble_077.png"
+  },
+  {
+   "id": "mueble_078",
+   "tipo": "pila",
+   "nombre": "Birch Washstand",
+   "ruta": "muebles/mueble_078.png"
+  },
+  {
+   "id": "mueble_079",
+   "tipo": "pila",
+   "nombre": "Ebony Washstand",
+   "ruta": "muebles/mueble_079.png"
+  },
+  {
+   "id": "mueble_080",
+   "tipo": "pila",
+   "nombre": "Cherry Washstand",
+   "ruta": "muebles/mueble_080.png"
+  },
+  {
+   "id": "mueble_081",
+   "tipo": "escritorio",
+   "nombre": "Walnut Writing Desk",
+   "ruta": "muebles/mueble_081.png"
+  },
+  {
+   "id": "mueble_082",
+   "tipo": "escritorio",
+   "nombre": "Oak Writing Desk",
+   "ruta": "muebles/mueble_082.png"
+  },
+  {
+   "id": "mueble_083",
+   "tipo": "escritorio",
+   "nombre": "Birch Writing Desk",
+   "ruta": "muebles/mueble_083.png"
+  },
+  {
+   "id": "mueble_084",
+   "tipo": "escritorio",
+   "nombre": "Ebony Writing Desk",
+   "ruta": "muebles/mueble_084.png"
+  },
+  {
+   "id": "mueble_085",
+   "tipo": "escritorio",
+   "nombre": "Cherry Writing Desk",
+   "ruta": "muebles/mueble_085.png"
+  },
+  {
+   "id": "mueble_086",
+   "tipo": "espejo",
+   "nombre": "Walnut Standing Mirror",
+   "ruta": "muebles/mueble_086.png"
+  },
+  {
+   "id": "mueble_087",
+   "tipo": "espejo",
+   "nombre": "Oak Standing Mirror",
+   "ruta": "muebles/mueble_087.png"
+  },
+  {
+   "id": "mueble_088",
+   "tipo": "espejo",
+   "nombre": "Birch Standing Mirror",
+   "ruta": "muebles/mueble_088.png"
+  },
+  {
+   "id": "mueble_089",
+   "tipo": "espejo",
+   "nombre": "Ebony Standing Mirror",
+   "ruta": "muebles/mueble_089.png"
+  },
+  {
+   "id": "mueble_090",
+   "tipo": "espejo",
+   "nombre": "Cherry Standing Mirror",
+   "ruta": "muebles/mueble_090.png"
+  },
+  {
+   "id": "mueble_091",
+   "tipo": "banera",
+   "nombre": "Walnut Bathtub",
+   "ruta": "muebles/mueble_091.png"
+  },
+  {
+   "id": "mueble_092",
+   "tipo": "banera",
+   "nombre": "Oak Bathtub",
+   "ruta": "muebles/mueble_092.png"
+  },
+  {
+   "id": "mueble_093",
+   "tipo": "banera",
+   "nombre": "Birch Bathtub",
+   "ruta": "muebles/mueble_093.png"
+  },
+  {
+   "id": "mueble_094",
+   "tipo": "banera",
+   "nombre": "Ebony Bathtub",
+   "ruta": "muebles/mueble_094.png"
+  },
+  {
+   "id": "mueble_095",
+   "tipo": "banera",
+   "nombre": "Cherry Bathtub",
+   "ruta": "muebles/mueble_095.png"
+  },
+  {
+   "id": "mueble_096",
+   "tipo": "piano",
+   "nombre": "Walnut Piano",
+   "ruta": "muebles/mueble_096.png"
+  },
+  {
+   "id": "mueble_097",
+   "tipo": "piano",
+   "nombre": "Oak Piano",
+   "ruta": "muebles/mueble_097.png"
+  },
+  {
+   "id": "mueble_098",
+   "tipo": "piano",
+   "nombre": "Birch Piano",
+   "ruta": "muebles/mueble_098.png"
+  },
+  {
+   "id": "mueble_099",
+   "tipo": "piano",
+   "nombre": "Ebony Piano",
+   "ruta": "muebles/mueble_099.png"
+  },
+  {
+   "id": "mueble_100",
+   "tipo": "piano",
+   "nombre": "Cherry Piano",
+   "ruta": "muebles/mueble_100.png"
+  }
+ ],
+ "personajes": [
+  {
+   "id": "personaje_001",
+   "nombre": "Teal-haired Ranger",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#d2a07a",
+   "ojos": "#c9862a",
+   "camisa": "#3f6a3a",
+   "pantalon": "#5a4630",
+   "zapatos": "#3a2a1e",
+   "ruta": "personajes/personaje_001.png"
+  },
+  {
+   "id": "personaje_002",
+   "nombre": "Ash-haired Druid",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "orig",
+   "falda": true,
+   "pelo": "#8a8a90",
+   "piel": "#b8865e",
+   "ojos": "#3d6fa8",
+   "camisa": "#5f7a3a",
+   "pantalon": "#3e4a2a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_002.png"
+  },
+  {
+   "id": "personaje_003",
+   "nombre": "Rose-haired Winter",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#e8a0b8",
+   "piel": "#a8714e",
+   "ojos": "#3e7a4c",
+   "camisa": "#e8e8ee",
+   "pantalon": "#5f7fa8",
+   "zapatos": "#3a4050",
+   "ruta": "personajes/personaje_003.png"
+  },
+  {
+   "id": "personaje_004",
+   "nombre": "Plum-haired Knight",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#5a2a6a",
+   "piel": "#7a4a30",
+   "ojos": "#2a8a6a",
+   "camisa": "#8a8e96",
+   "pantalon": "#4a4e56",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_004.png"
+  },
+  {
+   "id": "personaje_005",
+   "nombre": "Platinum-haired Dancer",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#efe9d8",
+   "piel": "#f2d3b8",
+   "ojos": "#c8423a",
+   "camisa": "#e8a0b8",
+   "pantalon": "#6a3a5a",
+   "zapatos": "#3a2a30",
+   "ruta": "personajes/personaje_005.png"
+  },
+  {
+   "id": "personaje_006",
+   "nombre": "Moss-haired Scholar",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje9",
+   "falda": true,
+   "pelo": "#5f7a3a",
+   "piel": "#e8c3a0",
+   "ojos": "#4f93c4",
+   "camisa": "#34406a",
+   "pantalon": "#4a4656",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_006.png"
+  },
+  {
+   "id": "personaje_007",
+   "nombre": "Sky-haired Rogue",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#6fb4e0",
+   "piel": "#d2a07a",
+   "ojos": "#6a5a8a",
+   "camisa": "#2a2a30",
+   "pantalon": "#3a3440",
+   "zapatos": "#1e1c20",
+   "ruta": "personajes/personaje_007.png"
+  },
+  {
+   "id": "personaje_008",
+   "nombre": "Lilac-haired Baker",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje11",
+   "falda": false,
+   "pelo": "#b79ae6",
+   "piel": "#b8865e",
+   "ojos": "#7a4fb0",
+   "camisa": "#efe9dc",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_008.png"
+  },
+  {
+   "id": "personaje_009",
+   "nombre": "Sunset-haired Fisher",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#e8902a",
+   "piel": "#a8714e",
+   "ojos": "#5a3a1e",
+   "camisa": "#2f7a7a",
+   "pantalon": "#d9c6a0",
+   "zapatos": "#3a3a30",
+   "ruta": "personajes/personaje_009.png"
+  },
+  {
+   "id": "personaje_010",
+   "nombre": "Sand-haired Sailor",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje13",
+   "falda": true,
+   "pelo": "#d8bc8a",
+   "piel": "#7a4a30",
+   "ojos": "#d9a441",
+   "camisa": "#2f5f8f",
+   "pantalon": "#e8e4d8",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_010.png"
+  },
+  {
+   "id": "personaje_011",
+   "nombre": "Coral-haired Hunter",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#e87a6a",
+   "piel": "#f2d3b8",
+   "ojos": "#c9862a",
+   "camisa": "#6a4a30",
+   "pantalon": "#3a3024",
+   "zapatos": "#2a2018",
+   "ruta": "personajes/personaje_011.png"
+  },
+  {
+   "id": "personaje_012",
+   "nombre": "Wine-haired Desert",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#6a2036",
+   "piel": "#e8c3a0",
+   "ojos": "#3d6fa8",
+   "camisa": "#d8bc8a",
+   "pantalon": "#a8703e",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_012.png"
+  },
+  {
+   "id": "personaje_013",
+   "nombre": "Raven-haired Bard",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#1e1c26",
+   "piel": "#d2a07a",
+   "ojos": "#3e7a4c",
+   "camisa": "#a8473a",
+   "pantalon": "#c9a23f",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_013.png"
+  },
+  {
+   "id": "personaje_014",
+   "nombre": "Mint-haired Smith",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje2",
+   "falda": true,
+   "pelo": "#7fd0b0",
+   "piel": "#b8865e",
+   "ojos": "#2a8a6a",
+   "camisa": "#5a4a44",
+   "pantalon": "#3a3034",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_014.png"
+  },
+  {
+   "id": "personaje_015",
+   "nombre": "Navy-haired Farmer",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#26305f",
+   "piel": "#a8714e",
+   "ojos": "#c8423a",
+   "camisa": "#c9a23f",
+   "pantalon": "#3c5a8a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_015.png"
+  },
+  {
+   "id": "personaje_016",
+   "nombre": "Copper-haired Gardener",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje11",
+   "falda": false,
+   "pelo": "#b8602a",
+   "piel": "#7a4a30",
+   "ojos": "#4f93c4",
+   "camisa": "#7fa84a",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_016.png"
+  },
+  {
+   "id": "personaje_017",
+   "nombre": "Mint-haired Miner",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#7fd0b0",
+   "piel": "#f2d3b8",
+   "ojos": "#6a5a8a",
+   "camisa": "#8a5a2a",
+   "pantalon": "#3e3a3c",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_017.png"
+  },
+  {
+   "id": "personaje_018",
+   "nombre": "Navy-haired Mage",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje13",
+   "falda": true,
+   "pelo": "#26305f",
+   "piel": "#e8c3a0",
+   "ojos": "#7a4fb0",
+   "camisa": "#3a2a6a",
+   "pantalon": "#2a2040",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_018.png"
+  },
+  {
+   "id": "personaje_019",
+   "nombre": "Copper-haired Noble",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#b8602a",
+   "piel": "#d2a07a",
+   "ojos": "#5a3a1e",
+   "camisa": "#6a2036",
+   "pantalon": "#2a2a30",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_019.png"
+  },
+  {
+   "id": "personaje_020",
+   "nombre": "Teal-haired Merchant",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#b8865e",
+   "ojos": "#d9a441",
+   "camisa": "#7a4a8c",
+   "pantalon": "#e3c46a",
+   "zapatos": "#4a3020",
+   "ruta": "personajes/personaje_020.png"
+  },
+  {
+   "id": "personaje_021",
+   "nombre": "Ash-haired Sailor",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#8a8a90",
+   "piel": "#a8714e",
+   "ojos": "#c9862a",
+   "camisa": "#2f5f8f",
+   "pantalon": "#e8e4d8",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_021.png"
+  },
+  {
+   "id": "personaje_022",
+   "nombre": "Rose-haired Hunter",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje2",
+   "falda": true,
+   "pelo": "#e8a0b8",
+   "piel": "#7a4a30",
+   "ojos": "#3d6fa8",
+   "camisa": "#6a4a30",
+   "pantalon": "#3a3024",
+   "zapatos": "#2a2018",
+   "ruta": "personajes/personaje_022.png"
+  },
+  {
+   "id": "personaje_023",
+   "nombre": "Plum-haired Desert",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#5a2a6a",
+   "piel": "#f2d3b8",
+   "ojos": "#3e7a4c",
+   "camisa": "#d8bc8a",
+   "pantalon": "#a8703e",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_023.png"
+  },
+  {
+   "id": "personaje_024",
+   "nombre": "Platinum-haired Bard",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje9",
+   "falda": false,
+   "pelo": "#efe9d8",
+   "piel": "#e8c3a0",
+   "ojos": "#2a8a6a",
+   "camisa": "#a8473a",
+   "pantalon": "#c9a23f",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_024.png"
+  },
+  {
+   "id": "personaje_025",
+   "nombre": "Moss-haired Smith",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#5f7a3a",
+   "piel": "#d2a07a",
+   "ojos": "#c8423a",
+   "camisa": "#5a4a44",
+   "pantalon": "#3a3034",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_025.png"
+  },
+  {
+   "id": "personaje_026",
+   "nombre": "Sky-haired Farmer",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje11",
+   "falda": true,
+   "pelo": "#6fb4e0",
+   "piel": "#b8865e",
+   "ojos": "#4f93c4",
+   "camisa": "#c9a23f",
+   "pantalon": "#3c5a8a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_026.png"
+  },
+  {
+   "id": "personaje_027",
+   "nombre": "Lilac-haired Gardener",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#b79ae6",
+   "piel": "#a8714e",
+   "ojos": "#6a5a8a",
+   "camisa": "#7fa84a",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_027.png"
+  },
+  {
+   "id": "personaje_028",
+   "nombre": "Sunset-haired Miner",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje13",
+   "falda": false,
+   "pelo": "#e8902a",
+   "piel": "#7a4a30",
+   "ojos": "#7a4fb0",
+   "camisa": "#8a5a2a",
+   "pantalon": "#3e3a3c",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_028.png"
+  },
+  {
+   "id": "personaje_029",
+   "nombre": "Sand-haired Mage",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#d8bc8a",
+   "piel": "#f2d3b8",
+   "ojos": "#5a3a1e",
+   "camisa": "#3a2a6a",
+   "pantalon": "#2a2040",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_029.png"
+  },
+  {
+   "id": "personaje_030",
+   "nombre": "Coral-haired Noble",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje2",
+   "falda": true,
+   "pelo": "#e87a6a",
+   "piel": "#e8c3a0",
+   "ojos": "#d9a441",
+   "camisa": "#6a2036",
+   "pantalon": "#2a2a30",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_030.png"
+  },
+  {
+   "id": "personaje_031",
+   "nombre": "Wine-haired Merchant",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#6a2036",
+   "piel": "#d2a07a",
+   "ojos": "#c9862a",
+   "camisa": "#7a4a8c",
+   "pantalon": "#e3c46a",
+   "zapatos": "#4a3020",
+   "ruta": "personajes/personaje_031.png"
+  },
+  {
+   "id": "personaje_032",
+   "nombre": "Raven-haired Ranger",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje9",
+   "falda": false,
+   "pelo": "#1e1c26",
+   "piel": "#b8865e",
+   "ojos": "#3d6fa8",
+   "camisa": "#3f6a3a",
+   "pantalon": "#5a4630",
+   "zapatos": "#3a2a1e",
+   "ruta": "personajes/personaje_032.png"
+  },
+  {
+   "id": "personaje_033",
+   "nombre": "Coral-haired Druid",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#e87a6a",
+   "piel": "#a8714e",
+   "ojos": "#3e7a4c",
+   "camisa": "#5f7a3a",
+   "pantalon": "#3e4a2a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_033.png"
+  },
+  {
+   "id": "personaje_034",
+   "nombre": "Wine-haired Winter",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje11",
+   "falda": true,
+   "pelo": "#6a2036",
+   "piel": "#7a4a30",
+   "ojos": "#2a8a6a",
+   "camisa": "#e8e8ee",
+   "pantalon": "#5f7fa8",
+   "zapatos": "#3a4050",
+   "ruta": "personajes/personaje_034.png"
+  },
+  {
+   "id": "personaje_035",
+   "nombre": "Raven-haired Knight",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#1e1c26",
+   "piel": "#f2d3b8",
+   "ojos": "#c8423a",
+   "camisa": "#8a8e96",
+   "pantalon": "#4a4e56",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_035.png"
+  },
+  {
+   "id": "personaje_036",
+   "nombre": "Mint-haired Dancer",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje13",
+   "falda": false,
+   "pelo": "#7fd0b0",
+   "piel": "#e8c3a0",
+   "ojos": "#4f93c4",
+   "camisa": "#e8a0b8",
+   "pantalon": "#6a3a5a",
+   "zapatos": "#3a2a30",
+   "ruta": "personajes/personaje_036.png"
+  },
+  {
+   "id": "personaje_037",
+   "nombre": "Navy-haired Scholar",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#26305f",
+   "piel": "#d2a07a",
+   "ojos": "#6a5a8a",
+   "camisa": "#34406a",
+   "pantalon": "#4a4656",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_037.png"
+  },
+  {
+   "id": "personaje_038",
+   "nombre": "Copper-haired Rogue",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "orig",
+   "falda": true,
+   "pelo": "#b8602a",
+   "piel": "#b8865e",
+   "ojos": "#7a4fb0",
+   "camisa": "#2a2a30",
+   "pantalon": "#3a3440",
+   "zapatos": "#1e1c20",
+   "ruta": "personajes/personaje_038.png"
+  },
+  {
+   "id": "personaje_039",
+   "nombre": "Teal-haired Baker",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#a8714e",
+   "ojos": "#5a3a1e",
+   "camisa": "#efe9dc",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_039.png"
+  },
+  {
+   "id": "personaje_040",
+   "nombre": "Ash-haired Fisher",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#8a8a90",
+   "piel": "#7a4a30",
+   "ojos": "#d9a441",
+   "camisa": "#2f7a7a",
+   "pantalon": "#d9c6a0",
+   "zapatos": "#3a3a30",
+   "ruta": "personajes/personaje_040.png"
+  },
+  {
+   "id": "personaje_041",
+   "nombre": "Rose-haired Noble",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#e8a0b8",
+   "piel": "#f2d3b8",
+   "ojos": "#c9862a",
+   "camisa": "#6a2036",
+   "pantalon": "#2a2a30",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_041.png"
+  },
+  {
+   "id": "personaje_042",
+   "nombre": "Plum-haired Merchant",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje9",
+   "falda": true,
+   "pelo": "#5a2a6a",
+   "piel": "#e8c3a0",
+   "ojos": "#3d6fa8",
+   "camisa": "#7a4a8c",
+   "pantalon": "#e3c46a",
+   "zapatos": "#4a3020",
+   "ruta": "personajes/personaje_042.png"
+  },
+  {
+   "id": "personaje_043",
+   "nombre": "Platinum-haired Ranger",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#efe9d8",
+   "piel": "#d2a07a",
+   "ojos": "#3e7a4c",
+   "camisa": "#3f6a3a",
+   "pantalon": "#5a4630",
+   "zapatos": "#3a2a1e",
+   "ruta": "personajes/personaje_043.png"
+  },
+  {
+   "id": "personaje_044",
+   "nombre": "Moss-haired Druid",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje13",
+   "falda": false,
+   "pelo": "#5f7a3a",
+   "piel": "#b8865e",
+   "ojos": "#2a8a6a",
+   "camisa": "#5f7a3a",
+   "pantalon": "#3e4a2a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_044.png"
+  },
+  {
+   "id": "personaje_045",
+   "nombre": "Sky-haired Winter",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#6fb4e0",
+   "piel": "#a8714e",
+   "ojos": "#c8423a",
+   "camisa": "#e8e8ee",
+   "pantalon": "#5f7fa8",
+   "zapatos": "#3a4050",
+   "ruta": "personajes/personaje_045.png"
+  },
+  {
+   "id": "personaje_046",
+   "nombre": "Lilac-haired Knight",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "orig",
+   "falda": true,
+   "pelo": "#b79ae6",
+   "piel": "#7a4a30",
+   "ojos": "#4f93c4",
+   "camisa": "#8a8e96",
+   "pantalon": "#4a4e56",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_046.png"
+  },
+  {
+   "id": "personaje_047",
+   "nombre": "Sunset-haired Dancer",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#e8902a",
+   "piel": "#f2d3b8",
+   "ojos": "#6a5a8a",
+   "camisa": "#e8a0b8",
+   "pantalon": "#6a3a5a",
+   "zapatos": "#3a2a30",
+   "ruta": "personajes/personaje_047.png"
+  },
+  {
+   "id": "personaje_048",
+   "nombre": "Sand-haired Scholar",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#d8bc8a",
+   "piel": "#e8c3a0",
+   "ojos": "#7a4fb0",
+   "camisa": "#34406a",
+   "pantalon": "#4a4656",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_048.png"
+  },
+  {
+   "id": "personaje_049",
+   "nombre": "Lilac-haired Rogue",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#b79ae6",
+   "piel": "#d2a07a",
+   "ojos": "#5a3a1e",
+   "camisa": "#2a2a30",
+   "pantalon": "#3a3440",
+   "zapatos": "#1e1c20",
+   "ruta": "personajes/personaje_049.png"
+  },
+  {
+   "id": "personaje_050",
+   "nombre": "Sunset-haired Baker",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje9",
+   "falda": true,
+   "pelo": "#e8902a",
+   "piel": "#b8865e",
+   "ojos": "#d9a441",
+   "camisa": "#efe9dc",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_050.png"
+  },
+  {
+   "id": "personaje_051",
+   "nombre": "Sand-haired Fisher",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#d8bc8a",
+   "piel": "#a8714e",
+   "ojos": "#c9862a",
+   "camisa": "#2f7a7a",
+   "pantalon": "#d9c6a0",
+   "zapatos": "#3a3a30",
+   "ruta": "personajes/personaje_051.png"
+  },
+  {
+   "id": "personaje_052",
+   "nombre": "Coral-haired Sailor",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje11",
+   "falda": false,
+   "pelo": "#e87a6a",
+   "piel": "#7a4a30",
+   "ojos": "#3d6fa8",
+   "camisa": "#2f5f8f",
+   "pantalon": "#e8e4d8",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_052.png"
+  },
+  {
+   "id": "personaje_053",
+   "nombre": "Wine-haired Hunter",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#6a2036",
+   "piel": "#f2d3b8",
+   "ojos": "#3e7a4c",
+   "camisa": "#6a4a30",
+   "pantalon": "#3a3024",
+   "zapatos": "#2a2018",
+   "ruta": "personajes/personaje_053.png"
+  },
+  {
+   "id": "personaje_054",
+   "nombre": "Raven-haired Desert",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje13",
+   "falda": true,
+   "pelo": "#1e1c26",
+   "piel": "#e8c3a0",
+   "ojos": "#2a8a6a",
+   "camisa": "#d8bc8a",
+   "pantalon": "#a8703e",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_054.png"
+  },
+  {
+   "id": "personaje_055",
+   "nombre": "Mint-haired Bard",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#7fd0b0",
+   "piel": "#d2a07a",
+   "ojos": "#c8423a",
+   "camisa": "#a8473a",
+   "pantalon": "#c9a23f",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_055.png"
+  },
+  {
+   "id": "personaje_056",
+   "nombre": "Navy-haired Smith",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#26305f",
+   "piel": "#b8865e",
+   "ojos": "#4f93c4",
+   "camisa": "#5a4a44",
+   "pantalon": "#3a3034",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_056.png"
+  },
+  {
+   "id": "personaje_057",
+   "nombre": "Copper-haired Farmer",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#b8602a",
+   "piel": "#a8714e",
+   "ojos": "#6a5a8a",
+   "camisa": "#c9a23f",
+   "pantalon": "#3c5a8a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_057.png"
+  },
+  {
+   "id": "personaje_058",
+   "nombre": "Teal-haired Gardener",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje9",
+   "falda": true,
+   "pelo": "#2a8a8a",
+   "piel": "#7a4a30",
+   "ojos": "#7a4fb0",
+   "camisa": "#7fa84a",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_058.png"
+  },
+  {
+   "id": "personaje_059",
+   "nombre": "Ash-haired Miner",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#8a8a90",
+   "piel": "#f2d3b8",
+   "ojos": "#5a3a1e",
+   "camisa": "#8a5a2a",
+   "pantalon": "#3e3a3c",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_059.png"
+  },
+  {
+   "id": "personaje_060",
+   "nombre": "Rose-haired Mage",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje11",
+   "falda": false,
+   "pelo": "#e8a0b8",
+   "piel": "#e8c3a0",
+   "ojos": "#d9a441",
+   "camisa": "#3a2a6a",
+   "pantalon": "#2a2040",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_060.png"
+  },
+  {
+   "id": "personaje_061",
+   "nombre": "Plum-haired Baker",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#5a2a6a",
+   "piel": "#d2a07a",
+   "ojos": "#c9862a",
+   "camisa": "#efe9dc",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_061.png"
+  },
+  {
+   "id": "personaje_062",
+   "nombre": "Platinum-haired Fisher",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje13",
+   "falda": true,
+   "pelo": "#efe9d8",
+   "piel": "#b8865e",
+   "ojos": "#3d6fa8",
+   "camisa": "#2f7a7a",
+   "pantalon": "#d9c6a0",
+   "zapatos": "#3a3a30",
+   "ruta": "personajes/personaje_062.png"
+  },
+  {
+   "id": "personaje_063",
+   "nombre": "Moss-haired Sailor",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#5f7a3a",
+   "piel": "#a8714e",
+   "ojos": "#3e7a4c",
+   "camisa": "#2f5f8f",
+   "pantalon": "#e8e4d8",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_063.png"
+  },
+  {
+   "id": "personaje_064",
+   "nombre": "Sky-haired Hunter",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#6fb4e0",
+   "piel": "#7a4a30",
+   "ojos": "#2a8a6a",
+   "camisa": "#6a4a30",
+   "pantalon": "#3a3024",
+   "zapatos": "#2a2018",
+   "ruta": "personajes/personaje_064.png"
+  },
+  {
+   "id": "personaje_065",
+   "nombre": "Platinum-haired Desert",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#efe9d8",
+   "piel": "#f2d3b8",
+   "ojos": "#c8423a",
+   "camisa": "#d8bc8a",
+   "pantalon": "#a8703e",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_065.png"
+  },
+  {
+   "id": "personaje_066",
+   "nombre": "Moss-haired Bard",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje2",
+   "falda": true,
+   "pelo": "#5f7a3a",
+   "piel": "#e8c3a0",
+   "ojos": "#4f93c4",
+   "camisa": "#a8473a",
+   "pantalon": "#c9a23f",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_066.png"
+  },
+  {
+   "id": "personaje_067",
+   "nombre": "Sky-haired Smith",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#6fb4e0",
+   "piel": "#d2a07a",
+   "ojos": "#6a5a8a",
+   "camisa": "#5a4a44",
+   "pantalon": "#3a3034",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_067.png"
+  },
+  {
+   "id": "personaje_068",
+   "nombre": "Lilac-haired Farmer",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje9",
+   "falda": false,
+   "pelo": "#b79ae6",
+   "piel": "#b8865e",
+   "ojos": "#7a4fb0",
+   "camisa": "#c9a23f",
+   "pantalon": "#3c5a8a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_068.png"
+  },
+  {
+   "id": "personaje_069",
+   "nombre": "Sunset-haired Gardener",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#e8902a",
+   "piel": "#a8714e",
+   "ojos": "#5a3a1e",
+   "camisa": "#7fa84a",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_069.png"
+  },
+  {
+   "id": "personaje_070",
+   "nombre": "Sand-haired Miner",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje11",
+   "falda": true,
+   "pelo": "#d8bc8a",
+   "piel": "#7a4a30",
+   "ojos": "#d9a441",
+   "camisa": "#8a5a2a",
+   "pantalon": "#3e3a3c",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_070.png"
+  },
+  {
+   "id": "personaje_071",
+   "nombre": "Coral-haired Mage",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#e87a6a",
+   "piel": "#f2d3b8",
+   "ojos": "#c9862a",
+   "camisa": "#3a2a6a",
+   "pantalon": "#2a2040",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_071.png"
+  },
+  {
+   "id": "personaje_072",
+   "nombre": "Wine-haired Noble",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#6a2036",
+   "piel": "#e8c3a0",
+   "ojos": "#3d6fa8",
+   "camisa": "#6a2036",
+   "pantalon": "#2a2a30",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_072.png"
+  },
+  {
+   "id": "personaje_073",
+   "nombre": "Raven-haired Merchant",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#1e1c26",
+   "piel": "#d2a07a",
+   "ojos": "#3e7a4c",
+   "camisa": "#7a4a8c",
+   "pantalon": "#e3c46a",
+   "zapatos": "#4a3020",
+   "ruta": "personajes/personaje_073.png"
+  },
+  {
+   "id": "personaje_074",
+   "nombre": "Mint-haired Ranger",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje2",
+   "falda": true,
+   "pelo": "#7fd0b0",
+   "piel": "#b8865e",
+   "ojos": "#2a8a6a",
+   "camisa": "#3f6a3a",
+   "pantalon": "#5a4630",
+   "zapatos": "#3a2a1e",
+   "ruta": "personajes/personaje_074.png"
+  },
+  {
+   "id": "personaje_075",
+   "nombre": "Navy-haired Druid",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#26305f",
+   "piel": "#a8714e",
+   "ojos": "#c8423a",
+   "camisa": "#5f7a3a",
+   "pantalon": "#3e4a2a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_075.png"
+  },
+  {
+   "id": "personaje_076",
+   "nombre": "Copper-haired Winter",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje9",
+   "falda": false,
+   "pelo": "#b8602a",
+   "piel": "#7a4a30",
+   "ojos": "#4f93c4",
+   "camisa": "#e8e8ee",
+   "pantalon": "#5f7fa8",
+   "zapatos": "#3a4050",
+   "ruta": "personajes/personaje_076.png"
+  },
+  {
+   "id": "personaje_077",
+   "nombre": "Teal-haired Knight",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#f2d3b8",
+   "ojos": "#6a5a8a",
+   "camisa": "#8a8e96",
+   "pantalon": "#4a4e56",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_077.png"
+  },
+  {
+   "id": "personaje_078",
+   "nombre": "Ash-haired Dancer",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "personaje11",
+   "falda": true,
+   "pelo": "#8a8a90",
+   "piel": "#e8c3a0",
+   "ojos": "#7a4fb0",
+   "camisa": "#e8a0b8",
+   "pantalon": "#6a3a5a",
+   "zapatos": "#3a2a30",
+   "ruta": "personajes/personaje_078.png"
+  },
+  {
+   "id": "personaje_079",
+   "nombre": "Rose-haired Scholar",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#e8a0b8",
+   "piel": "#d2a07a",
+   "ojos": "#5a3a1e",
+   "camisa": "#34406a",
+   "pantalon": "#4a4656",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_079.png"
+  },
+  {
+   "id": "personaje_080",
+   "nombre": "Plum-haired Rogue",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje13",
+   "falda": false,
+   "pelo": "#5a2a6a",
+   "piel": "#b8865e",
+   "ojos": "#d9a441",
+   "camisa": "#2a2a30",
+   "pantalon": "#3a3440",
+   "zapatos": "#1e1c20",
+   "ruta": "personajes/personaje_080.png"
+  },
+  {
+   "id": "personaje_081",
+   "nombre": "Ash-haired Miner",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#8a8a90",
+   "piel": "#a8714e",
+   "ojos": "#c9862a",
+   "camisa": "#8a5a2a",
+   "pantalon": "#3e3a3c",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_081.png"
+  },
+  {
+   "id": "personaje_082",
+   "nombre": "Rose-haired Mage",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "orig",
+   "falda": true,
+   "pelo": "#e8a0b8",
+   "piel": "#7a4a30",
+   "ojos": "#3d6fa8",
+   "camisa": "#3a2a6a",
+   "pantalon": "#2a2040",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_082.png"
+  },
+  {
+   "id": "personaje_083",
+   "nombre": "Plum-haired Noble",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#5a2a6a",
+   "piel": "#f2d3b8",
+   "ojos": "#3e7a4c",
+   "camisa": "#6a2036",
+   "pantalon": "#2a2a30",
+   "zapatos": "#c9a23f",
+   "ruta": "personajes/personaje_083.png"
+  },
+  {
+   "id": "personaje_084",
+   "nombre": "Platinum-haired Merchant",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#efe9d8",
+   "piel": "#e8c3a0",
+   "ojos": "#2a8a6a",
+   "camisa": "#7a4a8c",
+   "pantalon": "#e3c46a",
+   "zapatos": "#4a3020",
+   "ruta": "personajes/personaje_084.png"
+  },
+  {
+   "id": "personaje_085",
+   "nombre": "Moss-haired Ranger",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#5f7a3a",
+   "piel": "#d2a07a",
+   "ojos": "#c8423a",
+   "camisa": "#3f6a3a",
+   "pantalon": "#5a4630",
+   "zapatos": "#3a2a1e",
+   "ruta": "personajes/personaje_085.png"
+  },
+  {
+   "id": "personaje_086",
+   "nombre": "Sky-haired Druid",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje11",
+   "falda": true,
+   "pelo": "#6fb4e0",
+   "piel": "#b8865e",
+   "ojos": "#4f93c4",
+   "camisa": "#5f7a3a",
+   "pantalon": "#3e4a2a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_086.png"
+  },
+  {
+   "id": "personaje_087",
+   "nombre": "Lilac-haired Winter",
+   "genero": "m",
+   "cuerpo": "personaje3",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#b79ae6",
+   "piel": "#a8714e",
+   "ojos": "#6a5a8a",
+   "camisa": "#e8e8ee",
+   "pantalon": "#5f7fa8",
+   "zapatos": "#3a4050",
+   "ruta": "personajes/personaje_087.png"
+  },
+  {
+   "id": "personaje_088",
+   "nombre": "Sunset-haired Knight",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje13",
+   "falda": false,
+   "pelo": "#e8902a",
+   "piel": "#7a4a30",
+   "ojos": "#7a4fb0",
+   "camisa": "#8a8e96",
+   "pantalon": "#4a4e56",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_088.png"
+  },
+  {
+   "id": "personaje_089",
+   "nombre": "Sand-haired Dancer",
+   "genero": "m",
+   "cuerpo": "personaje5",
+   "cabeza": "orig",
+   "falda": false,
+   "pelo": "#d8bc8a",
+   "piel": "#f2d3b8",
+   "ojos": "#5a3a1e",
+   "camisa": "#e8a0b8",
+   "pantalon": "#6a3a5a",
+   "zapatos": "#3a2a30",
+   "ruta": "personajes/personaje_089.png"
+  },
+  {
+   "id": "personaje_090",
+   "nombre": "Coral-haired Scholar",
+   "genero": "f",
+   "cuerpo": "personaje6",
+   "cabeza": "orig",
+   "falda": true,
+   "pelo": "#e87a6a",
+   "piel": "#e8c3a0",
+   "ojos": "#d9a441",
+   "camisa": "#34406a",
+   "pantalon": "#4a4656",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_090.png"
+  },
+  {
+   "id": "personaje_091",
+   "nombre": "Wine-haired Rogue",
+   "genero": "m",
+   "cuerpo": "personaje7",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#6a2036",
+   "piel": "#d2a07a",
+   "ojos": "#c9862a",
+   "camisa": "#2a2a30",
+   "pantalon": "#3a3440",
+   "zapatos": "#1e1c20",
+   "ruta": "personajes/personaje_091.png"
+  },
+  {
+   "id": "personaje_092",
+   "nombre": "Raven-haired Baker",
+   "genero": "f",
+   "cuerpo": "personaje9",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#1e1c26",
+   "piel": "#b8865e",
+   "ojos": "#3d6fa8",
+   "camisa": "#efe9dc",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_092.png"
+  },
+  {
+   "id": "personaje_093",
+   "nombre": "Mint-haired Fisher",
+   "genero": "m",
+   "cuerpo": "personaje8",
+   "cabeza": "personaje8",
+   "falda": false,
+   "pelo": "#7fd0b0",
+   "piel": "#a8714e",
+   "ojos": "#3e7a4c",
+   "camisa": "#2f7a7a",
+   "pantalon": "#d9c6a0",
+   "zapatos": "#3a3a30",
+   "ruta": "personajes/personaje_093.png"
+  },
+  {
+   "id": "personaje_094",
+   "nombre": "Navy-haired Sailor",
+   "genero": "f",
+   "cuerpo": "personaje11",
+   "cabeza": "personaje9",
+   "falda": true,
+   "pelo": "#26305f",
+   "piel": "#7a4a30",
+   "ojos": "#2a8a6a",
+   "camisa": "#2f5f8f",
+   "pantalon": "#e8e4d8",
+   "zapatos": "#2a2a30",
+   "ruta": "personajes/personaje_094.png"
+  },
+  {
+   "id": "personaje_095",
+   "nombre": "Copper-haired Hunter",
+   "genero": "m",
+   "cuerpo": "personaje10",
+   "cabeza": "personaje10",
+   "falda": false,
+   "pelo": "#b8602a",
+   "piel": "#f2d3b8",
+   "ojos": "#c8423a",
+   "camisa": "#6a4a30",
+   "pantalon": "#3a3024",
+   "zapatos": "#2a2018",
+   "ruta": "personajes/personaje_095.png"
+  },
+  {
+   "id": "personaje_096",
+   "nombre": "Teal-haired Desert",
+   "genero": "f",
+   "cuerpo": "personaje13",
+   "cabeza": "personaje11",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#e8c3a0",
+   "ojos": "#4f93c4",
+   "camisa": "#d8bc8a",
+   "pantalon": "#a8703e",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_096.png"
+  },
+  {
+   "id": "personaje_097",
+   "nombre": "Navy-haired Bard",
+   "genero": "m",
+   "cuerpo": "personaje12",
+   "cabeza": "personaje12",
+   "falda": false,
+   "pelo": "#26305f",
+   "piel": "#d2a07a",
+   "ojos": "#6a5a8a",
+   "camisa": "#a8473a",
+   "pantalon": "#c9a23f",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_097.png"
+  },
+  {
+   "id": "personaje_098",
+   "nombre": "Copper-haired Smith",
+   "genero": "f",
+   "cuerpo": "personaje2",
+   "cabeza": "personaje13",
+   "falda": true,
+   "pelo": "#b8602a",
+   "piel": "#b8865e",
+   "ojos": "#7a4fb0",
+   "camisa": "#5a4a44",
+   "pantalon": "#3a3034",
+   "zapatos": "#2a2420",
+   "ruta": "personajes/personaje_098.png"
+  },
+  {
+   "id": "personaje_099",
+   "nombre": "Teal-haired Farmer",
+   "genero": "m",
+   "cuerpo": "personaje1",
+   "cabeza": "personaje1",
+   "falda": false,
+   "pelo": "#2a8a8a",
+   "piel": "#a8714e",
+   "ojos": "#5a3a1e",
+   "camisa": "#c9a23f",
+   "pantalon": "#3c5a8a",
+   "zapatos": "#5a3a24",
+   "ruta": "personajes/personaje_099.png"
+  },
+  {
+   "id": "personaje_100",
+   "nombre": "Ash-haired Gardener",
+   "genero": "f",
+   "cuerpo": "personaje4",
+   "cabeza": "personaje2",
+   "falda": false,
+   "pelo": "#8a8a90",
+   "piel": "#7a4a30",
+   "ojos": "#d9a441",
+   "camisa": "#7fa84a",
+   "pantalon": "#8a6a4a",
+   "zapatos": "#4a3a24",
+   "ruta": "personajes/personaje_100.png"
+  }
+ ]
+}

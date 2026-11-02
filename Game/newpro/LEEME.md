@@ -1450,3 +1450,11 @@ Lo que sí sería un fallo es una pieza entera vacía, y eso se comprueba aparte
 Todo sigue siendo **idempotente**: volver a lanzar los cinco generadores escribe
 exactamente los mismos bytes (comprobado por huella SHA-256 de las cinco
 carpetas).
+
+---
+
+## objetosv2 (2026-11-02)
+
+Lo escribe `python tools/generar-objetosv2.py` (pincel en `tools/gf_objetosv2.py`): 100 casas, 100 arboles, 100 monturas, 100 mascotas,
+100 personajes (colores nuevos sobre los mapas de Soulbound, sin redibujar cabezas) y 100 muebles, mas la comida, las armas y las
+construcciones que ya usa el juego (`gf-items-v2.js`). Nombres en ingles en `objetosv2/catalogo.json`; hojas de revision en `_hojas/`.
