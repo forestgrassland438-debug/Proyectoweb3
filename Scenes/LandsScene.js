@@ -1057,9 +1057,16 @@ class LandsScene extends GameScene {
 
   /**
    * El objeto: su dibujo al doble (como el bote del pueblo), con la base en el
-   * borde de abajo de su sitio. La profundidad es la de un jugador con los
-   * pies a esa altura (el jugador mide 102 px con el origen en el centro: sus
-   * pies caen en `y + 51`), asi se le pasa por delante y por detras bien.
+   * borde de abajo de su sitio. La profundidad es la LINEA DE SU BASE, la misma
+   * cuenta que el resto del juego (los pies de cada cosa): asi se le pasa por
+   * delante y por detras bien, el jugador, su mascota y los demas.
+   *
+   * (2026-11-10) "El perro queda arriba de cualquier cosa de la construccion en
+   * las Lands": la isla ordenaba por el CENTRO del jugador (`player.y`) y ponia
+   * los objetos en `pie - 51` para cuadrar con el; pero la mascota, los otros
+   * jugadores, sus perros y las monturas se ordenan por sus PIES, como en todos
+   * los demas mapas. Iban 51 px "por delante": el perro se dibujaba encima de
+   * una valla que tenia delante. Ahora la isla usa la cuenta de todos (pies).
    */
   _crearObjetoDeIsla(reg) {
     const clave = 'cons_' + reg.tipo;
@@ -1068,7 +1075,7 @@ class LandsScene extends GameScene {
     const hay = this.textures.exists(clave);
     const s = this.add.image(reg.cx, pie, hay ? clave : 'tierra_seca').setOrigin(0.5, 1);
     if (hay) s.setScale(2); else s.setDisplaySize(reg.w, reg.h);
-    s.setDepth(pie - 51);
+    s.setDepth(pie);
     s.setInteractive({ useHandCursor: true });
     s.on('pointerover', () => { if (!this._modoConstruir) s.setTint(0xe6e6e6); });
     s.on('pointerout', () => {
@@ -2210,15 +2217,19 @@ class LandsScene extends GameScene {
     if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 26);
     this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);
 
-    this.player.setDepth(this.player.y);
+    // Por los PIES, como en el resto de mapas (ver _crearObjetoDeIsla).
+    const pies = (window.GFProfundidad && window.GFProfundidad.piesDe)
+      ? window.GFProfundidad.piesDe(this, this.player)
+      : this.player.y + 51;
+    this.player.setDepth(pies);
     if (this.shadowContainer) {
       this.shadowContainer.setPosition(this.player.x, this.player.y + 45);
-      this.shadowContainer.setDepth(this.player.y - 1);
+      this.shadowContainer.setDepth(pies - 1);
     }
     if (this.usuariox) {
       this.usuariox.setText(this.Username || '');
       this.usuariox.setPosition(this.player.x, this.player.y - 60);
-      this.usuariox.setDepth(this.player.y + 1);
+      this.usuariox.setDepth(pies + 1);
     }
 
     try { this._actualizarMascota(); } catch (e) {}

@@ -5137,7 +5137,11 @@ removeOtherPlayer(playerId) {
       return;
     }
     if (s._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
-    s.emit('chatMessage', { usernamex: this.Username || '---', text: texto });
+    /* Si se está contestando a un mensaje concreto (gf-chat-social.js), viaja a cuál: la cita
+       la arma el servidor con el mensaje de verdad. */
+    const _respuesta = (window.GFChatSocial && window.GFChatSocial.respuestaParaEnviar)
+      ? window.GFChatSocial.respuestaParaEnviar() : null;
+    s.emit('chatMessage', Object.assign({ usernamex: this.Username || '---', text: texto }, _respuesta));
     this._showLocalChatBubble(texto);
   }
 
@@ -13027,6 +13031,23 @@ const collidesAt = (x, y) =>
   this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles2) ||
   this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles1);
 
+/* EL PERRO NO ATRAVIESA PAREDES (2026-11-10). "A veces el perro no respeta las colisiones
+   y se sale": cuando el paso directo chocaba, los rodeos de abajo aceptaban CUALQUIER
+   punto libre a 18-36 px sin mirar lo que había en medio. Una pared mide menos que eso,
+   así que el perro aparecía al otro lado (en la tienda, fuera de la sala, en lo negro).
+   Ahora un rodeo solo vale si se puede llegar a él andando: se sondea el tramo cada 6 px.
+   La única excepción es que el perro ya esté DENTRO de algo (nació ahí, o le pusieron un
+   objeto encima): entonces sale por el hueco más cercano, que es lo que se quiere. */
+const caminoLibre = (ax, ay, bx, by) => {
+  const tramo = Math.hypot(bx - ax, by - ay);
+  const pasos = Math.max(1, Math.ceil(tramo / 6));
+  for (let i = 1; i <= pasos; i++) {
+    if (collidesAt(ax + (bx - ax) * i / pasos, ay + (by - ay) * i / pasos)) return false;
+  }
+  return true;
+};
+const _perroAtrapado = collidesAt(dog.x, dog.y);
+
 // Busca un punto alternativo para rodear la colisión
 const findEscapePoint = (fromX, fromY, toX, toY) => {
   const dx = toX - fromX;
@@ -13056,7 +13077,7 @@ const findEscapePoint = (fromX, fromY, toX, toY) => {
   ];
 
   for (const [tx, ty] of tests) {
-    if (!collidesAt(tx, ty)) {
+    if (!collidesAt(tx, ty) && (_perroAtrapado || caminoLibre(fromX, fromY, tx, ty))) {
       return { x: tx, y: ty };
     }
   }
@@ -13099,7 +13120,7 @@ const resolveDogMove = (fromX, fromY, toX, toY) => {
     ];
 
     for (const [cx, cy] of tries) {
-      if (!collidesAt(cx, cy)) {
+      if (!collidesAt(cx, cy) && (_perroAtrapado || caminoLibre(fromX, fromY, cx, cy))) {
         return { x: cx, y: cy };
       }
     }
@@ -13175,6 +13196,23 @@ const prevDogY = dog.y;
 
 dog.x = moved.x;
 dog.y = moved.y;
+
+/* PERDIDO. Si el perro lleva un rato lejos de su dueño (se quedó tras un muro, el jugador
+   se teletransportó, nació fuera de la sala) vuelve a su lado, en el primer hueco libre
+   alrededor del jugador. Sin esto, uno que se quedara encerrado ya no volvía nunca. */
+{
+  const lejos = Math.hypot(player.x - dog.x, player.y - dog.y);
+  if (lejos > 340) dog._lejosDesde = dog._lejosDesde || now;
+  else dog._lejosDesde = 0;
+  if (lejos > 900 || (dog._lejosDesde && now - dog._lejosDesde > 2500)) {
+    const huecos = [[0, 0], [40, 20], [-40, 20], [0, 60], [60, 0], [-60, 0], [0, -30], [40, 50], [-40, 50], [80, 20], [-80, 20]];
+    for (const [hx, hy] of huecos) {
+      const qx = dog.targetX + hx, qy = dog.targetY + hy;
+      if (!collidesAt(qx, qy)) { dog.x = qx; dog.y = qy; dog.avoidSide = 0; break; }
+    }
+    dog._lejosDesde = 0;
+  }
+}
 
 const dogDx = dog.x - prevDogX;
 const dogDy = dog.y - prevDogY;
