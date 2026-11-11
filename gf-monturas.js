@@ -516,6 +516,20 @@
     }
   }
 
+  /** La vista (animal + jinete) de un sprite de personaje, el propio o el de otro; null a pie. */
+  function vistaDe(scene, spr) {
+    var st = scene && scene.__gfMonturas, m = null;
+    if (!spr) return null;
+    if (st && st.yo && scene.player === spr) m = st.yo;
+    else if (scene && scene.otherPlayers) {
+      for (var k in scene.otherPlayers) {
+        var o = scene.otherPlayers[k];
+        if (o && o.sprite === spr && o._gfMontura) { m = o._gfMontura; break; }
+      }
+    }
+    return m && m.listo ? m : null;
+  }
+
   /** Lo llama la escena al saber qué lleva otro jugador (sala, movimiento o 'montura:estado'). */
   function remoto(scene, p, id) {
     if (!p || !p.sprite) return;
@@ -678,12 +692,22 @@
     alternar: function (scene) { var st = scene && scene.__gfMonturas; if (st) alternar(st); },
     /** Cuántos px sube el cuerpo de un personaje montado (0 a pie). Para lo que se pinta sobre él. */
     alza: function (spr) { var j = spr && spr.__gfJinete; return j ? -j.dy : 0; },
-    /** Las piezas que se ven de un personaje montado (el animal, las piernas y el torso), o null. */
-    piezas: function (scene, spr) {
-      var st = scene && scene.__gfMonturas, m = null;
-      if (st && st.yo && scene.player === spr) m = st.yo;
-      else if (scene && scene.otherPlayers) for (var k in scene.otherPlayers) { var o = scene.otherPlayers[k]; if (o && o.sprite === spr && o._gfMontura) { m = o._gfMontura; break; } }
-      return m && m.listo ? [m.spr, m.piernas, m.jinete] : null;
+    /**
+     * Copias sueltas de lo que se ve de un personaje montado (el animal, las piernas y el
+     * torso), o null si va a pie. Para la estela del impulso: quien las pide las destruye.
+     */
+    copias: function (scene, spr) {
+      var m = vistaDe(scene, spr);
+      if (!m) return null;
+      var out = [];
+      [m.spr, m.piernas, m.jinete].forEach(function (o) {
+        if (!o || !o.scene || !o.visible || !o.texture) return;
+        var c = scene.add.image(o.x, o.y, o.texture.key, o.frame ? o.frame.name : undefined)
+          .setOrigin(o.originX, o.originY).setScale(o.scaleX, o.scaleY).setFlipX(!!o.flipX);
+        if (o === m.jinete && m.corte >= 0) c.setCrop(0, 0, c.frame.realWidth, m.corte);
+        out.push(c);
+      });
+      return out.length ? out : null;
     },
     _interno: { estado: function (s) { return s && s.__gfMonturas; }, subir: subir, bajar: bajar, propias: propias,
       cuerpoDe: cuerpoDe, medioAncho: medioAncho, piernas: piernas, horneadas: horneadas }

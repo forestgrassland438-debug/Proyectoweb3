@@ -15,6 +15,12 @@
  *     reparte por el chat: a quién le pides amistad no es asunto del canal.
  *   · EL COLOR DEL NOMBRE. El que cada jugador se elige en el dashboard, que
  *     llega dentro del propio mensaje.
+ *   · RESPONDER A UN MENSAJE CONCRETO (2026-11-10), como en WhatsApp. En el
+ *     teléfono se desliza el mensaje hacia la derecha; en el PC, el botón ↩ que
+ *     sale junto a las reacciones o doble clic en el mensaje. Encima del campo
+ *     aparece a quién se contesta (✕ o Esc para dejarlo) y el mensaje sale con
+ *     la cita arriba; pulsar la cita lleva al original. La cita la escribe el
+ *     SERVIDOR a partir del mensaje de verdad: el cliente solo dice a cuál.
  *
  * POR QUÉ ES UN MÓDULO Y NO CÓDIGO DENTRO DE LAS ESCENAS
  * ---------------------------------------------------------------------------
@@ -331,7 +337,7 @@
       /* (2026-11-02) "Las reacciones no funcionan." El botón solo existía al pasar el ratón: en el
          teléfono no hay ratón, y en el PC había que adivinarlo. Ahora siempre se ve, tenue, y el
          texto le deja su hueco para no quedar debajo. */
-      '.chat-line[data-mid]{padding-right:26px !important;}',
+      '.chat-line[data-mid]{padding-right:50px !important;}',
       '.gfcs-barra{position:absolute;top:2px;right:4px;display:flex;gap:3px;',
       '  opacity:.6;transition:opacity .15s;pointer-events:auto;',
       '  background:rgba(6,14,30,0.82);border-radius:7px;padding:1px 2px;}',
@@ -359,6 +365,28 @@
       '  color:#cfe6ff;border-radius:11px;padding:1px 7px;cursor:pointer;line-height:1.5;}',
       '.gfcs-reac:hover{background:rgba(40,90,160,0.6);}',
       '.gfcs-reac.mia{border-color:rgba(90,200,255,0.75);background:rgba(30,90,170,0.7);}',
+
+      /* RESPONDER. La cita va arriba del mensaje; la barra, encima del campo de escribir. */
+      '.chat-line[data-mid]{touch-action:pan-y;transition:transform .16s ease-out;}',
+      '.chat-line.gfcs-desliza{transition:none;}',
+      '.chat-line.gfcs-listo{background:rgba(64,160,255,0.16);}',
+      '.chat-line.gfcs-destello{animation:gfcsDestello 1.3s ease-out;}',
+      '@keyframes gfcsDestello{0%,35%{background:rgba(255,214,102,0.34);}100%{background:transparent;}}',
+      '.gfcs-cita{display:block;margin:0 22px 3px 0;padding:2px 7px;border-left:3px solid #5ab8ff;border-radius:4px;',
+      '  background:rgba(40,90,160,0.34);color:#cfe3f7;font-size:.86em;line-height:1.3;cursor:pointer;',
+      '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;box-sizing:border-box;}',
+      '.gfcs-cita b{color:#9fd4ff;margin-right:5px;font-weight:700;}',
+      '.gfcs-cita:hover{background:rgba(50,110,190,0.5);}',
+      '.gfcs-responde{display:flex;align-items:center;gap:6px;margin:4px 0 2px;padding:4px 6px 4px 8px;',
+      '  border-left:3px solid #5ab8ff;border-radius:6px;background:rgba(20,50,100,0.72);color:#d6e8fb;',
+      '  font-size:12px;line-height:1.3;min-width:0;}',
+      '.gfcs-responde[hidden]{display:none;}',
+      '.gfcs-responde-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+      '.gfcs-responde-txt b{color:#9fd4ff;margin:0 4px;}',
+      '.gfcs-responde-x{flex:none;width:22px;height:22px;padding:0;border-radius:6px;cursor:pointer;line-height:1;',
+      '  border:1px solid rgba(64,160,255,0.35);background:rgba(64,160,255,0.14);color:#cfe6ff;font-size:12px;}',
+      '.gfcs-responde-x:hover{background:rgba(64,160,255,0.32);}',
+      '@media (hover:none){ .gfcs-responde{font-size:13px;} .gfcs-responde-x{width:28px;height:28px;font-size:14px;} }',
 
       /* En el móvil el sitio de la barra lo ocupa la hora: se aparta un poco
          para que no se solapen. */
@@ -687,6 +715,154 @@
     doc.removeEventListener('pointerdown', cerrarSiFuera, true);
   }
 
+  // ── Responder a un mensaje ────────────────────────────────────────────────
+
+  /* A quién se está contestando: { mid, nombre, texto }. Es de la PÁGINA, como el panel del
+     chat: el mapa y la tienda comparten campo de escribir, así que comparten también esto. */
+  var respondiendo = null;
+  var DESLIZAR_UMBRAL = 46, DESLIZAR_TOPE = 70;
+
+  function recortar(t, n) {
+    var pts = Array.from(String(t == null ? '' : t).replace(/\s+/g, ' ').trim());
+    return pts.length > n ? pts.slice(0, n).join('') + '…' : pts.join('');
+  }
+
+  function barraRespuesta(crear) {
+    var b = doc.getElementById('gfcs-responde');
+    if (b || !crear) return b;
+    var panel = panelChat();
+    if (!panel) return null;
+    b = el('div', 'gfcs-responde');
+    b.id = 'gfcs-responde';
+    b.hidden = true;
+    b.appendChild(el('div', 'gfcs-responde-txt'));
+    var x = el('button', 'gfcs-responde-x', '✕');
+    x.type = 'button';
+    x.title = 'Cancel reply (Esc)';
+    x.setAttribute('aria-label', 'Cancel reply');
+    x.addEventListener('click', function (e) { e.stopPropagation(); cancelarRespuesta(); enfocarCampo(); });
+    b.appendChild(x);
+    var fila = panel.querySelector('.chat-input-row');
+    if (fila && fila.parentNode) fila.parentNode.insertBefore(b, fila); else panel.appendChild(b);
+    return b;
+  }
+
+  function enfocarCampo() {
+    var campo = doc.getElementById('chat-input');
+    if (campo) { try { campo.focus(); } catch (e) {} }
+  }
+
+  function alEscape(e) {
+    if (e.key !== 'Escape' || !respondiendo) return;
+    // Solo se lleva el Escape la respuesta: el chat no se cierra a la vez.
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    cancelarRespuesta();
+  }
+
+  function responderA(msg) {
+    if (!msg || !msg.mid) return;
+    estilos();
+    var b = barraRespuesta(true);
+    if (!b) return;
+    respondiendo = { mid: msg.mid, nombre: desescapar(msg.playerName || '---'), texto: recortar(desescapar(msg.text || ''), 90) };
+    var txt = b.firstChild;
+    txt.textContent = '';
+    txt.appendChild(doc.createTextNode('↩'));
+    txt.appendChild(el('b', null, respondiendo.nombre));
+    txt.appendChild(doc.createTextNode(respondiendo.texto));
+    b.hidden = false;
+    var campo = doc.getElementById('chat-input');
+    if (campo && !campo._gfcsEsc) { campo._gfcsEsc = alEscape; campo.addEventListener('keydown', alEscape, true); }
+    enfocarCampo();
+    // Que la barra no tape el final de la conversación.
+    var caja = doc.getElementById('chat-messages');
+    if (caja) caja.scrollTop = caja.scrollHeight;
+  }
+
+  function cancelarRespuesta() {
+    respondiendo = null;
+    var b = barraRespuesta(false);
+    if (b) b.hidden = true;
+  }
+
+  /**
+   * Lo que la escena añade al mensaje que va a enviar: `{ replyTo: mid }` o null. Al pedirlo
+   * se da por contestado y la barra se cierra. Lo llama `_enviarTextoAlChat`.
+   */
+  function respuestaParaEnviar() {
+    if (!respondiendo) return null;
+    var r = { replyTo: respondiendo.mid };
+    cancelarRespuesta();
+    return r;
+  }
+
+  /** Lleva al mensaje citado y lo enciende un momento. */
+  function irAMensaje(mid) {
+    var reg = pintados.get(mid);
+    if (!reg || reg.linea.isConnected === false) {
+      avisar(escenaViva, 'That message is no longer in the chat.', 'info');
+      return;
+    }
+    try { reg.linea.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { reg.linea.scrollIntoView(); } catch (x) {} }
+    reg.linea.classList.remove('gfcs-destello');
+    void reg.linea.offsetWidth;                 // reinicia la animación si se pulsa dos veces
+    reg.linea.classList.add('gfcs-destello');
+    setTimeout(function () { reg.linea.classList.remove('gfcs-destello'); }, 1400);
+  }
+
+  /**
+   * DESLIZAR PARA RESPONDER (dedo o lápiz). Con el ratón NO: arrastrar en el PC es
+   * seleccionar texto para copiarlo, y ahí están el botón ↩ y el doble clic. La línea lleva
+   * `touch-action: pan-y`, así que el navegador sigue desplazando el chat en vertical y solo
+   * nos llega el gesto horizontal.
+   */
+  function hacerDeslizable(linea, alResponder) {
+    var x0 = 0, y0 = 0, id = null, activo = false, dx = 0;
+    var soltar = function () {
+      id = null; activo = false;
+      linea.classList.remove('gfcs-desliza', 'gfcs-listo');
+      linea.style.transform = '';
+    };
+    linea.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      if (e.target && e.target.closest && e.target.closest('button, input, a, .gfcs-reacs, .gfcs-barra')) return;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; activo = false; dx = 0;
+    });
+    linea.addEventListener('pointermove', function (e) {
+      if (id === null || e.pointerId !== id) return;
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (!activo) {
+        if (Math.abs(my) > 12 && Math.abs(my) >= Math.abs(mx)) { id = null; return; }   // está desplazando el chat
+        if (mx < 10 || mx < Math.abs(my) * 1.4) return;
+        activo = true;
+        linea.classList.add('gfcs-desliza');
+        try { linea.setPointerCapture(id); } catch (x) {}
+      }
+      dx = Math.max(0, Math.min(DESLIZAR_TOPE, mx));
+      linea.style.transform = 'translateX(' + dx + 'px)';
+      linea.classList.toggle('gfcs-listo', dx >= DESLIZAR_UMBRAL);
+    });
+    var fin = function (e) {
+      if (id === null || (e && e.pointerId !== id)) return;
+      var hecho = activo && dx >= DESLIZAR_UMBRAL;
+      soltar();
+      if (hecho) {
+        try { if (global.navigator && global.navigator.vibrate) global.navigator.vibrate(12); } catch (x) {}
+        alResponder();
+      }
+    };
+    linea.addEventListener('pointerup', fin);
+    linea.addEventListener('pointercancel', function (e) { if (id !== null && (!e || e.pointerId === id)) soltar(); });
+    // Doble clic (PC): responder. No sobre un botón ni sobre las reacciones.
+    linea.addEventListener('dblclick', function (e) {
+      if (e.target && e.target.closest && e.target.closest('button, input, a, .gfcs-reacs, .gfcs-barra, .gfcs-cita')) return;
+      try { var sel = global.getSelection && global.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch (x) {}
+      alResponder();
+    });
+  }
+
   // ── Lo que llaman las escenas ─────────────────────────────────────────────
 
   /**
@@ -753,7 +929,34 @@
       }
     }
 
+    /* LA CITA, si este mensaje contesta a otro. Va en un bloque propio ARRIBA de la línea,
+       todo con textContent. La manda el servidor (nombre y texto del original): aquí no se
+       cita lo que diga el cliente que lo envió. */
+    if (msg.re && msg.re.mid) {
+      var cita = el('span', 'gfcs-cita');
+      var quien = el('b', null, desescapar(msg.re.playerName || '---'));
+      var colorCita = colorSeguro(msg.re.nameColor);
+      if (colorCita) quien.style.setProperty('color', colorCita, 'important');
+      cita.appendChild(quien);
+      cita.appendChild(doc.createTextNode(recortar(desescapar(msg.re.text || ''), 120)));
+      cita.title = 'Go to this message';
+      cita.setAttribute('role', 'button');
+      cita.addEventListener('click', function (e) { e.stopPropagation(); irAMensaje(msg.re.mid); });
+      linea.insertBefore(cita, linea.firstChild);
+    }
+
     var barra = el('span', 'gfcs-barra');
+
+    var responder1 = el('button', 'gfcs-bot', '↩');
+    responder1.type = 'button';
+    responder1.title = 'Reply to this message';
+    responder1.setAttribute('aria-label', 'Reply to this message');
+    responder1.addEventListener('click', function (e) {
+      e.stopPropagation();
+      responderA(msg);
+    });
+    barra.appendChild(responder1);
+    hacerDeslizable(linea, function () { responderA(msg); });
 
     var reaccionar1 = el('button', 'gfcs-bot', '☺');
     reaccionar1.type = 'button';
@@ -885,6 +1088,7 @@
   function olvidar() {
     pintados.clear();
     cerrarPaleta();
+    cancelarRespuesta();
   }
 
   global.GFChatSocial = {
@@ -892,6 +1096,10 @@
     decorar: decorar,
     comando: comando,
     olvidar: olvidar,
+    /* Responder a un mensaje: lo que la escena añade al enviar, y cómo dejarlo. */
+    respuestaParaEnviar: respuestaParaEnviar,
+    cancelarRespuesta: cancelarRespuesta,
+    respondiendoA: function () { return respondiendo ? { mid: respondiendo.mid, nombre: respondiendo.nombre } : null; },
     /* El aviso del botón del chat, por si alguna escena necesita apagarlo a
        mano (al esconder el HUD, por ejemplo). */
     avisoChat: encenderAviso,
@@ -911,7 +1119,7 @@
     FUENTE_EMOJI: FUENTE_EMOJI,
     _interno: {
       desescapar: desescapar, colorSeguro: colorSeguro,
-      pintados: pintados
+      pintados: pintados, responderA: responderA, irAMensaje: irAMensaje
     }
   };
 

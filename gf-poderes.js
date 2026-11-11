@@ -60,6 +60,8 @@
       '#gf-poderes-libres .gf-poder-seg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font:bold 15px monospace;text-shadow:0 1px 2px #000;pointer-events:none;}',
       '#gf-poderes-libres .gf-poder.esperando svg{opacity:.45;}',
       '#gf-poderes-libres.gf-tactil .gf-poder{width:54px;height:54px;}',
+      /* Con el chat abierto y sin sitio (pantallas pequeñas) el panel se guarda: tapaba los mensajes. */
+      '#gf-poderes-libres.gf-tapado{display:none;}',
       'body.in-battle #gf-poderes-libres{display:none;}'
     ].join('');
     document.head.appendChild(s);
@@ -169,6 +171,17 @@
   }
   function estela(st, x, y, textura, voltear, capa) {
     var scene = st.scene;
+    /* Montado, lo que se ve no es el personaje (está invisible) sino su jinete y el animal:
+       la estela es de ellos. Antes salía una fila de personajes a pie por debajo del caballo. */
+    var M = window.GFMonturas, copias = null;
+    try { copias = M && M.copias ? M.copias(scene, scene.player) : null; } catch (e) { copias = null; }
+    if (copias) {
+      copias.forEach(function (c) {
+        borrar(st, c).setAlpha(0.36).setDepth(capa - 1).setTint(0xbfe6ff);
+        scene.tweens.add({ targets: c, alpha: 0, duration: 230, onComplete: function () { if (c.scene) c.destroy(); } });
+      });
+      return;
+    }
     if (!textura || !scene.textures.exists(textura)) return;
     var g = borrar(st, scene.add.image(x, y, textura)).setScale(2).setAlpha(0.42).setDepth(capa - 1).setTint(0xbfe6ff).setFlipX(!!voltear);
     scene.tweens.add({ targets: g, alpha: 0, duration: 230, onComplete: function () { if (g.scene) g.destroy(); } });
@@ -211,10 +224,14 @@
   function impulso(st) {
     var scene = st.scene, t = scene.time.now;
     if (t < st.listo.c || bloqueado(scene)) return false;
-    var u = rumbo(scene);
-    if (!piesLibres(scene, scene.player.x + u.x * 6, scene.player.y + u.y * 6) &&
-        !piesLibres(scene, scene.player.x + u.x * 6, scene.player.y) &&
-        !piesLibres(scene, scene.player.x, scene.player.y + u.y * 6)) return false;
+    var u = rumbo(scene), px = scene.player.x, py = scene.player.y;
+    /* ¿Puede dar siquiera un paso? Con la misma cuenta que avanzar(): de frente, o resbalando
+       por UN eje que de verdad se mueva. Antes la tercera prueba, yendo en horizontal, miraba
+       el sitio donde ya se está (siempre libre): contra una pared el impulso "salía", gastaba
+       la espera de 3,5 s y no movía nada. */
+    if (!piesLibres(scene, px + u.x * 3, py + u.y * 3) &&
+        !(u.x && piesLibres(scene, px + u.x * 3, py)) &&
+        !(u.y && piesLibres(scene, px, py + u.y * 3))) return false;
     st.listo.c = t + IMPULSO.espera;
     st.total.c = IMPULSO.espera;
     st.impulso = { ux: u.x, uy: u.y, resto: IMPULSO.largo, hasta: t + IMPULSO.dura, ultEstela: 0 };
@@ -371,11 +388,35 @@
   }
   /* PC: a la izquierda de la barra rápida, a su altura. Móvil: encima del botón del chat, a mano del
      pulgar izquierdo (el derecho ya lleva el abanico de la espada). */
+  /** La caja del chat ABIERTO (no la del botón), o null. */
+  function cajaChatAbierto() {
+    var c = document.getElementById('chat-panel');
+    if (!c || c.classList.contains('chat-hidden')) return null;
+    var cs = getComputedStyle(c);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return null;
+    var r = c.getBoundingClientRect();
+    return r.width > 8 && r.height > 8 ? r : null;
+  }
+  var ESTORBOS_HUD = '.corner-box, #round-buttons-container .round-btn, #quick-slots-bar, #inv-shortcut-btn, #gf-espada-btn, ' +
+    '#toggle-hud-btn, #gf-pesca-btn, #gf-bote-btn, #gf-espada-poderes, #open-chat-btn';
+  function pisaHud(r, panel) {
+    var lista = document.querySelectorAll(ESTORBOS_HUD);
+    for (var i = 0; i < lista.length; i++) {
+      var e = lista[i];
+      if (e.hidden || e === panel || panel.contains(e)) continue;
+      var b = e.getBoundingClientRect();
+      if (b.width < 4 || b.height < 4) continue;
+      if (Math.min(r.right, b.right) - Math.max(r.left, b.left) > 2 && Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top) > 2) return true;
+    }
+    return false;
+  }
   function colocar(st) {
     var panel = st.panel;
     if (!panel || !panel.isConnected) return;
-    var tactil = esTactil(), H = window.innerHeight, barra = caja('quick-slots-bar'), chat = caja('open-chat-btn');
+    var tactil = esTactil(), H = window.innerHeight, Wv = window.innerWidth, barra = caja('quick-slots-bar'), chat = caja('open-chat-btn');
     panel.classList.toggle('gf-tactil', tactil);
+    var estabaTapado = panel.classList.contains('gf-tapado');
+    if (estabaTapado) panel.classList.remove('gf-tapado');       // para poder medirlo
     var ancho = panel.offsetWidth || 130, alto = panel.offsetHeight || 64;
     var left = 14, bottom = 86;
     if (!tactil && barra && barra.left - 12 - ancho >= (chat ? chat.right + 10 : 14)) {
@@ -386,10 +427,41 @@
       bottom = H - chat.top + 10;
     }
     // En el teléfono el botón del chat va a la derecha: el panel no se puede salir por ahí.
-    left = Math.max(8, Math.min(left, window.innerWidth - ancho - 8));
-    var l = Math.round(left) + 'px', bo = Math.round(bottom) + 'px';
-    if (panel.style.getPropertyValue('--gfp-left') !== l) panel.style.setProperty('--gfp-left', l);
-    if (panel.style.getPropertyValue('--gfp-bottom') !== bo) panel.style.setProperty('--gfp-bottom', bo);
+    left = Math.max(8, Math.min(left, Wv - ancho - 8));
+    /* EL CHAT ABIERTO MANDA (2026-11-10). "El panel de poderes C, X, H tapa el panel de chat
+       en resoluciones bajas": el sitio se calculaba contra el BOTÓN del chat, y al abrirse el
+       panel de mensajes (mucho más grande) los poderes quedaban encima. Si lo pisa, se prueba
+       encima del chat, a su derecha y a su izquierda; y si no cabe en ningún sitio sin pisar
+       otro control, se guarda mientras el chat esté abierto (escribiendo no se usan). */
+    var abierto = cajaChatAbierto(), tapado = false;
+    if (abierto) {
+      var caben = function (l, b) {
+        var r = { left: l, right: l + ancho, top: H - b - alto, bottom: H - b };
+        if (r.left < 6 || r.right > Wv - 6 || r.top < 6 || r.bottom > H - 4) return false;
+        var sobreChat = Math.min(r.right, abierto.right) - Math.max(r.left, abierto.left) > 2 &&
+                        Math.min(r.bottom, abierto.bottom) - Math.max(r.top, abierto.top) > 2;
+        return !sobreChat && !pisaHud(r, panel);
+      };
+      var pisaChat = Math.min(left + ancho, abierto.right) - Math.max(left, abierto.left) > 2 &&
+                     Math.min(H - bottom, abierto.bottom) - Math.max(H - bottom - alto, abierto.top) > 2;
+      if (pisaChat) {
+        var sitios = [
+          [Math.max(8, Math.min(abierto.left, Wv - ancho - 8)), H - abierto.top + 8],      // encima
+          [abierto.right + 8, H - abierto.bottom + 4],                                      // a su derecha
+          [abierto.left - ancho - 8, H - abierto.bottom + 4]                                // a su izquierda
+        ], puesto = false;
+        for (var i = 0; i < sitios.length && !puesto; i++) {
+          if (caben(sitios[i][0], sitios[i][1])) { left = sitios[i][0]; bottom = sitios[i][1]; puesto = true; }
+        }
+        tapado = !puesto;
+      }
+    }
+    panel.classList.toggle('gf-tapado', tapado);
+    var l = Math.round(left) + 'px', bo = Math.round(bottom) + 'px', cambia = estabaTapado !== tapado;
+    if (panel.style.getPropertyValue('--gfp-left') !== l) { panel.style.setProperty('--gfp-left', l); cambia = true; }
+    if (panel.style.getPropertyValue('--gfp-bottom') !== bo) { panel.style.setProperty('--gfp-bottom', bo); cambia = true; }
+    // Lo que se aparta de este panel (los poderes de la espada) tiene que volver a mirar.
+    if (cambia && window.GFHudAjuste && window.GFHudAjuste.ajustar) { try { window.GFHudAjuste.ajustar(); } catch (e) {} }
   }
   function pintar(st) {
     var scene = st.scene, t = scene.time.now;
@@ -437,6 +509,14 @@
     st.onVentana = function () { colocar(st); };
     window.addEventListener('resize', st.onVentana);
     window.addEventListener('orientationchange', st.onVentana);
+    // Abrir o cerrar el chat recoloca el panel al momento (no al segundo siguiente).
+    try {
+      var panelChat = document.getElementById('chat-panel');
+      if (panelChat && typeof MutationObserver === 'function') {
+        st.obsChat = new MutationObserver(function () { if (st.vivo) colocar(st); });
+        st.obsChat.observe(panelChat, { attributes: true, attributeFilter: ['class', 'style'] });
+      }
+    } catch (e) { st.obsChat = null; }
     // El socket es de la página; el oyente, de esta escena.
     st.socket = scene.socket || window.globalSocket || null;
     st.onViento = function (d) { vientoAjeno(st, d); };
@@ -461,6 +541,7 @@
     try { if (st.relojSocket) st.relojSocket.remove(false); } catch (e) {}
     if (st.socketPuesto) { try { st.socketPuesto.off('poder:viento', st.onViento); } catch (e) {} }
     if (st.onVentana) { window.removeEventListener('resize', st.onVentana); window.removeEventListener('orientationchange', st.onVentana); }
+    if (st.obsChat) { try { st.obsChat.disconnect(); } catch (e) {} st.obsChat = null; }
     (st.botones || []).forEach(function (p) { p.b.removeEventListener('pointerdown', p.activar); });
     if (st.panel) st.panel.remove();
     Array.from(st.fx).forEach(function (o) { try { scene.tweens.killTweensOf(o); if (o.scene) o.destroy(); } catch (e) {} });

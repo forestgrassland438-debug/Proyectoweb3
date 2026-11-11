@@ -1061,7 +1061,76 @@
     return (detras + delante) / 2;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     LA FUENTE: UN ESTANQUE BAJO CON UNA ESTATUA EN MEDIO        (2026-11-10)
+     ──────────────────────────────────────────────────────────────────────
+     "En la fuente del juego aún hay bugs: se traspasa." La fuente tenía UNA
+     línea de suelo, abajo del todo (su borde sur). Quien se ponía a su
+     izquierda o a su derecha —los pies más arriba que esa línea— quedaba
+     DETRÁS de toda la fuente, y el agua y el brocal le tapaban medio cuerpo
+     (y montado, casi entero: el animal es ancho y se mete más sobre ella).
+
+     Un estanque no es una casa: es PLANO. El agua y el brocal están a ras de
+     suelo y no pueden tapar a nadie que esté de pie a su lado; lo único alto
+     es la estatua del centro. Así que se pinta en dos capas:
+
+       · el estanque entero, con la línea en su borde NORTE: cualquiera que lo
+         rodee tiene los pies más abajo y queda por delante del agua;
+       · la estatua, recortada del mismo dibujo (setCrop, sin texturas nuevas),
+         con la línea en su pedestal: tapa a quien pase por detrás, que es lo
+         único que tiene que tapar.
+
+     Las medidas van en fracciones del dibujo. La copia de la estatua se apunta
+     como una franja más, así sigue al original (visible, alfa, tinte) con el
+     mismo repaso que las casas partidas. */
+  var ESTANQUES = {
+    // borde: el canto de DENTRO del brocal norte. Quien está detrás (pies hasta 11 px bajo su
+    // caja de choque) queda tapado por él; quien la rodea por los lados tiene los pies más abajo.
+    estatua_gato_png: { borde: 14 / 77, remate: { x0: 24 / 71, x1: 48 / 71, y1: 44 / 77 } }
+  };
+
+  function partirEstanque(scene, spr, def) {
+    if (typeof spr.setCrop !== 'function' || spr.flipX) return null;
+    var texW = spr.width || 0, texH = spr.height || 0;
+    if (!texW || !texH) return null;
+    var caja = cajaMundo(spr);
+    var yBorde = caja.y + caja.alto * def.borde;
+    var yRemate = caja.y + caja.alto * def.remate.y1;
+    quitarFranjas(spr);                       // por si se recalibra
+    spr.setDepth(yBorde);
+    spr.__gfProf = 'estanque';
+    spr.setData && spr.setData('lineaSuelo', yBorde);
+
+    var x0 = Math.round(texW * def.remate.x0), x1 = Math.round(texW * def.remate.x1);
+    var y1 = Math.round(texH * def.remate.y1);
+    var copia = scene.add.image(spr.x, spr.y, spr.texture.key);
+    copia.setOrigin(spr.originX, spr.originY);
+    copia.setDisplaySize(spr.displayWidth, spr.displayHeight);
+    copia.setScrollFactor(spr.scrollFactorX, spr.scrollFactorY);
+    copia.setAlpha(spr.alpha);
+    copia.setVisible(spr.visible);
+    if (copia.disableInteractive) copia.disableInteractive();
+    if (copia.setData) copia.setData('gfFranja', true);
+    copia.__gfDueno = spr;
+    copia.setCrop(x0, 0, Math.max(1, x1 - x0), Math.max(1, y1));
+    copia.setDepth(yRemate);
+    copia.__gfFranjaY = yRemate;
+
+    spr.__gfFranjas = [copia];
+    spr.__gfFranjasN = 2;
+    spr.__gfEspejo = { visible: spr.visible, alpha: spr.alpha,
+                       x: spr.x, y: spr.y, tinte: spr.isTinted ? spr.tintTopLeft : -1 };
+    return { y: yBorde, fuente: 'estanque', franjas: 2 };
+  }
+
   function calibrar(scene, spr, colisiones) {
+    var claveTex = spr.texture && spr.texture.key;
+    var estanque = claveTex && Object.prototype.hasOwnProperty.call(ESTANQUES, claveTex) ? ESTANQUES[claveTex] : null;
+    if (estanque) {
+      var re = null;
+      try { re = partirEstanque(scene, spr, estanque); } catch (e) { re = null; }
+      if (re) return re;
+    }
     var r = lineaDeSuelo(scene, spr, colisiones);
     if (esVegetacion(spr)) {
       var lt = null;
@@ -1107,7 +1176,7 @@
       scene: scene,
       pendientes: candidatos(scene),
       hechos: 0,
-      porFuente: { sonda: 0, pared: 0, pixeles: 0, sprite: 0, franjas: 0, tronco: 0 },
+      porFuente: { sonda: 0, pared: 0, pixeles: 0, sprite: 0, franjas: 0, tronco: 0, estanque: 0 },
       partidos: [],
       porFrame: opciones.porFrame || POR_FRAME
     };
