@@ -13024,7 +13024,7 @@ dog.targetY = player.y + dog.smoothOffsetY;
 const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
 const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
 const collidesAt = (x, y) =>
-  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles) ||
+  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles2) ||
   this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles1);
 
 // Busca un punto alternativo para rodear la colisión
