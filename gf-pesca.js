@@ -73,6 +73,13 @@
   var ALCANCE = 150;                // hasta dónde se busca agua si no se mira al río
   var LANCE_MIN = 36;               // lance con la barra vacía (un toque)
   var LANCE_MAX = 210;              // lance con la barra llena
+  /* (2026-11-10) LA FUERZA SE MIDE DESDE EL AGUA. "La boya no cae en el agua ni la
+     fuerza se mide desde el agua": la distancia se contaba desde los pies, así que a dos
+     pasos de la orilla un lance flojo se quedaba en tierra ("Too short!") y la barra medía
+     hierba, no río. Ahora se busca dónde EMPIEZA el agua hacia donde se mira y la barra
+     decide cuánto se adentra el corcho: con un toque cae junto a la orilla (LANCE_ADENTRO
+     px dentro), y a tope, LANCE_MAX px más allá. Siempre en agua donde quepa entero. */
+  var LANCE_ADENTRO = 14;
   var CARGA_MS = 1100;              // lo que tarda en llenarse la barra
   var RADIO_MOVERSE = 72;           // cuánto se puede andar pescando
   var DIRV = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
@@ -237,8 +244,43 @@
      de verdad nunca se pisa. La orilla (enLaOrilla) sigue mirando el agua
      entera: desde un puente se pesca, pero hacia el agua que se ve. */
   var PUENTE = /puente|bridge|muelle|dock|pasarela/i;
+  /* EL CORCHO NO CAE ENCIMA DE UNA PIEDRA                         (2026-11-10)
+     "La boya puede quedar bugeada en piedras del agua": las piedras, nenúfares, troncos
+     y juncos que pone gf-agua.js están DENTRO del agua (sus casillas son agua llena), y
+     el corcho caía encima. Se apartan con su caja y un margen; también las rocas del
+     propio mapa que pisan el agua. La lista se rehace si gf-agua pone más adornos (los
+     carga un momento después de montar). */
+  var ROCA = /piedra|roca|rock|tronco|nenufar|junco/i;
+  function estorbosDe(scene, agua) {
+    var lista = null, vistos = -1;
+    return function () {
+      var ad = (scene.__gfAgua && scene.__gfAgua.adornos) || null, n = ad ? ad.length : 0;
+      if (lista && n === vistos) return lista;
+      vistos = n; lista = [];
+      var caja = function (o, m, soloPie) {
+        try {
+          if (!o || !o.scene || o.visible === false || typeof o.getBounds !== 'function') return;
+          var b = o.getBounds();
+          // De lo alto (un junco) solo estorba el pie: el corcho pasa por detrás de las hojas.
+          if (soloPie) lista.push({ x0: b.centerX - 12 - m, y0: b.bottom - 12 - m, x1: b.centerX + 12 + m, y1: b.bottom + 6 + m });
+          else lista.push({ x0: b.x - m, y0: b.y - m, x1: b.right + m, y1: b.bottom + m });
+        } catch (e) {}
+      };
+      (ad || []).forEach(function (a) { if (a) caja(a.spr, a.tipo === 'piedra' ? 8 : 5, a.tipo === 'mece'); });
+      try {
+        scene.children.list.forEach(function (o) {
+          if (!o || !o.texture || !ROCA.test(o.texture.key || '') || /^gfa_/.test(o.texture.key) || typeof o.getBounds !== 'function') return;
+          var b = o.getBounds();
+          if (b.width > 260 || b.height > 260) return;               // un fondo, no una roca
+          if (celda(agua, b.centerX, b.bottom - 4) < 1 && celda(agua, b.centerX, b.centerY) < 1) return;
+          caja(o, 6, false);
+        });
+      } catch (e) {}
+      return lista;
+    };
+  }
   function tapadoDe(scene) {
-    var rects = null, cache = null;
+    var rects = null, cache = null, estorbos = null;
     function puentes() {
       if (rects) return rects;
       rects = [];
@@ -255,6 +297,11 @@
       var r = puentes();
       for (var i = 0; i < r.length; i++) {
         if (x >= r[i].x0 && x <= r[i].x1 && y >= r[i].y0 && y <= r[i].y1) return true;
+      }
+      if (!estorbos) estorbos = estorbosDe(scene, agua);
+      var e = estorbos();
+      for (i = 0; i < e.length; i++) {
+        if (x >= e[i].x0 && x <= e[i].x1 && y >= e[i].y0 && y <= e[i].y1) return true;
       }
       if (typeof scene._chocaConEscenario !== 'function' || !scene._idxColision) return false;
       var tam = agua.tileSize || CASILLA, cx = Math.floor(x / tam), cy = Math.floor(y / tam);
@@ -281,22 +328,34 @@
     return false;
   }
 
+  /** ¿Cabe el corcho ENTERO en agua abierta? (mide 16 px de ancho y flota medio hundido) */
+  function cabeElCorcho(agua, x, y) {
+    return abierta(agua, x, y) && abierta(agua, x - 7, y) && abierta(agua, x + 7, y) &&
+           abierta(agua, x, y - 6) && abierta(agua, x, y + 9);
+  }
+
   /**
-   * Dónde cae el corcho con un lance de `d` px: en el rayo hacia donde mira,
-   * el punto de agua llena más lejano que no pase de `d`. Si en ese rayo el
-   * agua empieza más lejos de lo que da la fuerza, `{ corto: true }`. Si no
-   * se mira al agua, se gira hacia la más cercana y se hace la misma cuenta.
+   * Dónde cae el corcho con la barra a `fuerza` (0..1): en el rayo hacia donde se
+   * mira se busca dónde EMPIEZA el agua, y desde ahí la fuerza decide cuánto se
+   * adentra (LANCE_ADENTRO con un toque, LANCE_MAX a tope). Cae en el punto más
+   * lejano de ese tramo donde quepa entero: nunca en tierra, ni sobre una piedra,
+   * ni debajo de un puente. Si no se mira al agua, se gira hacia la más cercana.
+   * Devuelve { punto, dir, orilla } u null si no hay agua a tiro.
    */
-  function destinoDelLance(agua, px, py, dir, d) {
+  function destinoDelLance(agua, px, py, dir, fuerza) {
+    var f = Math.max(0, Math.min(1, Number(fuerza) || 0));
     function enRayo(dd) {
-      var v = DIRV[dd] || DIRV.right, mejor = null, masLejos = false;
-      for (var k = 24; k <= LANCE_MAX + 24; k += 6) {
-        var x = px + v[0] * k, y = py + v[1] * k;
-        if (!abierta(agua, x, y)) continue;
-        if (k <= d + 12) mejor = { x: x, y: y };
-        else if (!mejor) masLejos = true;
+      var v = DIRV[dd] || DIRV.right, k, orilla = -1;
+      for (k = 10; k <= ALCANCE; k += 4) {
+        if (cabeElCorcho(agua, px + v[0] * k, py + v[1] * k)) { orilla = k; break; }
       }
-      return mejor ? { punto: mejor, dir: dd } : (masLejos ? { corto: true, dir: dd } : null);
+      if (orilla < 0) return null;
+      var tope = orilla + f * (LANCE_MAX - LANCE_ADENTRO), mejor = null;
+      for (k = orilla; k <= tope + 0.5; k += 4) {
+        var x = px + v[0] * k, y = py + v[1] * k;
+        if (cabeElCorcho(agua, x, y)) mejor = { x: x, y: y };
+      }
+      return mejor ? { punto: mejor, dir: dd, orilla: orilla } : null;
     }
     var r = enRayo(dir);
     if (r) return r;
@@ -304,7 +363,12 @@
     if (!otro) return null;
     var vx = otro.x - px, vy = otro.y - py;
     var nueva = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down');
-    return enRayo(nueva) || { punto: otro, dir: nueva };
+    return enRayo(nueva) || (cabeElCorcho(agua, otro.x, otro.y) ? { punto: otro, dir: nueva, orilla: Math.hypot(vx, vy) } : null);
+  }
+
+  /** Cuánto sube el cuerpo de un personaje montado (gf-monturas.js): la caña sale de ahí arriba. */
+  function alzaDe(spr) {
+    try { return window.GFMonturas && window.GFMonturas.alza ? (window.GFMonturas.alza(spr) || 0) : 0; } catch (e) { return 0; }
   }
 
   /** Dónde cae el corcho: agua llena hacia donde mira, o la más cercana. */
@@ -576,23 +640,18 @@
     var scene = st.scene, p = scene.player;
     if (!st.barra || !p) return;
     var f = fuerzaDeCarga(st);
-    var g = st.barra, w = 56, h = 8, x = p.x - w / 2, y = p.y - 92;
+    var g = st.barra, w = 56, h = 8, x = p.x - w / 2, y = p.y - 92 - alzaDe(p);
     g.clear();
     g.fillStyle(0x000000, 0.65); g.fillRoundedRect(x - 2, y - 2, w + 4, h + 4, 4);
     var color = f < 0.5 ? 0x5fd36c : (f < 0.85 ? 0xf2c35c : 0xff8a3a);
     g.fillStyle(color, 1); g.fillRoundedRect(x, y, Math.max(2, w * f), h, 3);
     g.lineStyle(1, 0xfff4dd, 0.8); g.strokeRoundedRect(x - 2, y - 2, w + 4, h + 4, 4);
     var dir = ['left', 'right', 'up', 'down'].indexOf(scene.lastDirection) >= 0 ? scene.lastDirection : 'right';
-    var d = LANCE_MIN + f * (LANCE_MAX - LANCE_MIN);
-    var r = st.agua ? destinoDelLance(st.agua, Math.round(p.x), Math.round(p.y + 40), dir, d) : null;
+    var r = st.agua ? destinoDelLance(st.agua, Math.round(p.x), Math.round(p.y + 40), dir, f) : null;
     if (st.marca) {
       if (r && r.punto) {
         st.marca.setVisible(true).setPosition(r.punto.x, r.punto.y + 4).setTint(0xffffff)
           .setScale(0.55 + Math.sin(scene.time.now / 120) * 0.08).setAlpha(0.95);
-      } else if (r && r.corto) {
-        // Corto: la marca sale en la orilla, roja.
-        var v = DIRV[r.dir] || DIRV.right;
-        st.marca.setVisible(true).setPosition(p.x + v[0] * d, p.y + 44 + v[1] * d).setTint(0xff7a6c).setScale(0.5).setAlpha(0.9);
       } else {
         st.marca.setVisible(false);
       }
@@ -629,14 +688,8 @@
     pintarBoton(st);
     var dir = ['left', 'right', 'up', 'down'].indexOf(scene.lastDirection) >= 0 ? scene.lastDirection : 'right';
     var pies = { x: Math.round(p.x), y: Math.round(p.y + 40) };
-    var lance = destinoDelLance(st.agua, pies.x, pies.y, dir, LANCE_MIN + f * (LANCE_MAX - LANCE_MIN));
-    if (!lance) { st.fase = 'nada'; pintarBoton(st); aviso(scene, 'Face the river to fish.', 'warning'); return; }
-    if (lance.corto) {
-      st.fase = 'nada'; pintarBoton(st);
-      var tactil = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-      aviso(scene, tactil ? 'Too short! Hold the button longer to cast farther.' : 'Too short! Hold F longer to cast farther.', 'warning');
-      return;
-    }
+    var lance = destinoDelLance(st.agua, pies.x, pies.y, dir, f);
+    if (!lance || !lance.punto) { st.fase = 'nada'; pintarBoton(st); aviso(scene, 'Face the water to fish.', 'warning'); return; }
     var destino = lance.punto;
     // Mirar hacia el agua.
     var vx = destino.x - pies.x, vy = destino.y - pies.y;
@@ -734,7 +787,7 @@
     var fila = tabla[DIRS[st.dir] || 'derecha'] || tabla.derecha;
     var v = fila[Math.max(0, Math.min(5, (st.foto || 5) - 1))];
     var esc = Math.abs(p.scaleX) || 2;
-    return { x: p.x + v[0] * esc, y: p.y + v[1] * esc };
+    return { x: p.x + v[0] * esc, y: p.y + v[1] * esc - alzaDe(p) };
   }
 
   function contador(st, config) {
@@ -806,10 +859,11 @@
 
   function exclamacion(st) {
     var scene = st.scene, p = scene.player;
-    var t = scene.add.text(p.x, p.y - 74, '!', { fontFamily: '"PressStart2P", monospace', fontSize: '20px', color: '#ffe066',
+    var alto = alzaDe(p);
+    var t = scene.add.text(p.x, p.y - 74 - alto, '!', { fontFamily: '"PressStart2P", monospace', fontSize: '20px', color: '#ffe066',
       stroke: '#5a2a00', strokeThickness: 6 }).setOrigin(0.5).setDepth(9000);
     st.efectos.push(t);
-    scene.tweens.add({ targets: t, y: p.y - 86, duration: 160, yoyo: true, repeat: 2 });
+    scene.tweens.add({ targets: t, y: p.y - 86 - alto, duration: 160, yoyo: true, repeat: 2 });
     st.exclamacion = t;
   }
 
@@ -1124,7 +1178,7 @@
     contador(st, { from: 0, to: 1, duration: 620, ease: 'Sine.easeInOut', onUpdate: function (tw) {
       var t = tw.getValue();
       pez.x = desde.x + (p.x - desde.x) * t;
-      pez.y = desde.y + (p.y - 40 - desde.y) * t - Math.sin(t * Math.PI) * 70;
+      pez.y = desde.y + (p.y - 40 - alzaDe(p) - desde.y) * t - Math.sin(t * Math.PI) * 70;
       pez.rotation = Math.sin(t * 14) * 0.5;
     }, onComplete: function () {
       scene.tweens.add({ targets: pez, scale: 0.6, alpha: 0, y: pez.y - 16, duration: 260,
@@ -1297,7 +1351,7 @@
     var fila = tabla[DIRS[r.dir] || 'derecha'] || tabla.derecha;
     var v = fila[Math.max(0, Math.min(5, (r.foto || 5) - 1))];
     var esc = Math.abs(p.sprite.scaleX) || 2;
-    return { x: p.sprite.x + v[0] * esc, y: p.sprite.y + v[1] * esc };
+    return { x: p.sprite.x + v[0] * esc, y: p.sprite.y + v[1] * esc - alzaDe(p.sprite) };
   }
 
   function soltarRemoto(p) {
@@ -1486,7 +1540,8 @@
       return st ? { fase: st.fase, puede: st.puede, dir: st.dir || null } : null;
     },
     _interno: { bucleRemoto: bucleRemoto, finLucha: finLucha, cerrarLucha: cerrarLucha, cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho, abierta: abierta,
-                destinoDelLance: destinoDelLance, LANCE_MIN: LANCE_MIN, LANCE_MAX: LANCE_MAX, RADIO_MOVERSE: RADIO_MOVERSE,
+                destinoDelLance: destinoDelLance, cabeElCorcho: cabeElCorcho, LANCE_MIN: LANCE_MIN, LANCE_MAX: LANCE_MAX,
+                LANCE_ADENTRO: LANCE_ADENTRO, RADIO_MOVERSE: RADIO_MOVERSE,
                 clasificarTileset: clasificarTileset, meterFactura: meterFactura, NOMBRES: NOMBRES }
   };
 })();
