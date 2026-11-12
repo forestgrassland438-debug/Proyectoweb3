@@ -11920,7 +11920,9 @@ _setupCurrencyHub() {
  * cartera que no tiene nada de su partida.
  */
 async _walletInfo() {
-  const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
+  // (2026-11-10) La red del juego la dice el servidor (gf-red.js): nombre e id pueden cambiar (mainnet).
+  const RED = (window.GFRed && window.GFRed.actual) ? window.GFRed.actual() : { chainId: 4441, nombre: 'LitVM LiteForge' };
+  const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', [RED.chainId]: RED.nombre };
   const esAddress = (v) => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
 
   let embebida = null;
@@ -11934,7 +11936,7 @@ async _walletInfo() {
 
   const out = {
     address: embebida || deSesion || '—',
-    network: embebida ? 'LitVM LiteForge (id 4441)' : 'Unknown network',
+    network: embebida ? RED.nombre + ' (id ' + RED.chainId + ')' : 'Unknown network',
     embedded: !!embebida,
     warning: null
   };
