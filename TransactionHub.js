@@ -33,7 +33,8 @@ class TransactionHub {
                 width: 320,
                 animationDuration: 500,
                 visibleDuration: 10000,
-                explorerBase: 'https://liteforge.explorer.caldera.xyz/tx/',
+                // (2026-11-10) Vacío: el explorador lo dice el servidor (gf-red.js). Ver showCompleted.
+                explorerBase: '',
                 debug: false
             };
             this.config = Object.assign({}, defaults, options);
@@ -262,7 +263,8 @@ class TransactionHub {
                     this._hashElement.textContent = shortHash;
                     this._hashElement.style.display = 'block';
                 }
-                const base = explorerBase || this.config.explorerBase || '';
+                const base = explorerBase || this.config.explorerBase ||
+                    ((window.GFRed && window.GFRed.explorador) ? window.GFRed.explorador() + '/tx/' : 'https://explorer.testnet.liteforge.zeeve.net/tx/');
                 if (this._explorerElement) {
                     // A config or remote explorer URL must never become a javascript:/data: link.
                     this._explorerElement.removeAttribute('href');

@@ -133,11 +133,13 @@ class TransactionSystem {
         } catch (error) {
             if (this._destroyed) return null;
             console.warn('⚠️ No se pudo cargar configuración del servidor:', error.message);
+            // (2026-11-10) La red la dice el servidor (gf-red.js, GET /api/red): LitVM pasó a Zeeve.
+            const red = (window.GFRed && window.GFRed.actual) ? window.GFRed.actual() : null;
             this.config = {
-                rpcUrl: "https://liteforge.rpc.caldera.xyz/http",
-                chainId: 4441,
-                explorerUrl: "https://liteforge.explorer.caldera.xyz",
-                networkName: "LitVM Testnet",
+                rpcUrl: red ? red.rpcUrls[0] : "https://rpc.testnet.liteforge.zeeve.net/",
+                chainId: red ? red.chainId : 4441,
+                explorerUrl: red ? red.explorerUrl : "https://explorer.testnet.liteforge.zeeve.net",
+                networkName: red ? red.nombre : "LitVM LiteForge",
                 relayerAddress: null
             };
             return this.config;

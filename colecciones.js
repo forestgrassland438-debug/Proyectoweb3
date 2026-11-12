@@ -92,7 +92,7 @@
   function isPublic(c) {return !!c&&c.visibility==='public';}
   // Lo que el servidor anuncia que sabe hacer (un server2.js viejo no tiene esto).
   function can(feature) {return !!(state.data.capabilities&&state.data.capabilities[feature]);}
-  function explorer(hash) {const candidate=state.data.explorerUrl || 'https://liteforge.explorer.caldera.xyz';try{const u=new URL(candidate);if(u.protocol!=='https:')return '';return u.origin+'/tx/'+encodeURIComponent(hash);}catch(_){return '';}}
+  function explorer(hash) {const candidate=state.data.explorerUrl || ((window.GFRed&&window.GFRed.explorador)?window.GFRed.explorador():'https://explorer.testnet.liteforge.zeeve.net');try{const u=new URL(candidate);if(u.protocol!=='https:')return '';return u.origin+'/tx/'+encodeURIComponent(hash);}catch(_){return '';}}
   function hashLink(hash) {if(!/^0x[0-9a-f]{64}$/i.test(hash||''))return '—';const link=explorer(hash);return link?'<a class="mono" href="'+esc(link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(hash)+'">'+esc(short(hash))+' ↗</a>':esc(hash);}
   function empty(title,text,action='') {return '<div class="empty"><div class="empty-symbol">◇</div><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p>'+action+'</div>';}
   function assertSession(epoch) {if(epoch!==state.generation || !state.verified) throw Object.assign(new Error('La sesión cambió. Reconecta la cartera.'),{code:'STALE_SESSION'});}

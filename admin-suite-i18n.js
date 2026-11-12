@@ -24,6 +24,9 @@ Collections|Colecciones
 World & weather|Mundo y clima
 Player reports|Reportes de jugadores
 Contract analytics|Estadísticas del contrato
+Network & RPC|Red y RPC
+Change network & RPC|Cambiar la red y el RPC
+Change the RPC, explorer and contracts used by the server, the game, the shop, the login and the wallets; test them first, and migrate from testnet to mainnet.|Cambia el RPC, el explorador y los contratos que usan el servidor, el juego, la tienda, el login y las carteras; pruébalos antes, y migra de testnet a mainnet.
 Access & permissions|Acceso y permisos
 Error monitoring|Monitor de errores
 Game operations, in one place.|Todo el juego, bajo control.

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es" data-admin-suite data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="same-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.grasslandforest.com http://127.0.0.1:8080; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Red y RPC · Grassland Forest</title>
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="admin-suite.css?v=20261020">
+<link rel="stylesheet" href="operations-panels.css?v=20261029.a9736400c4e5">
+<style>
+  .red-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .red-dato{border:1px solid var(--op-line);border-radius:11px;padding:12px 14px;background:#0f1d22;min-width:0}
+  .red-dato span{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--op-muted)}
+  .red-dato strong{display:block;margin-top:4px;overflow-wrap:anywhere;font-weight:650}
+  .red-dato small{display:block;color:var(--op-muted);overflow-wrap:anywhere}
+  .red-mono{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}
+  .op-form textarea{min-height:84px;font:12px/1.6 ui-monospace,monospace;border-radius:9px;padding:10px 12px}
+  .op-form select{width:100%}
+  .red-aviso{border:1px solid #78633f;background:#3d3020;color:#f1dcad;border-radius:12px;padding:14px 16px;margin:14px 0}
+  .red-aviso strong{color:#ffe7b0}
+  .red-aviso input{margin-top:8px;max-width:220px;text-transform:uppercase}
+  .red-ok{color:#a9dfbf}.red-mal{color:#f0a187}
+  .red-hist{border-top:1px solid var(--op-line);padding:12px 0;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+  .red-hist div{min-width:0;flex:1}
+  .red-hist small{display:block;color:var(--op-muted);overflow-wrap:anywhere}
+  .red-pasos{margin:0;padding-left:20px;color:var(--op-muted)}
+  .red-pasos li{margin:6px 0}
+</style>
+<script src="admin-session.js?v=20261020"></script>
+<script src="admin-suite-i18n.js?v=22.6.75b69745f9a6"></script>
+<script defer src="admin-suite.js?v=20261025"></script>
+<script defer src="operations-panels.js?v=20261029.da7169814a86"></script>
+<script defer src="red.js?v=22.6.71ccf929b7c4"></script>
+</head>
+<body>
+<main class="op-shell">
+  <section id="op-gate" class="op-card">
+    <span class="op-eyebrow">Grassland Forest · Administración</span>
+    <h1>Red y RPC</h1>
+    <p>Este apartado exige una sesión de administrador verificada por el servidor.</p>
+    <button type="button" id="op-connect" class="op-primary">Conectar administrador</button>
+    <p id="op-login-message" role="status">Verificando sesión…</p>
+  </section>
+
+  <section id="op-app" hidden>
+    <header class="op-top">
+      <div>
+        <span class="op-eyebrow">Grassland Forest · Centro de control</span>
+        <h1>Red y RPC</h1>
+        <p>La cadena, los RPC, el explorador y los contratos que usan el servidor, el juego, la tienda, el login y las carteras.</p>
+      </div>
+      <div class="op-actions"><a href="control-center.html">Centro de control</a><button id="op-refresh" type="button">Actualizar</button></div>
+    </header>
+    <p id="op-notice" class="op-notice" role="status" aria-live="polite" hidden></p>
+
+    <section class="op-card" aria-labelledby="red-marcha-titulo">
+      <h2 id="red-marcha-titulo">En marcha ahora</h2>
+      <div id="red-pendiente" class="red-aviso" hidden></div>
+      <div class="red-grid" id="red-marcha" data-no-translate></div>
+      <p class="op-muted" id="red-fuentes" data-no-translate></p>
+      <div class="op-actions" style="margin-top:14px"><button type="button" id="red-probar-marcha">Comprobar la red en marcha</button></div>
+    </section>
+
+    <section class="op-card" aria-labelledby="red-form-titulo">
+      <h2 id="red-form-titulo">Cambiar la red</h2>
+      <p>Los RPC, el explorador, el nombre y la moneda se aplican al momento, sin cortar a nadie. Cambiar la <strong>cadena</strong> o los <strong>contratos</strong> (por ejemplo, pasar de testnet a mainnet) es una migración: se guarda y entra al reiniciar el servidor.</p>
+      <form id="red-form" class="op-form" autocomplete="off" novalidate>
+        <label>Nombre de la red<input id="red-nombre" maxlength="60" required></label>
+        <label>Entorno
+          <select id="red-entorno"><option value="testnet">testnet</option><option value="mainnet">mainnet</option><option value="devnet">devnet</option></select>
+        </label>
+        <label>Id de la cadena (chainId)<input id="red-chain" inputmode="numeric" maxlength="10" required></label>
+        <label>Explorador (https)<input id="red-explorer" type="url" maxlength="300" required></label>
+        <label class="op-span">RPC del servidor (uno por línea: el primero es el principal; si falla, pasa al siguiente). No se enseña a los jugadores.
+          <textarea id="red-rpc-servidor" spellcheck="false" required></textarea>
+        </label>
+        <label class="op-span">RPC públicos (los que reciben las carteras de los jugadores y las páginas; uno por línea)
+          <textarea id="red-rpc-publico" spellcheck="false" required></textarea>
+        </label>
+        <label>Moneda: símbolo<input id="red-mon-simbolo" maxlength="12" required></label>
+        <label>Moneda: nombre<input id="red-mon-nombre" maxlength="40" required></label>
+        <label>Moneda: decimales<input id="red-mon-dec" inputmode="numeric" maxlength="2" required></label>
+        <span></span>
+        <label class="op-span">Contrato de objetos (ITEM_CONTRACT_ADDRESS)<input id="red-items" maxlength="42" class="red-mono" spellcheck="false" required></label>
+        <label class="op-span">Contrato de mensajes (SIMPLE_MESSAGE_LOGGER_ADDRESS)<input id="red-mensajes" maxlength="42" class="red-mono" spellcheck="false" required></label>
+      </form>
+      <div id="red-migracion" class="red-aviso" hidden>
+        <strong>Esto es una migración.</strong> Cambia la cadena o los contratos. Antes de guardar, comprueba que la cartera del relayer tiene fondos en la red nueva y permiso de administrador en el contrato nuevo. Los objetos y monedas que los jugadores tienen en la cadena de ahora NO pasan solos a la nueva. Se aplica al reiniciar el servidor (Railway → Restart).
+        <label style="display:block;margin-top:8px">Para confirmar, escribe MIGRAR<br><input id="red-confirmar" maxlength="6" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="op-actions" style="margin-top:16px">
+        <button type="button" id="red-probar">Probar sin guardar</button>
+        <button type="button" id="red-guardar" class="op-primary">Probar y guardar</button>
+        <button type="button" id="red-cargar-marcha">Cargar la red en marcha</button>
+        <button type="button" id="red-cargar-defecto">Cargar la red por defecto</button>
+      </div>
+    </section>
+
+    <section class="op-card" id="red-prueba-card" hidden aria-labelledby="red-prueba-titulo">
+      <h2 id="red-prueba-titulo">Resultado de la prueba</h2>
+      <p class="op-muted" id="red-prueba-cuando" data-no-translate></p>
+      <div class="op-tablewrap">
+        <table>
+          <thead><tr><th>RPC</th><th>Uso</th><th>Cadena</th><th>Bloque</th><th>Tiempo</th><th>Estado</th></tr></thead>
+          <tbody id="red-prueba-rpcs" data-no-translate></tbody>
+        </table>
+      </div>
+      <div class="red-grid" id="red-prueba-extra" style="margin-top:14px" data-no-translate></div>
+      <ul id="red-prueba-avisos" class="red-pasos" style="margin-top:12px"></ul>
+    </section>
+
+    <section class="op-card" aria-labelledby="red-hist-titulo">
+      <h2 id="red-hist-titulo">Historial</h2>
+      <p class="op-muted">Las últimas 20 redes guardadas. “Cargar” la pone en el formulario: no cambia nada hasta que se guarde.</p>
+      <div id="red-historial" data-no-translate></div>
+      <div class="op-state" id="red-historial-vacio" hidden>Todavía no se ha guardado ninguna red desde aquí.</div>
+    </section>
+
+    <section class="op-card" aria-labelledby="red-ayuda-titulo">
+      <h2 id="red-ayuda-titulo">Pasar de testnet a mainnet</h2>
+      <ol class="red-pasos">
+        <li>Despliega el contrato de objetos (y el de mensajes) en la mainnet y da permiso de administrador a la cartera del relayer.</li>
+        <li>Manda fondos de la moneda de la mainnet a la cartera del relayer: es la que paga el gas de todo el juego.</li>
+        <li>Rellena aquí la red nueva (nombre, entorno <code>mainnet</code>, chainId, RPC, explorador, moneda y contratos), pulsa “Probar sin guardar” y revisa que todo salga en verde.</li>
+        <li>Escribe MIGRAR y guarda. Después reinicia el servidor (Railway → tu servicio → Restart): al arrancar lee la red nueva antes que nada.</li>
+        <li>El juego, la tienda, las carteras y el login la toman solos del servidor (<code>/api/red</code>); no hace falta volver a subir el juego.</li>
+        <li>Si algo saliera mal, carga en el formulario la revisión anterior desde el historial y guárdala, o pon <code>GF_RED_FIJA=1</code> en las variables del servidor para arrancar solo con las del entorno.</li>
+      </ol>
+    </section>
+  </section>
+</main>
+<dialog id="op-copy-dialog" class="op-dialog"><h2>Selecciona y copia el texto</h2><textarea id="op-copy-text" readonly></textarea><button id="op-copy-close" type="button">Cerrar</button></dialog>
+</body>
+</html>

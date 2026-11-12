@@ -181,7 +181,7 @@ a { color: var(--sky); }
 </style>
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261028"></script>
+<script src="./admin-suite-i18n.js?v=22.6.75b69745f9a6"></script>
 <script defer src="./admin-suite.js?v=20261025"></script>
 </head>
 <body>
@@ -313,20 +313,33 @@ a { color: var(--sky); }
 </main>
 
 <script src="./vendor/ethers.umd.min.js?v=532950515fd2"></script>
+<script src="./gf-red.js?v=22.6.39af26bf3483"></script>
 <script>
 (function () {
   'use strict';
 
   // ── La red y el contrato (los mismos que gf-wallet-sdk/gf-wallet.js) ──────
+  // (2026-11-10) La red la dice el servidor (gf-red.js → GET /api/red, la que se elige en el
+  // centro de control). LitVM pasó de Caldera a Zeeve: esto es solo por si no contesta.
   var RED = {
-    chainId: 4441, chainIdHex: '0x1159', nombre: 'LiteForge',
-    rpc: 'https://liteforge.rpc.caldera.xyz/http',
-    explorador: 'https://liteforge.explorer.caldera.xyz',
+    chainId: 4441, chainIdHex: '0x1159', nombre: 'LitVM LiteForge',
+    rpc: 'https://rpc.testnet.liteforge.zeeve.net/',
+    explorador: 'https://explorer.testnet.liteforge.zeeve.net',
     moneda: { name: 'zkLTC', symbol: 'zkLTC', decimals: 18 }
   };
-  // La dirección por defecto es la del servidor (ITEM_CONTRACT_ADDRESS). Tras
-  // migrar a un contrato nuevo se escribe aquí la nueva: se recuerda.
-  var CONTRATO_DEFECTO = '0x686E17D89Bf97247fadC04C3A3f0dfD02F914115';
+  function tomarRed(r) {
+    if (!r || !r.rpcUrls || !r.rpcUrls.length) return;
+    RED.chainId = r.chainId; RED.chainIdHex = r.chainIdHex; RED.nombre = r.nombre; RED.rpc = r.rpcUrls[0];
+    RED.explorador = r.explorerUrl; RED.moneda = { name: r.moneda.nombre, symbol: r.moneda.simbolo, decimals: r.moneda.decimales };
+  }
+  if (window.GFRed) {
+    tomarRed(window.GFRed.actual());
+    window.GFRed.listo().then(tomarRed);
+    window.addEventListener('gf-red', function (e) { tomarRed(e.detail); });
+  }
+  // La dirección por defecto es la del servidor (ITEM_CONTRACT_ADDRESS, o la del centro de
+  // control). Tras migrar a un contrato nuevo se escribe aquí la nueva: se recuerda.
+  var CONTRATO_DEFECTO = (window.GFRed && window.GFRed.actual().contratos.items) || '0x686E17D89Bf97247fadC04C3A3f0dfD02F914115';
 
   // Las tablas que usa el juego: ITEM_TIPO_MAP de server2.js + las del servidor.
   var TABLAS_JUEGO = ["Regaderax","Tijerasx","balde_con_agua","balde_vacio","bolsa de calabazas","bolsa de tomates",

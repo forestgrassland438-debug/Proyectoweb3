@@ -325,7 +325,8 @@
     pintarCompras();
   }
   function pintarCompras() {
-    const explorer = 'https://liteforge.explorer.caldera.xyz/tx/';
+    // (2026-11-10) El explorador lo dice el servidor (gf-red.js): LitVM pasó de Caldera a Zeeve.
+    const explorer = ((window.GFRed && window.GFRed.explorador) ? window.GFRed.explorador() : 'https://explorer.testnet.liteforge.zeeve.net') + '/tx/';
     const lista = compras.filas || (datos && datos.compras) || [];
     const res = compras.resumen || [];
     const de = k => res.find(x => x.estado === k) || { n: 0, oro: 0, reclamadas: 0 };

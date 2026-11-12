@@ -397,7 +397,7 @@
     var r = c.getBoundingClientRect();
     return r.width > 8 && r.height > 8 ? r : null;
   }
-  var ESTORBOS_HUD = '.corner-box, #round-buttons-container .round-btn, #quick-slots-bar, #inv-shortcut-btn, #gf-espada-btn, ' +
+  var ESTORBOS_HUD = '#cajahub, .corner-box, #round-buttons-container .round-btn, #quick-slots-bar, #inv-shortcut-btn, #gf-espada-btn, ' +
     '#toggle-hud-btn, #gf-pesca-btn, #gf-bote-btn, #gf-espada-poderes, #open-chat-btn';
   function pisaHud(r, panel) {
     var lista = document.querySelectorAll(ESTORBOS_HUD);
@@ -515,6 +515,11 @@
       if (panelChat && typeof MutationObserver === 'function') {
         st.obsChat = new MutationObserver(function () { if (st.vivo) colocar(st); });
         st.obsChat.observe(panelChat, { attributes: true, attributeFilter: ['class', 'style'] });
+        // Y cuando CRECE (llegan mensajes, sale la barra de responder): se mide de nuevo al momento.
+        if (typeof ResizeObserver === 'function') {
+          st.tamChat = new ResizeObserver(function () { if (st.vivo) colocar(st); });
+          st.tamChat.observe(panelChat);
+        }
       }
     } catch (e) { st.obsChat = null; }
     // El socket es de la página; el oyente, de esta escena.
@@ -542,6 +547,7 @@
     if (st.socketPuesto) { try { st.socketPuesto.off('poder:viento', st.onViento); } catch (e) {} }
     if (st.onVentana) { window.removeEventListener('resize', st.onVentana); window.removeEventListener('orientationchange', st.onVentana); }
     if (st.obsChat) { try { st.obsChat.disconnect(); } catch (e) {} st.obsChat = null; }
+    if (st.tamChat) { try { st.tamChat.disconnect(); } catch (e) {} st.tamChat = null; }
     (st.botones || []).forEach(function (p) { p.b.removeEventListener('pointerdown', p.activar); });
     if (st.panel) st.panel.remove();
     Array.from(st.fx).forEach(function (o) { try { scene.tweens.killTweensOf(o); if (o.scene) o.destroy(); } catch (e) {} });

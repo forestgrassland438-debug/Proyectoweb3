@@ -19,6 +19,12 @@
  */
 (function () {
   'use strict';
+  /* (2026-11-10) El nombre de la red lo dice el servidor (gf-red.js); sin él, el de siempre. */
+  function nombreRed() {
+    var n = 'LitVM LiteForge';
+    try { if (window.GFRed && window.GFRed.actual) n = window.GFRed.actual().nombre || n; } catch (e) {}
+    return String(n).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; });
+  }
 
   var ENLAZADO = false;
   var PINTADO  = false;
@@ -170,7 +176,7 @@
       '<div id="gfw-w-recv" style="display:none;">' +
         '<div class="gfw-w-card">' +
           '<div class="gfw-w-label">Receive</div>' +
-          '<div class="gfw-w-sub" style="margin:0 0 8px;">Send only <b>LitVM LiteForge</b> assets to this address. Anything sent on another network is lost.</div>' +
+          '<div class="gfw-w-sub" style="margin:0 0 8px;">Send only <b id="gfw-w-recv-red">' + nombreRed() + '</b> assets to this address. Anything sent on another network is lost.</div>' +
           '<div class="gfw-w-secret" id="gfw-w-recv-addr">—</div>' +
         '</div>' +
       '</div>' +

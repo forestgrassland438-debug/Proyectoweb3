@@ -74,6 +74,12 @@
   var bandeja = [];
   var conversacion = [];
   var limpiezaDM = 0;        // 0 = apagado; 24, 72 o 168 horas
+  /* (2026-11-10) RESPONDER A UN PRIVADO CONCRETO, como en WhatsApp: el mensaje al que se
+     está contestando (o null). En el teléfono se desliza la burbuja hacia la derecha; en el
+     PC, el botón ↩ de la burbuja o doble clic. La cita que acompaña a la respuesta la
+     copia el servidor del mensaje de verdad (`re` en friends:dm). */
+  var respondeA = null;
+  var DESLIZAR_UMBRAL = 46, DESLIZAR_TOPE = 70;
 
   /* CUÁNTOS MENSAJES SE TIENEN A LA VISTA.
 
@@ -309,6 +315,22 @@
       '.gfa-burbuja.suya{align-self:flex-start;background:rgba(20,50,100,0.55);color:#d6ecff;',
       '  border:1px solid rgba(64,160,255,0.22);border-bottom-left-radius:4px;}',
       '.gfa-burbuja .t{display:block;font-size:9px;opacity:.55;margin-top:3px;text-align:right;}',
+      /* Responder: la cita dentro de la burbuja y la barra encima del campo. */
+      '.gfa-burbuja{touch-action:pan-y;transition:transform .16s ease-out;}',
+      '.gfa-burbuja.desliza{transition:none;}',
+      '.gfa-burbuja.listo{box-shadow:0 0 0 2px rgba(120,200,255,0.6);}',
+      '.gfa-burbuja.destello{animation:gfaDestello 1.3s ease-out;}',
+      '@keyframes gfaDestello{0%,35%{box-shadow:0 0 0 3px rgba(255,214,102,0.85);}100%{box-shadow:0 0 0 0 rgba(255,214,102,0);}}',
+      '.gfa-cita{display:block;margin:0 0 5px;padding:3px 7px;border-left:3px solid #7cc4ff;border-radius:5px;',
+      '  background:rgba(6,16,34,0.5);color:#cfe3f7;font-size:11px;line-height:1.3;cursor:pointer;',
+      '  max-height:2.7em;overflow:hidden;}',
+      '.gfa-cita b{display:block;color:#9fd4ff;font-weight:700;font-size:10px;}',
+      '.gfa-responde{display:flex;align-items:center;gap:6px;margin:0 12px;padding:5px 6px 5px 9px;flex-shrink:0;',
+      '  border-left:3px solid #7cc4ff;border-radius:6px;background:rgba(20,50,100,0.6);color:#d6e8fb;',
+      '  font-size:11px;line-height:1.3;min-width:0;}',
+      '.gfa-responde.oculto{display:none;}',
+      '.gfa-responde-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+      '.gfa-responde-txt b{color:#9fd4ff;margin:0 4px;}',
       '.gfa-chat-fila{display:flex;gap:6px;padding:9px 12px;border-top:1px solid rgba(64,160,255,0.18);',
       '  flex-shrink:0;}',
       '.gfa-chat-fila input{flex:1;min-width:0;background:rgba(6,16,34,0.85);',
@@ -537,6 +559,18 @@
     emojis.id = 'gfa-emojis';
     chat.appendChild(emojis);
 
+    // A quién se contesta: encima de la fila de escribir (oculta hasta que se elige un mensaje).
+    var responde = el('div', 'gfa-responde oculto');
+    responde.id = 'gfa-responde';
+    responde.appendChild(el('div', 'gfa-responde-txt'));
+    var respondeX = el('button', 'gfa-mini', '✕');
+    respondeX.type = 'button';
+    respondeX.title = 'Cancel reply (Esc)';
+    respondeX.setAttribute('aria-label', 'Cancel reply');
+    respondeX.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); cancelarRespuestaDM(); });
+    responde.appendChild(respondeX);
+    chat.appendChild(responde);
+
     var fila = el('div', 'gfa-chat-fila');
 
     var botonEmoji = el('button', 'gfa-mini', '😀');
@@ -559,6 +593,8 @@
     entrada.addEventListener('keydown', function (e) {
       e.stopPropagation();
       if (e.key === 'Enter') { e.preventDefault(); enviarPrivado(); }
+      // Esc deja de contestar (sin cerrar nada más).
+      else if (e.key === 'Escape' && respondeA) { e.preventDefault(); cancelarRespuestaDM(); }
     });
     entrada.addEventListener('keyup', function (e) { e.stopPropagation(); });
     var enviar = el('button', 'gfa-btn', 'Send');
@@ -583,7 +619,7 @@
       panel: panel, caja: caja, tabs: tabs, lista: lista,
       buscar: buscar, campo: campo,
       chat: chat, chatNom: chatNom, msgs: msgs, entrada: entrada,
-      emojis: emojis
+      emojis: emojis, responde: responde
     };
 
     // ESC cierra, esté donde esté el foco.
@@ -1063,6 +1099,7 @@
     terminarLecturaPendiente(true);
     leidoUltimo = 0;
     construir();
+    cancelarRespuestaDM();
     chatCon = playerName;
     chatFicha = { playerName: playerName, username: nombreVisible || playerName };
     conversacion = [];
@@ -1080,6 +1117,7 @@
     cerrarPaletaReaccion();
     cerrarMenuConversacion();
     alternarEmojis(false);
+    cancelarRespuestaDM();
     chatCon = null;
     chatFicha = null;
     conversacion = [];
@@ -1093,7 +1131,8 @@
     if (!texto) return;
     if (!enlazar()) { aviso('No connection right now.', 'error'); return; }
 
-    socket.emit('friends:dm', { para: chatCon, texto: texto });
+    var cita = respondeA && respondeA.id ? respondeA : null;
+    socket.emit('friends:dm', cita ? { para: chatCon, texto: texto, re: cita.id } : { para: chatCon, texto: texto });
 
     /* Se pinta YA, sin esperar al servidor. El eco (`friends:dm:sent`) sustituye
        esta copia cuando llega; si no llegara, la marca `_pendiente` deja claro
@@ -1103,11 +1142,104 @@
       de: (estado.yo && estado.yo.playerName) || '',
       para: chatCon,
       deNombre: (estado.yo && estado.yo.username) || 'You',
-      texto: texto, ts: new Date().toISOString()
+      texto: texto, ts: new Date().toISOString(),
+      re: cita ? { id: cita.id, de: cita.de, deNombre: cita.deNombre, texto: cita.texto } : null
     });
+    cancelarRespuestaDM();
     nodos.entrada.value = '';
     alternarEmojis(false);
     pintarConversacion();
+  }
+
+  // ── Responder a un privado ────────────────────────────────────────────────
+
+  function recortarCita(t, n) {
+    var pts = Array.from(String(t == null ? '' : t).replace(/\s+/g, ' ').trim());
+    return pts.length > n ? pts.slice(0, n).join('') + '…' : pts.join('');
+  }
+
+  function nombreDeCita(de, deNombre) {
+    var yo = estado.yo && estado.yo.playerName;
+    if (yo && de === yo) return 'You';
+    return desescapar(deNombre || (chatFicha && chatFicha.username) || '---');
+  }
+
+  function responderDM(m) {
+    if (!m || !m.id || m._pendiente || !nodos.responde) return;
+    respondeA = m;
+    var txt = nodos.responde.firstChild;
+    txt.textContent = '';
+    txt.appendChild(doc.createTextNode('↩'));
+    txt.appendChild(el('b', null, nombreDeCita(m.de, m.deNombre)));
+    txt.appendChild(doc.createTextNode(recortarCita(desescapar(m.texto), 90)));
+    nodos.responde.classList.remove('oculto');
+    if (nodos.entrada) { try { nodos.entrada.focus(); } catch (e) {} }
+    if (nodos.msgs) nodos.msgs.scrollTop = nodos.msgs.scrollHeight;
+  }
+
+  function cancelarRespuestaDM() {
+    respondeA = null;
+    if (nodos && nodos.responde) nodos.responde.classList.add('oculto');
+  }
+
+  /** Lleva al privado citado, si sigue en la conversación abierta. */
+  function irAPrivado(id) {
+    for (var i = 0; i < conversacion.length; i++) {
+      var m = conversacion[i];
+      if (m.id !== id || !m._nodo || !m._nodo.parentNode) continue;
+      try { m._nodo.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { m._nodo.scrollIntoView(); } catch (x) {} }
+      m._nodo.classList.remove('destello');
+      void m._nodo.offsetWidth;
+      m._nodo.classList.add('destello');
+      (function (nodo) { setTimeout(function () { nodo.classList.remove('destello'); }, 1400); })(m._nodo);
+      return;
+    }
+    aviso('That message is no longer in this conversation.', 'info');
+  }
+
+  /* Deslizar la burbuja a la derecha (dedo o lápiz) o doble clic (ratón): responder. Con el
+     ratón no se arrastra: arrastrar en el PC es seleccionar texto. */
+  function hacerDeslizable(b, alResponder) {
+    var x0 = 0, y0 = 0, id = null, activo = false, dx = 0;
+    var soltar = function () {
+      id = null; activo = false;
+      b.classList.remove('desliza', 'listo');
+      b.style.transform = '';
+    };
+    b.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      if (e.target && e.target.closest && e.target.closest('button, input, .gfa-msg-acc, .gfa-editar')) return;
+      id = e.pointerId; x0 = e.clientX; y0 = e.clientY; activo = false; dx = 0;
+    });
+    b.addEventListener('pointermove', function (e) {
+      if (id === null || e.pointerId !== id) return;
+      var mx = e.clientX - x0, my = e.clientY - y0;
+      if (!activo) {
+        if (Math.abs(my) > 12 && Math.abs(my) >= Math.abs(mx)) { id = null; return; }
+        if (mx < 10 || mx < Math.abs(my) * 1.4) return;
+        activo = true;
+        b.classList.add('desliza');
+        try { b.setPointerCapture(id); } catch (x) {}
+      }
+      dx = Math.max(0, Math.min(DESLIZAR_TOPE, mx));
+      b.style.transform = 'translateX(' + dx + 'px)';
+      b.classList.toggle('listo', dx >= DESLIZAR_UMBRAL);
+    });
+    b.addEventListener('pointerup', function (e) {
+      if (id === null || e.pointerId !== id) return;
+      var hecho = activo && dx >= DESLIZAR_UMBRAL;
+      soltar();
+      if (hecho) {
+        try { if (global.navigator && global.navigator.vibrate) global.navigator.vibrate(12); } catch (x) {}
+        alResponder();
+      }
+    });
+    b.addEventListener('pointercancel', function (e) { if (id !== null && e.pointerId === id) soltar(); });
+    b.addEventListener('dblclick', function (e) {
+      if (e.target && e.target.closest && e.target.closest('button, input, .gfa-msg-acc, .gfa-editar, .gfa-cita')) return;
+      try { var sel = global.getSelection && global.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch (x) {}
+      alResponder();
+    });
   }
 
   function esMovil() {
@@ -1686,6 +1818,19 @@
     var mio = yo ? (m.de === yo) : (m.para === chatCon);
     var b = el('div', 'gfa-burbuja ' + (mio ? 'mia' : 'suya'));
 
+    // La cita, si contesta a otro mensaje: quién lo dijo y un trozo. Pulsarla lleva a él.
+    if (m.re && m.re.id) {
+      var cita = el('span', 'gfa-cita');
+      cita.appendChild(el('b', null, nombreDeCita(m.re.de, m.re.deNombre)));
+      cita.appendChild(doc.createTextNode(recortarCita(desescapar(m.re.texto), 120)));
+      cita.title = 'Go to this message';
+      cita.setAttribute('role', 'button');
+      (function (idCitado) {
+        cita.addEventListener('click', function (e) { e.stopPropagation(); irAPrivado(idCitado); });
+      })(m.re.id);
+      b.appendChild(cita);
+    }
+
     // El texto en su propio nodo: sin él no se puede sustituir al editar.
     var textoEl = el('span', 'gfa-burbuja-txt', m._pendiente ? m.texto : desescapar(m.texto));
     b.appendChild(textoEl);
@@ -1699,6 +1844,17 @@
        conversación entera daría un salto. */
     if (m.id && !m._pendiente) {
       var acciones = el('div', 'gfa-msg-acc');
+
+      var resp = el('button', 'gfa-msg-bot', '↩');
+      resp.type = 'button';
+      resp.title = 'Reply';
+      resp.setAttribute('aria-label', 'Reply to this message');
+      resp.addEventListener('click', function (e) {
+        e.stopPropagation();
+        responderDM(m);
+      });
+      acciones.appendChild(resp);
+      hacerDeslizable(b, function () { responderDM(m); });
 
       var reac = el('button', 'gfa-msg-bot', '☺');
       reac.type = 'button';

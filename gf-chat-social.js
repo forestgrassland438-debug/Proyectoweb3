@@ -344,7 +344,9 @@
       '.chat-line:hover .gfcs-barra,.gfcs-barra.fijo{opacity:1;pointer-events:auto;}',
       '.gfcs-bot{background:rgba(64,160,255,0.14);border:1px solid rgba(64,160,255,0.28);',
       '  color:#a8d8ff;border-radius:6px;width:20px;height:20px;font-size:11px;line-height:1;',
-      '  cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;}',
+      '  cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;',
+      /* (2026-11-10) Una regla general del HUD da 44 px a todo botón en pantallas estrechas: aquí no. */
+      '  min-width:0 !important;min-height:0 !important;}',
       '.gfcs-bot:hover{background:rgba(64,160,255,0.30);}',
 
       '.gfcs-paleta{position:absolute;z-index:10040;display:flex;gap:2px;padding:5px 6px;',
@@ -390,14 +392,16 @@
 
       /* En el móvil el sitio de la barra lo ocupa la hora: se aparta un poco
          para que no se solapen. */
-      '@media (hover:none){ .gfcs-barra{position:static;opacity:.55;',
+      /* Táctil o estrecho: la barra va EN LÍNEA tras la hora, no flotando encima del texto. */
+      '@media (hover:none),(max-width:600px){ .chat-line[data-mid]{padding-right:6px !important;}',
+      '  .gfcs-barra{position:static;opacity:.7;',
       '  display:inline-flex;margin-left:6px;vertical-align:middle;',
       '  background:none;padding:0;pointer-events:auto;} }',
 
       /* En el móvil no hay `hover`: los botones se quedan puestos, pero muy
          discretos, o el chat se llena de iconos. */
-      '@media (hover:none){',
-      '  .gfcs-bot{width:24px;height:24px;font-size:13px;}',
+      '@media (hover:none),(max-width:600px){',
+      '  .gfcs-bot{width:30px;height:30px;font-size:14px;}',
       '  .gfcs-reac{padding:2px 9px;font-size:12px;}',
       '}'
     ].join('\n');
@@ -947,6 +951,17 @@
 
     var barra = el('span', 'gfcs-barra');
 
+    var reaccionar1 = el('button', 'gfcs-bot', '☺');
+    reaccionar1.type = 'button';
+    reaccionar1.title = 'React to this message';
+    reaccionar1.setAttribute('aria-label', 'React to this message');
+    reaccionar1.addEventListener('click', function (e) {
+      e.stopPropagation();
+      abrirPaleta(escenaViva, msg.mid, reaccionar1);
+    });
+    barra.appendChild(reaccionar1);
+
+    /* Responder (↩) va DESPUÉS de reaccionar: el ☺ sigue siendo el primer botón de la barra. */
     var responder1 = el('button', 'gfcs-bot', '↩');
     responder1.type = 'button';
     responder1.title = 'Reply to this message';
@@ -957,16 +972,6 @@
     });
     barra.appendChild(responder1);
     hacerDeslizable(linea, function () { responderA(msg); });
-
-    var reaccionar1 = el('button', 'gfcs-bot', '☺');
-    reaccionar1.type = 'button';
-    reaccionar1.title = 'React to this message';
-    reaccionar1.setAttribute('aria-label', 'React to this message');
-    reaccionar1.addEventListener('click', function (e) {
-      e.stopPropagation();
-      abrirPaleta(escenaViva, msg.mid, reaccionar1);
-    });
-    barra.appendChild(reaccionar1);
 
     /* AQUÍ NO HAY LÁPIZ. El chat general no se edita: un mensaje público que
        cambia después de leído no es de fiar. Editar existe en los privados,

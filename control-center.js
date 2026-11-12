@@ -17,7 +17,9 @@
     // (2026-10-27) La auditoría: una lista y una lupa.
     audit:'<path d="M4 6h9M4 10h6M4 14h4"/><circle cx="15.5" cy="14.5" r="4"/><path d="m18.5 17.5 3 3"/>',
     // (2026-10-28) Los precios: una etiqueta de precio.
-    prices:'<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"/><circle cx="8" cy="8" r="1.6"/>'
+    prices:'<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"/><circle cx="8" cy="8" r="1.6"/>',
+    // (2026-11-10) La red: tres nodos unidos.
+    network:'<circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 6h9M6.3 8.2l4.4 7.6m7-7.6-4.4 7.6"/>'
   };
   const svg = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';
   const tools = [
@@ -38,6 +40,8 @@
     { id:'auditoria', file:'auditoria.html', name:'Shop & drop audit', icon:'audit', group:'Moderation', text:'Who bought and sold, what it cost and if it was paid; shop and P2P errors; who picked up each drop and from whom; drop bans and level attempts.' },
     { id:'puerta-login', file:'puerta_login.html', name:'Access & permissions', icon:'access', group:'Moderation', text:'Manage the whitelist and game entry rules.' },
     { id:'contrato-stats', file:'contrato-stats.html', name:'Contract analytics', icon:'contract', group:'System', text:'Read invoices, contract activity and gas usage.' },
+    // (2026-11-10) La red de la cadena: RPC, explorador, contratos y la migración a mainnet.
+    { id:'red', file:'red.html', name:'Network & RPC', icon:'network', group:'System', text:'Change the RPC, explorer and contracts used by the server, the game, the shop, the login and the wallets; test them first, and migrate from testnet to mainnet.' },
     { id:'reporter', file:'reporter.html', name:'Error monitoring', icon:'errors', group:'System', text:'Investigate client errors and relay failures.' }
   ];
   let verified = false, active = 'overview', frame = null, loading = false, dataLoading = false, snapshot = null;

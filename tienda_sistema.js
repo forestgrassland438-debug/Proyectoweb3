@@ -3217,14 +3217,24 @@ class TiendaSistema {
         }
 
         const purchasedToday = this.dailyLimits[item.id] || 0;
-        if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
+        /* (2026-11-10) Lo que ya espera en la cola de la tienda también cuenta para el límite
+           diario: comprando rápido, cada clic se comprobaba contra lo ya CONFIRMADO y las
+           últimas de la cola acababan rechazadas por el servidor ("tope diario"). */
+        if (!this._comprasEnCola) this._comprasEnCola = new Map();
+        const enCola = this._comprasEnCola.get(item.id) || 0;
+        if (item.limiteDiario > 0 && (purchasedToday + enCola + quantity) > item.limiteDiario) {
             throw new Error('Daily purchase limit exceeded');
         }
         
         const ref = this._nuevaRef();
         const copy = { ...item };
+        this._comprasEnCola.set(item.id, enCola + quantity);
         this._encolarTrabajoTienda(`Shop purchase: ${quantity}x ${item.id}`, async () => {
-            await this._operacionEconomicaTienda('compra', copy, quantity, ref);
+            try { await this._operacionEconomicaTienda('compra', copy, quantity, ref); }
+            finally {
+                const quedan = (this._comprasEnCola.get(copy.id) || 0) - quantity;
+                if (quedan > 0) this._comprasEnCola.set(copy.id, quedan); else this._comprasEnCola.delete(copy.id);
+            }
         });
         this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — payment and delivery are verified by the server.`, 'info');
     }

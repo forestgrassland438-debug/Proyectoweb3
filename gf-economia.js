@@ -33,13 +33,19 @@
   'use strict';
   if (window.GFEconomia) return;
 
-  var CHAIN_ID = 4441;
-  var RED = {
+  /* (2026-11-10) LA RED LA DICE EL SERVIDOR (gf-red.js → GET /api/red, la que se elige en el
+     centro de control). LitVM pasó de Caldera a Zeeve: lo de aquí solo vale si gf-red.js no
+     está cargado. */
+  var RED_DEFECTO = {
     chainId: '0x1159', chainName: 'LitVM LiteForge',
-    rpcUrls: ['https://liteforge.rpc.caldera.xyz/http'],
+    rpcUrls: ['https://rpc.testnet.liteforge.zeeve.net/'],
     nativeCurrency: { name: 'zkLTC', symbol: 'zkLTC', decimals: 18 },
-    blockExplorerUrls: ['https://liteforge.explorer.caldera.xyz']
+    blockExplorerUrls: ['https://explorer.testnet.liteforge.zeeve.net']
   };
+  function red() {
+    try { if (window.GFRed && window.GFRed.paraWallet) return window.GFRed.paraWallet(); } catch (e) {}
+    return RED_DEFECTO;
+  }
   var SALUD = {
     sin_datos: { txt: 'Collecting data', ico: '◌', color: '#9fb3c8', nota: 'The index needs a few days of history.' },
     deflacion: { txt: 'Deflation', ico: '▼', color: '#7cc4f2', nota: 'Fewer coins than last week: Gold gets cheaper.' },
@@ -253,7 +259,7 @@
      base más alta de los últimos 20 bloques ×4 (o el gasPrice ×3), con margen.
      Solo se paga la base real; el tope solo evita el rechazo. */
   function rpc(metodo, params) {
-    return fetch(RED.rpcUrls[0], { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
+    return fetch(red().rpcUrls[0], { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: metodo, params: params || [] }) })
       .then(function (r) { return r.json(); }).then(function (j) { return j && j.result; });
   }
@@ -280,12 +286,14 @@
     var cuentas = await p.request({ method: 'eth_requestAccounts' });
     var cuenta = String(cuentas && cuentas[0] || '').toLowerCase();
     if (cuenta !== String(direccion).toLowerCase()) throw new Error('Switch your browser wallet to your game account (' + direccion.slice(0, 6) + '…' + direccion.slice(-4) + ').');
-    var red = await p.request({ method: 'eth_chainId' });
-    if (parseInt(red, 16) !== CHAIN_ID) {
-      try { await p.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: RED.chainId }] }); }
+    try { if (window.GFRed && window.GFRed.listo) await window.GFRed.listo(); } catch (e) {}
+    var laRed = red();
+    var enCartera = await p.request({ method: 'eth_chainId' });
+    if (parseInt(enCartera, 16) !== parseInt(laRed.chainId, 16)) {
+      try { await p.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: laRed.chainId }] }); }
       catch (e) {
-        if (e && (e.code === 4902 || /unrecognized|not added/i.test(e.message || ''))) await p.request({ method: 'wallet_addEthereumChain', params: [RED] });
-        else throw new Error('Switch your wallet to LitVM LiteForge to pay.');
+        if (e && (e.code === 4902 || /unrecognized|not added/i.test(e.message || ''))) await p.request({ method: 'wallet_addEthereumChain', params: [laRed] });
+        else throw new Error('Switch your wallet to ' + laRed.chainName + ' to pay.');
       }
     }
     var tx = { from: cuenta, to: cot.destino, value: '0x' + BigInt(cot.wei).toString(16) };
@@ -477,7 +485,7 @@
         return p.txHash || p.estado === 'acreditada' || p.estado === 'pagada' || leer(p.id);
       });
       if (!lista.length) { caja.innerHTML = '<div class="gfe-sub">No top-ups yet.</div>'; return; }
-      var explorador = RED.blockExplorerUrls[0] + '/tx/';
+      var explorador = red().blockExplorerUrls[0] + '/tx/';
       caja.innerHTML = lista.map(function (p) {
         var hash = p.txHash || (leer(p.id) || {}).hash || '';
         var st = ESTADO_TXT[p.estado] || ESTADO_TXT.cotizada;

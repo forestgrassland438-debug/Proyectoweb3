@@ -1013,6 +1013,11 @@
     }
     if (/^\/api\/graphics\//.test(ruta)) return { ok: true, calidad: 'alta', chunks: 12 };
     if (ruta === '/api/wallet/config') return { providers: {} };
+    // (2026-11-10) La red de la cadena (gf-red.js): la de por defecto, LitVM LiteForge en Zeeve.
+    if (ruta === '/api/red') return { ok: true, revision: 0, nombre: 'LitVM LiteForge', entorno: 'testnet', chainId: 4441, chainIdHex: '0x1159',
+      rpcUrls: ['https://rpc.testnet.liteforge.zeeve.net/'], explorerUrl: 'https://explorer.testnet.liteforge.zeeve.net',
+      moneda: { simbolo: 'zkLTC', nombre: 'zkLTC', decimales: 18 },
+      contratos: { items: '0x686E17D89Bf97247fadC04C3A3f0dfD02F914115', mensajes: '0x786E17D89Bf97247fadC04C3A3f0dfD02F914115' } };
     if (ruta === '/api/wallet/whoami') return { embedded: false };
     if (/^\/api\/soulbound\//.test(ruta)) return { ok: true, personaje: 'personaje1' };
     if (/^\/api\/(tree|mine)\/locks\/active$/.test(ruta)) return [];
@@ -1259,6 +1264,17 @@
       }, 20);
     }
     if (evento === 'pvp:tajo') estado.tajos = (estado.tajos || 0) + 1;
+    /* (2026-11-10) El chat general con su eco (y la cita si contesta a otro), como server2.js. */
+    if (evento === 'chatMessage' && datos) {
+      estado.chat = estado.chat || [];
+      var orig = datos.replyTo ? estado.chat.filter(function (m) { return m.mid === datos.replyTo; })[0] : null;
+      var esc = function (t) { return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+      var msg = { id: self.id, mid: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), playerName: 'Tester', nameColor: null,
+        text: esc(datos.text).slice(0, 300), ts: new Date().toISOString(), editado: false, reacciones: [],
+        re: orig ? { mid: orig.mid, playerName: orig.playerName, nameColor: null, text: orig.text.slice(0, 120) } : null };
+      estado.chat = estado.chat.concat([msg]).slice(-50);
+      setTimeout(function () { self._fire('chatMessage', msg); }, 30);
+    }
     // El bote (2026-10-21): subir, bajar y dónde va (como 'bote:*' en server2.js).
     if (/^bote:/.test(evento) && datos) {
       var bt = estado.botesPuestos.filter(function (x) { return x.id === datos.id; })[0];
@@ -1301,6 +1317,17 @@
       setTimeout(function () {
         s._fire('friends:online', { ok: true, canal: 1, jugadores: [aria, ficha('Bram', 9, 'mine'), ficha('Cid', 3, 'world')] });
       }, 20);
+    }
+    /* (2026-11-10) Responder a un privado: el eco lleva la cita, como el servidor (`re`). */
+    if (evento === 'friends:dm' && datos) {
+      var dmTextos = { dm1: [datos.para, 'Hello! Do you want to go fishing?'], dm2: [JUGADOR, 'Sure, see you at the river'],
+                       dm3: [datos.para, 'hola amigo, vamos a la mina'], dm4: [datos.para, '🎣🐟'] };
+      var dmOrig = dmTextos[datos.re] || (estado.dmPropios || {})[datos.re];
+      var dmId = 'dmx' + Date.now().toString(36);
+      estado.dmPropios = estado.dmPropios || {}; estado.dmPropios[dmId] = [JUGADOR, String(datos.texto || '')];
+      var dmPaquete = { id: dmId, de: JUGADOR, para: datos.para, deNombre: 'Tester', texto: String(datos.texto || ''), ts: new Date().toISOString(),
+        leido: false, editado: false, reacciones: [], re: dmOrig ? { id: datos.re, de: dmOrig[0], deNombre: dmOrig[0], texto: dmOrig[1] } : null };
+      setTimeout(function () { s._fire('friends:dm:sent', dmPaquete); }, 30);
     }
     if (evento === 'friends:dm:history' && datos) {
       setTimeout(function () {
