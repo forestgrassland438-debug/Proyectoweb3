@@ -131,8 +131,22 @@
     for (const a of p.avisos || []) av.append(el('li', a));
   }
 
+  /** Un 404 aquí no es "no existe la red": es un server2.js de antes de 2026-11-10, sin estas rutas. */
+  async function pedir(ruta, opciones) {
+    try { return await op.request(ruta, opciones); }
+    catch (e) {
+      if (e && e.status === 404) {
+        const f = new Error('El servidor en marcha es una versión anterior de server2.js y no tiene la configuración de red. ' +
+          'Vuelve a desplegarlo (Railway → Deployments → Redeploy del último commit) y recarga esta página. ' +
+          'Hasta entonces el servidor sigue con el RPC de sus variables.');
+        f.status = 404; f.code = e.code; throw f;
+      }
+      throw e;
+    }
+  }
+
   async function load() {
-    const data = await op.request('/api/admin/red');
+    const data = await pedir('/api/admin/red');
     if (!op.active) return;
     estado = data;
     pintarEstado();
@@ -141,7 +155,7 @@
     op.notice('');
   }
   async function probar(cfg) {
-    const r = await op.request('/api/admin/red/probar', { method: 'POST', body: JSON.stringify({ cfg }) });
+    const r = await pedir('/api/admin/red/probar', { method: 'POST', body: JSON.stringify({ cfg }) });
     pintarPrueba(r.prueba);
     return r;
   }
@@ -180,7 +194,7 @@
       ? '¿Guardar la MIGRACIÓN a la cadena ' + c.chainId + '? Entrará al reiniciar el servidor.'
       : '¿Guardar y aplicar ya esta red? El servidor cambia de RPC al momento.';
     if (!window.confirm(pregunta)) return;
-    const res = await op.request('/api/admin/red', { method: 'POST', body: JSON.stringify({ cfg: c, confirmar: migra ? 'MIGRAR' : undefined,
+    const res = await pedir('/api/admin/red', { method: 'POST', body: JSON.stringify({ cfg: c, confirmar: migra ? 'MIGRAR' : undefined,
       revisionBase: estado && estado.guardada ? estado.guardada.revision : 0 }) });
     tocado = false;
     estado = res.estado || estado;

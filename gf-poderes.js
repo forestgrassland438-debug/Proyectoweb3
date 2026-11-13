@@ -96,6 +96,8 @@
   function avanzar(scene, ux, uy, dist) {
     var p = scene.player, hecho = 0;
     if (!p || !p.scene) return 0;
+    // (2026-11-12) Saliendo por una puerta no se mueve: pisaría el sitio de llegada guardado.
+    if (scene._cambiandoEscena) return 0;
     for (var k = 0; k < dist; k += 3) {
       var nx = p.x + ux * 3, ny = p.y + uy * 3;
       if (!piesLibres(scene, nx, ny)) {

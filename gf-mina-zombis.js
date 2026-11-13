@@ -584,6 +584,10 @@
   }
 
   function revivir(st, z) {
+    // (2026-11-12) "Cuando mato un monstruo en la mina los zombis desaparecen": si volvía
+    // mientras se desvanecía (los 600 ms de morir()), aquel tween seguía bajándole el alfa a
+    // 0 y lo dejaba vivo, mordiendo e INVISIBLE para siempre. Se para antes de enseñarlo.
+    try { st.scene.tweens.killTweensOf([z.spr, z.sombra]); } catch (e) {}
     z.vida = z.max; z.vivo = true; z.furia = false; z.rugio = false;
     z.x = z.casa.x; z.y = z.casa.y; z.estado = z.jefe ? 'guarda' : 'pasea'; z.destino = null;
     z.objX = z.x; z.objY = z.y;
@@ -607,6 +611,7 @@
     var p = scene.add.image(z.x, pies(z) - 20, 'gfz_polvo').setDepth(pies(z) + 3).setScale(z.jefe ? 2.2 : 1.1);
     scene.tweens.add({ targets: p, scale: (z.jefe ? 5 : 2.6), alpha: 0, duration: 900, onComplete: function () { p.destroy(); } });
     scene.tweens.add({ targets: [z.spr, z.sombra], alpha: 0, duration: 600, onComplete: function () {
+      if (z.vivo) return;                       // volvió entretanto: no se esconde
       z.spr.setVisible(false); z.sombra.setVisible(false);
     } });
     if (z.jefe) {
@@ -621,14 +626,9 @@
       } else if (cercaDeMi(st, z.x, pies(z), 1200)) {
         aviso(scene, '⚔ The Mine Warden was defeated!', 'info');
       }
-      // Los zombis cercanos se deshacen con él (lo decide el anfitrión).
-      if (!st.red || st.red.esHost()) {
-        st.bichos.forEach(function (o) {
-          if (o.jefe || !o.vivo || Math.hypot(o.x - z.x, o.y - z.y) >= 600) return;
-          morir(st, o, por);
-          if (st.red) st.red.evento({ e: 'muere', id: o.id, por: por || null });
-        });
-      }
+      // (2026-11-12) Antes los zombis a menos de 600 px "se deshacían con él", y con ellos los
+      // dos que acababa de llamar desde la otra punta de la mina (enfurecer, en el mismo golpe):
+      // "cuando mato un monstruo en la mina los zombis desaparecen". Ya no: siguen ahí.
     }
   }
 
@@ -716,7 +716,16 @@
     // Llama a dos de los suyos (los mueve el anfitrión; los demás lo ven en la foto).
     if (st.red && !st.red.esHost()) return;
     var llamados = 0;
-    st.bichos.forEach(function (o) {
+    // (2026-11-12) Eran los dos PRIMEROS de la lista, estuvieran donde estuvieran: a quien
+    // los tenía delante en la otra punta de la mina se le esfumaban. Primero los muertos
+    // (vuelven a su lado) y luego los vivos más cercanos, a menos de 1.500 px.
+    var candidatos = st.bichos.filter(function (o) {
+      return !o.jefe && (!o.vivo || Math.hypot(o.x - z.x, o.y - z.y) < 1500);
+    }).sort(function (a, b) {
+      if (a.vivo !== b.vivo) return a.vivo ? 1 : -1;
+      return Math.hypot(a.x - z.x, a.y - z.y) - Math.hypot(b.x - z.x, b.y - z.y);
+    });
+    candidatos.forEach(function (o) {
       if (llamados >= 2 || o.jefe) return;
       if (!o.vivo) { revivir(st, o); if (st.red) st.red.evento({ e: 'revive', id: o.id }); }
       for (var k = 0; k < 8; k++) {

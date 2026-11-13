@@ -470,6 +470,11 @@
   function empujar(st, def) {
     var scene = st.scene, p = scene.player, m = st.yo;
     if (!m || !m.listo || def.velocidad <= 1) return;
+    /* (2026-11-12) "Cuando salgo de la mina salgo teletransportado a otro lado que no es la
+       puerta": saliendo por una puerta, la escena ya no mueve al jugador y deja guardado el
+       sitio de llegada; este empujón seguía andando y escribiendo `posicionplayerx` con las
+       coordenadas de la cueva, y el último guardado (la cola, al cerrar) las mandaba. */
+    if (scene._cambiandoEscena) return;
     /* El impulso (C) y el empujón del viento (X) son otra cosa: no se multiplican. Se miraba
        por el tamaño del salto (> 40 px), pero el impulso avanza unos 20 por frame y pasaba
        por paso de caballo: montado salía un 40 % más largo y a trompicones. */

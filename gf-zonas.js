@@ -120,7 +120,7 @@
     function cancelar() {
       contexto.cancelado = true;
       if (window.__gfViaje === nota) window.__gfViaje = null;
-      if (scene.__gfViajeZona === contexto) { scene._viajeZona = false; scene._cambiandoEscena = false; }
+      if (scene.__gfViajeZona === contexto) { scene._viajeZona = false; scene._cambiandoEscena = false; scene._salidaFijada = null; }
       if (contexto.resolver) contexto.resolver(false);
       soltar();
     }
@@ -132,6 +132,9 @@
     scene.mundo = z.mundo;
     scene.posicionplayerx = z.llegada.x;
     scene.posicionplayery = z.llegada.y;
+    // (2026-11-12) El sitio de llegada queda fijo para los guardados y el aviso de sala que
+    // aún salgan de esta escena (ver GameScene._dejarPartidaEnElMapa).
+    scene._salidaFijada = { x: z.llegada.x, y: z.llegada.y, mundo: z.mundo, run: scene._sceneRunId };
     // El candado corta el update() (que reescribiría la posición).
     scene._cambiandoEscena = true;
     nota = window.__gfViaje = { mundo: z.mundo, x: z.llegada.x, y: z.llegada.y, islaDe: null, islaDeNombre: null, t: Date.now() };
@@ -173,6 +176,7 @@
       if (!vigente()) return false;
       console.warn('[zonas] guardado antes del viaje:', err);
       if (window.__gfViaje === nota) window.__gfViaje = null;
+      scene._salidaFijada = null;
       scene.mundo = previo.mundo;
       scene.posicionplayerx = previo.x; scene.posicionplayery = previo.y;
       scene._cambiandoEscena = false;

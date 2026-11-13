@@ -146,6 +146,7 @@
       scene.tweens.add({ targets: [atras, delante], alpha: 1, duration: 260 });
     }
     e.dueno = d.dueno; e.deNombre = d.deNombre || '';
+    e.hundeEn = Number(d.hundeEn) || null;      // (2026-11-12) sin uso, el servidor lo hunde a esa hora
     // El que rema manda en dónde está SU bote: lo del servidor llega con retraso.
     if (Number.isFinite(Number(d.x)) && Number.isFinite(Number(d.y)) && st.aBordo !== e.id) {
       e.x = Number(d.x); e.y = Number(d.y);
@@ -209,6 +210,23 @@
       try { if (o && o.scene) { st.scene.tweens.killTweensOf(o); o.destroy(); } } catch (x) {}
     });
     if (st.botes[e.id] === e) delete st.botes[e.id];
+  }
+
+  /* (2026-11-12) "Los botes que pongan en el agua deben autodestruirse si llevan 30 minutos sin
+     usar": el servidor lo borra y aquí se ve hundirse (baja y se apaga) en vez de esfumarse. */
+  var SIN_USO_MIN = 30;
+  function hundir(st, e) {
+    if (st.botes[e.id] === e) delete st.botes[e.id];   // ya no se coloca ni se toca
+    soltarRemero(e);
+    devolverMascota(e);
+    onda(st, e.x, e.y);
+    var capas = [e.atras, e.delante, e.sombra].filter(function (o) { return o && o.scene; });
+    var fin = function () { capas.forEach(function (o) { try { if (o.scene) o.destroy(); } catch (x) {} }); };
+    try {
+      capas.forEach(function (o) { st.scene.tweens.killTweensOf(o); });
+      st.scene.tweens.add({ targets: capas, y: '+=18', alpha: 0, duration: 1100, ease: 'Quad.easeIn', onComplete: fin });
+      setTimeout(fin, 1600);                             // por si la escena se apaga a medias
+    } catch (x) { fin(); }
   }
 
   function onda(st, x, y) {
@@ -312,8 +330,14 @@
       'bote:estado': function (d) { if (st.vivo) alEstado(st, d); },
       'bote:quitado': function (d) {
         if (!st.vivo || !d || !st.botes[d.id]) return;
-        if (st.aBordo === d.id) bajarLocal(st, null);
-        destruir(st, st.botes[d.id], true);
+        if (st.aBordo === d.id) bajarLocal(st, orillaCercana(st));
+        if (d.motivo === 'sin_uso') hundir(st, st.botes[d.id]);
+        else destruir(st, st.botes[d.id], true);
+      },
+      /* Solo al dueño, esté en la zona que esté: su bote se hundió por no usarlo. */
+      'bote:hundido': function (d) {
+        if (!st.vivo) return;
+        aviso(st.scene, '⛵ Your boat sank: nobody used it for ' + ((d && d.minutos) || SIN_USO_MIN) + ' minutes.', 'warning');
       },
       'bote:rechazado': function (d) {
         if (!st.vivo) return;
@@ -445,6 +469,7 @@
     var s = socketDe(scene);
     if (s && s.connected && e) s.emit('bote:bajar', { id: e.id, x: Math.round(e.x), y: Math.round(e.y) });
     bajarLocal(st, orilla);
+    aviso(scene, '⛵ Boat moored. Left unused for ' + SIN_USO_MIN + ' min it sinks — pick it up with the shovel to keep it.', 'info');
   }
 
   /* (2026-10-22) MORIR A BORDO: antes se llamaba a pedirBajar() en CADA
@@ -534,7 +559,7 @@
       }
       crear(st, d.bote);
       if (d.gastado) ajustarFacturaLocal(scene, d.gastado.invoiceId, Number(d.gastado.cantidadRestante));
-      aviso(scene, '⛵ Your boat is on the water — click it to get in.', 'success');
+      aviso(scene, '⛵ Your boat is on the water — click it to get in. Left unused for ' + SIN_USO_MIN + ' min, it sinks.', 'success');
     }).catch(function () {
       if (st.vivo) aviso(scene, 'Connection problem. Try again.', 'error');
     }).then(function () { st.ocupado = false; });

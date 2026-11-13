@@ -120,8 +120,44 @@
     return promesa;
   }
 
+  /* (2026-11-12) LA CARTERA CON EL RPC DE ANTES. Una MetaMask que ya tenía la cadena 4441
+     la guarda con el RPC de Caldera, que ahora contesta 404: cambiar de red no lo toca y la
+     firma acaba en "Internal JSON-RPC error". Antes de firmar se le pregunta a la cartera
+     por el bloque; si no contesta, se le ofrece el RPC de ahora con wallet_addEthereumChain
+     (MetaMask pregunta si lo añade a esa red) y, si aun así no contesta, se dice qué cambiar. */
+  function rpcVivo(eth) {
+    return Promise.race([
+      Promise.resolve().then(function () { return eth.request({ method: 'eth_blockNumber' }); })
+        .then(function (b) { return /^0x[0-9a-f]+$/i.test(String(b)); }, function () { return false; }),
+      new Promise(function (ok) { setTimeout(function () { ok(false); }, 8000); })
+    ]);
+  }
+  function errorDeRpc(w, rechazado, es) {
+    var e = new Error(es
+      ? (rechazado ? 'Rechazaste el RPC nuevo de la red. ' : 'Tu cartera no llega a ' + w.chainName + '. ') +
+        'En tu cartera abre Redes → ' + w.chainName + ' y pon como RPC ' + w.rpcUrls[0]
+      : (rechazado ? 'You declined the new network RPC. ' : 'Your wallet cannot reach ' + w.chainName + '. ') +
+        'In your wallet open Networks → ' + w.chainName + ' and set the RPC URL to ' + w.rpcUrls[0]);
+    e.code = 'GF_WALLET_RPC';
+    return e;
+  }
+  /** Promesa: true si la cartera (ya en esta red) habla con un RPC vivo; si no, lanza un error que dice qué hacer. */
+  function asegurarRpcCartera(eth, opciones) {
+    if (!eth || typeof eth.request !== 'function') return Promise.resolve(false);
+    var es = !!(opciones && opciones.idioma === 'es');
+    return rpcVivo(eth).then(function (vivo) {
+      if (vivo) return true;
+      var w = global.GFRed.paraWallet();
+      return Promise.resolve()
+        .then(function () { return eth.request({ method: 'wallet_addEthereumChain', params: [w] }); })
+        .then(function () { return rpcVivo(eth); }, function (e) { if (e && e.code === 4001) throw errorDeRpc(w, true, es); return false; })
+        .then(function (ok) { if (!ok) throw errorDeRpc(w, false, es); return true; });
+    });
+  }
+
   global.GFRed = {
     actual: function () { return copia(actual); },
+    asegurarRpcCartera: asegurarRpcCartera,
     listo: function () { return cargar(false); },
     recargar: function () { return cargar(true); },
     chainId: function () { return actual.chainId; },

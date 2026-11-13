@@ -296,6 +296,8 @@
         else throw new Error('Switch your wallet to ' + laRed.chainName + ' to pay.');
       }
     }
+    // (2026-11-12) Con el RPC de Caldera guardado en MetaMask el pago no sale: se arregla antes de firmar.
+    if (window.GFRed && window.GFRed.asegurarRpcCartera) await window.GFRed.asegurarRpcCartera(p);
     var tx = { from: cuenta, to: cot.destino, value: '0x' + BigInt(cot.wei).toString(16) };
     try { var t = await tarifasRed(); tx.maxFeePerGas = t.maxFeePerGas; tx.maxPriorityFeePerGas = t.maxPriorityFeePerGas; tx.type = '0x2'; } catch (e) {if(e && e.code==='GF_FEE_CEILING')throw e;}
     return p.request({ method: 'eth_sendTransaction', params: [tx] });

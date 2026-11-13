@@ -103,10 +103,13 @@
     // Al salir se aparece delante de la puerta: es lo que se guarda.
     scene.posicionplayerx = casa.puerta.x;
     scene.posicionplayery = casa.puerta.y + 40;
+    // (2026-11-12) Y queda fijo para lo que aún guarde esta escena al cerrarse (la cola de
+    // guardado): ni la montura ni el impulso lo pisan (GameScene._dejarPartidaEnElMapa).
+    scene._salidaFijada = { x: casa.puerta.x, y: casa.puerta.y + 40, mundo: 5, run: scene._sceneRunId };
     try { await scene.savegg(); } catch (e) { console.warn('🏠 guardado antes de entrar:', e); }
     // El guardado puede terminar después del cierre o de un nuevo montaje.
     if (scene.__gfCasas !== propietaria || !scene.sys ||
-        (typeof scene.sys.isActive === 'function' && !scene.sys.isActive())) {scene._cambiandoEscena=false;return;}
+        (typeof scene.sys.isActive === 'function' && !scene.sys.isActive())) {scene._cambiandoEscena=false;scene._salidaFijada=null;return;}
     scene.saveTimer = 0;
 
     try { scene._ocultarHUD && scene._ocultarHUD(); } catch (e) {}
