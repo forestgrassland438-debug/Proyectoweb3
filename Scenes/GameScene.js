@@ -17918,12 +17918,15 @@ removeOtherPlayer(playerId) {
       
       // Tell the server we are leaving this room BEFORE clearing socket
       if (this.socket && this.socket.connected) {
+        // (2026-11-12) Saliendo por una puerta, el sitio de llegada y no el sprite (que en la
+        // mina o la isla son coordenadas de otro mapa: los demás te veían allí).
+        const fija = this._salidaFijada && this._salidaFijada.run === this._sceneRunId ? this._salidaFijada : null;
         this.socket.emit("joinRoom", {
           room: this._salaAlSalir(),
           username: this.Username || '---',
           lastScene: 'GameScene',
-          x: this.player ? this.player.x : 0,
-          y: this.player ? this.player.y : 0
+          x: fija ? fija.x : (this.player ? this.player.x : 0),
+          y: fija ? fija.y : (this.player ? this.player.y : 0)
         });
       }
       
@@ -24710,6 +24713,16 @@ _cleanupTutorial() {
             tipo: 'cofre' 
         }));
         
+        // (2026-11-12) Saliendo por una puerta, manda el sitio de llegada (ver _dejarPartidaEnElMapa).
+        {
+            const fija = this._salidaFijada;
+            if (fija && fija.run === this._sceneRunId && this._cambiandoEscena) {
+                this.mundo = fija.mundo;
+                this.posicionplayerx = fija.x;
+                this.posicionplayery = fija.y;
+            }
+        }
+
         // Usar window.playerStats.oro si está disponible; solo usar monto_moneda si moneda es null/undefined (no si es 0)
         const _canonicalMoneda = (window.playerStats && typeof window.playerStats.oro === 'number') ? window.playerStats.oro : this.moneda;
         this.moneda = Math.floor(_canonicalMoneda != null ? _canonicalMoneda : this.monto_moneda);
@@ -32746,6 +32759,14 @@ if (window.globalPetData) {
     this.mundo = 1;
     this.posicionplayerx = x;
     this.posicionplayery = y;
+    /* (2026-11-12) EL SITIO DE LLEGADA QUEDA FIJO. "Cuando salgo de la mina salgo
+       teletransportado a otro lado que no es la puerta": tras este guardado aún salía otro (la
+       cola de guardado, que se vacía al cerrar la escena) y para entonces `posicionplayerx`
+       podía traer otra vez las coordenadas de la cueva (la montura y el impulso mueven al
+       jugador por su cuenta). Guardaba "mundo 1" con un punto de la mina y se aparecía allí,
+       en mitad del pueblo. savegg() y el aviso de sala del apagado usan esto mientras dure
+       ESTA entrada de la escena (el `run`: Phaser reutiliza la instancia). */
+    this._salidaFijada = { x: x, y: y, mundo: 1, run: this._sceneRunId };
 
     /* El candado corta el update() de la mina y de la isla, que reescriben
        `posicionplayerx` con la posicion del sprite en cada fotograma. Sin el,
@@ -32772,6 +32793,7 @@ if (window.globalPetData) {
       return true;
     } catch (error) {
       if (!vigente()) return false;
+      this._salidaFijada = null;
       this.mundo = previo.mundo;
       this.posicionplayerx = previo.x; this.posicionplayery = previo.y;
       this._cambiandoEscena = false;

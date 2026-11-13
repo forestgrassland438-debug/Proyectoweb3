@@ -770,11 +770,14 @@ class InteriorScene extends GameScene {
     this.mundo = mundo;
     this.posicionplayerx = destino.x;
     this.posicionplayery = destino.y;
+    // (2026-11-12) Fijo para lo que aún guarde o avise esta escena (GameScene._dejarPartidaEnElMapa).
+    this._salidaFijada = { x: destino.x, y: destino.y, mundo, run: this._sceneRunId };
     this._cambiandoEscena = true;
     let ok = false;
     try { ok = (await this.savegg()) !== false; } catch (e) { ok = false; }
     if (this._sceneStopped) return;
     if (!ok) {
+      this._salidaFijada = null;
       this.mundo = previo.mundo;
       this.posicionplayerx = previo.x; this.posicionplayery = previo.y;
       this._cambiandoEscena = false;
