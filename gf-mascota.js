@@ -84,7 +84,13 @@
     return 'https://api.grasslandforest.com';
   }
 
-  /** Cualquier escena viva del juego que tenga serverBase. */
+  /** Cualquier escena viva del juego que tenga serverBase.
+   *
+   * (2026-11-20) "Compro o vendo un ítem y sale The server did not answer": la tienda PAUSA la
+   * escena al abrirse (TiendaSistema.open) y getScenes(true) solo da las que CORREN, así que con
+   * la tienda abierta no había escena y el jugador salía vacío (ver jugadorActual). Primero las
+   * que corren, como siempre; si no hay ninguna, vale una en pausa o dormida, que sigue siendo la
+   * partida. Las paradas no: Phaser las reutiliza y guardan lo de la última vez. */
   function escenaDelJuego() {
     var g = window.game || (window.phaserScaler && window.phaserScaler.game);
     if (!g || !g.scene || !g.scene.getScenes) return null;
@@ -93,8 +99,27 @@
       for (var i = 0; i < ss.length; i++) {
         if (ss[i] && typeof ss[i].serverBase === 'string') return ss[i];
       }
+      var todas = g.scene.getScenes(false) || [];
+      for (var j = 0; j < todas.length; j++) {
+        var s = todas[j], sys = s && s.sys;
+        if (!s || typeof s.serverBase !== 'string' || !sys) continue;
+        if ((typeof sys.isPaused === 'function' && sys.isPaused()) ||
+            (typeof sys.isSleeping === 'function' && sys.isSleeping())) return s;
+      }
     } catch (e) {}
     return null;
+  }
+
+  /* Quién juega, para no aplicar respuestas de OTRA cuenta (api). Antes salía vacío con la tienda
+     abierta y, al cerrarla con una compra en marcha, el nombre "cambiaba" de '' a 'Ana': api()
+     tiraba la respuesta de una compra que el servidor sí había hecho. Al cruzar una puerta no
+     queda ninguna escena viva un momento; por eso se recuerda el último nombre visto: solo cuenta
+     como otra cuenta un nombre DISTINTO, no un "ahora no lo sé". */
+  var ultimoJugador = '';
+  function jugadorActual() {
+    var sc = escenaDelJuego(), nombre = String((sc && sc.playerName) || '');
+    if (nombre) ultimoJugador = nombre;
+    return nombre || ultimoJugador;
   }
 
   function cookie(nombre) {
@@ -104,7 +129,7 @@
 
   function api(ruta, cuerpo) {
     var origen = base().replace(/\/$/, '');
-    var jugador = String(escenaDelJuego()?.playerName || '');
+    var jugador = jugadorActual();
     var controller = new AbortController();
     var opts = { credentials: 'include', mode: 'cors' };
     opts.signal = controller.signal;
@@ -119,7 +144,7 @@
     return fetch(origen + ruta, opts).then(function (r) {
       return r.json().then(function (d) {
         if (controller.signal.aborted) throw new Error('Solicitud cancelada');
-        if (origen !== base().replace(/\/$/, '') || jugador !== String(escenaDelJuego()?.playerName || '')) return { ok: false, status: 409, datos: null };
+        if (origen !== base().replace(/\/$/, '') || jugador !== jugadorActual()) return { ok: false, status: 409, datos: null };
         return { ok: r.ok, status: r.status, datos: d };
       }).catch(function (error) {
         if (controller.signal.aborted) throw error;
