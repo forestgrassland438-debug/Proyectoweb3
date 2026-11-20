@@ -113,7 +113,15 @@ async loadMissionsData() {
     });
 
     console.log('📊 Status de carga de datos de misiones:', res.status);
-    
+
+    /* (2026-11-19) Igual que GameScene desde 2026-10-21: un servidor sin la ruta
+       (los de antes del 2026-11-19) contesta 404 = "sin datos aparte", no un error.
+       Esta copia no lo tenía y el centro de control se llenaba de 404. */
+    if (res.status === 404) {
+      console.log('ℹ️ Misiones: el servidor no tiene esa ruta; se quedan los valores que ya hay');
+      return null;
+    }
+
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'No se pudo leer el error');
       console.error('❌ Error al cargar datos de misiones:', {
@@ -627,6 +635,9 @@ showNotification(message, type = 'info') {
     // false porque apareces justo encima de la puerta al entrar a la tienda.
     this._cambiandoEscena = false;
     this._puertaArmada    = false;
+    // (2026-11-19) La calibración de profundidad se rearma en cada entrada (como en
+    // GameScene): con la instancia reutilizada, la segunda visita no la volvía a hacer.
+    this._buildingDepthsCalibrated = false;
 
     /* DÓNDE SE APARECE (2026-10-10). "A veces entro de GameScene a la tienda
        y mi personaje se lanza a lo oscuro del mapa y no sale en la puerta."
@@ -755,6 +766,8 @@ this.errorReporter = new PhaserErrorReporter(
 
 
       // Cargar el tilemap y el conjunto de tiles
+      // (2026-11-19) Sin los 37 tilesets externos que Phaser ignoraba avisando (gf-dibujo-seguro.js).
+      try { if (window.GFDibujoSeguro) window.GFDibujoSeguro.sinTilesetsExternos(this, 'tilemapx'); } catch (e) {}
       this.map = this.make.tilemap({ key: 'tilemapx' });
       const tileset = this.map.addTilesetImage('Patron_tienda', 'tiles', 16, 16);
       this.backgroundLayer = this.map.createLayer('mapa_tiendax', tileset, 0, 0);

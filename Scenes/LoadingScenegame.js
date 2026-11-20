@@ -58,6 +58,22 @@ class BootScene extends Phaser.Scene {
     }
 }
 
+/* (2026-11-19) LAS FACTURAS DEL JUGADOR QUE NO SON OBJETOS.
+   Viven en la misma lista que sus objetos (getUserInventorySnapshot): las barras,
+   las monedas, la exp, el VIP, el nivel y el nombre, lo construido en la isla, los
+   puntos repartidos (player_*) y la cuenta respaldada en la cadena (cta_*). Se
+   descartan EN SILENCIO: avisar de cada una llenaba el centro de control de
+   "sin itemId → omitiendo" que no eran fallos. Es una función suelta y no un
+   método porque GameScene (mina, isla, zonas) toma prestados los métodos de la
+   sincronización por una lista fija (_sincronizarInventarioConLaCadena). */
+function gfEsTablaNoObjeto(tipo) {
+    const t = String(tipo || '').trim().toLowerCase();
+    if (!t) return false;
+    if (t.indexOf('player_') === 0 || t.indexOf('cta_') === 0) return true;
+    return ['vida', 'agua', 'comida', 'oro', 'plata', 'exp', 'bronce', 'vip',
+            'nivel', 'nombre', 'cons_parcelas'].indexOf(t) !== -1;
+}
+
 // ─── LoadingScenegame ───────────────────────────────────────────────────────
 class LoadingScenegame extends Phaser.Scene {
     constructor() {
@@ -1301,14 +1317,10 @@ class LoadingScenegame extends Phaser.Scene {
         if (!tipo) return null;
         const tipoNorm = String(tipo).trim().toLowerCase();
         if(tipoNorm==='pala_contrucion' || tipoNorm==='pala_construccion')return 'pala_construccion';
-        if (tipoNorm.indexOf('player_') === 0) return null;
 
-        // Tablas del contrato que NO son objetos del inventario: las barras,
-        // la experiencia, el nivel y el nombre, y lo construido en la isla.
-        // Viven en las mismas facturas del jugador, así que pasan por aquí en
-        // cada carga; se descartan sin llenar la consola de avisos.
-        if (['vida', 'agua', 'comida', 'oro', 'plata', 'exp',
-             'bronce', 'vip', 'nivel', 'nombre', 'cons_parcelas'].indexOf(tipoNorm) !== -1) return null;
+        // Tablas del contrato que NO son objetos del inventario (ver
+        // gfEsTablaNoObjeto): pasan por aquí en cada carga y se descartan en silencio.
+        if (gfEsTablaNoObjeto(tipoNorm)) return null;
 
         // 1. Mapa explícito TIPO_TO_ITEM_ID
         if (this.TIPO_TO_ITEM_ID && this.TIPO_TO_ITEM_ID[tipoNorm]) {
@@ -1376,7 +1388,10 @@ class LoadingScenegame extends Phaser.Scene {
 
             const itemId = this._tipoToItemId(invoice.tipo);
             if (!itemId) {
-                console.warn(`🚫 [sync] invoice id=${invoiceId} tipo="${invoice.tipo}" sin itemId → omitiendo`);
+                // Las barras, monedas, nivel, cuenta… no son objetos: sin aviso.
+                if (!gfEsTablaNoObjeto(invoice.tipo)) {
+                    console.warn(`🚫 [sync] invoice id=${invoiceId} tipo="${invoice.tipo}" sin itemId → omitiendo`);
+                }
                 continue;
             }
 

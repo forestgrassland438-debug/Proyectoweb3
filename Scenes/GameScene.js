@@ -2884,6 +2884,13 @@ liberarMemoriaPesada() {
     //   puerta al volver de la tienda y no debe dispararse hasta que te apartes.
     this._cambiandoEscena = false;
     this._puertaArmada    = false;
+    // (2026-11-19) "Al volver de la batalla las colisiones fallan y el personaje queda
+    // detrás de la casa / dentro de la fuente": la calibración de profundidad
+    // (GFProfundidad) y las sombras del escenario (GFSombras) corren UNA vez por
+    // visita desde update(); sin rearmar esto, en la segunda visita los objetos
+    // nuevos del mapa se quedaban con su profundidad sin calibrar (medido: la
+    // herrería 1977 → 1847, la tienda 1497 → 1464) y sin sombras.
+    this._buildingDepthsCalibrated = false;
 
     // Re-apply custom cursor once the scene is fully created (some browsers reset it)
     this.time.delayedCall(400, () => {
@@ -2969,6 +2976,8 @@ liberarMemoriaPesada() {
     this.textures.get('tiles').setFilter(Phaser.Textures.FilterMode.NEAREST);
 
     // Cargar el tilemap y el conjunto de tiles
+    // (2026-11-19) Sin los 19 tilesets externos que Phaser ignoraba avisando (gf-dibujo-seguro.js).
+    try { if (window.GFDibujoSeguro) window.GFDibujoSeguro.sinTilesetsExternos(this, 'tilemap'); } catch (e) {}
     this.map = this.make.tilemap({ key: 'tilemap' });
     //const tileset = this.map.addTilesetImage('Tileset_mapa', 'tiles', 16, 16);
     //this.backgroundLayer = this.map.createLayer('mapa_principal', tileset, 0, 0);
@@ -26799,7 +26808,12 @@ openBattleHub() {
   bind(document.getElementById('battleHubPvpBtn'), 'click', () => {
     cerrar(); this.startPvpBattle();
   });
+  /* LAS 5 DIARIAS (2026-11-17). Si el servidor ya ha dicho que no quedan, no
+     se entra a la arena a por un "daily_limit": se queda el panel con cuánto
+     falta. Lo que manda es el servidor (brawl:bot lo vuelve a mirar). */
+  const diarias = { quedan: null };
   bind(document.getElementById('battleHubAdventureBtn'), 'click', () => {
+    if (diarias.quedan === 0) return;
     cerrar(); this.startPvpBattle('bot');
   });
   // Práctica: tú contra 3 bots en la arena, sin puntos (ver BattleScene).
@@ -26813,20 +26827,90 @@ openBattleHub() {
   overlay.classList.remove('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
 
-  const sub = document.querySelector('#battleHubAdventureBtn .btn-text small');
-  if (sub) sub.textContent = 'Checking your daily battles…';
+  this._pintarMascotaHub();
+  const sub = document.getElementById('battleHubDailyTxt');
+  const chip = document.getElementById('battleHubDailyChip');
+  const boton = document.getElementById('battleHubAdventureBtn');
+  const pintar = (texto, chipTxt, agotado) => {
+    if (sub) sub.textContent = texto;
+    if (chip) {
+      chip.textContent = chipTxt;
+      if (agotado) chip.classList.add('agotado'); else chip.classList.remove('agotado');
+    }
+    if (boton) {
+      if (agotado) boton.classList.add('agotado'); else boton.classList.remove('agotado');
+      if (boton.setAttribute) boton.setAttribute('aria-disabled', agotado ? 'true' : 'false');
+    }
+  };
+  pintar('Checking your daily battles…', '–/5', false);
   const socket = this.socket;
   if (socket && socket.connected) {
     const daily = d => {
-      if (!sub || !d || this._sceneStopped) return;
-      sub.textContent = d.remaining > 0
-        ? `${d.remaining} of ${d.max} left today · next: round ${d.nextRound}`
-        : 'Done for today — come back tomorrow';
+      if (!d || this._sceneStopped) return;
+      const max = Number(d.max) || 5;
+      if (d.unknown) {
+        diarias.quedan = null;
+        pintar('Could not check your daily battles right now', '?/' + max, false);
+        return;
+      }
+      const quedan = Math.max(0, Number(d.remaining) || 0);
+      diarias.quedan = quedan;
+      const ms = Number(d.resetsInMs) || 0;
+      const vuelven = ms > 0 ? GameScene._duracionCorta(ms) : '';
+      if (quedan > 0) {
+        const hechas = Math.max(0, Number(d.done) || 0);
+        const siguiente = Number(d.nextRound) || (max - quedan + 1);
+        pintar('Next: round ' + siguiente + ' of ' + max + (hechas > 0 && vuelven ? ' · resets in ' + vuelven : ''),
+               quedan + '/' + max, false);
+      } else {
+        pintar('All done · new battles in ' + (vuelven || 'a while'), '0/' + max, true);
+      }
     };
     socket.on('battle:daily', daily);
     this._trackDOMDisposal(() => socket.off('battle:daily', daily), 'battle-hub');
     socket.emit('battle:dailyStatus');
-  } else if (sub) sub.textContent = 'Complete the daily challenge';
+  } else pintar('5 wild animals a day · connect to play', '–/5', false);
+}
+
+/** "5h 12m", "38m", "40s": lo que falta para que vuelvan las diarias. */
+static _duracionCorta(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  if (m > 0) return m + 'm';
+  return s + 's';
+}
+
+/* TU MASCOTA EN EL PANEL DE LA ARENA: con la vida que tiene de verdad (la de
+   GFMascota, que cura sola un punto cada `regenEveryMs`), que es con la que
+   entra a pelear (con un suelo del 20 %: ver crearLuchador en el motor). */
+_pintarMascotaHub() {
+  const $ = id => document.getElementById(id);
+  const nombre = [this.petName, window.globalPetName].find(n => n && n !== '---') || 'Your pet';
+  const nivel = Math.max(1, Number(this.petLevel) || Number(window.globalPetLevel) || 1);
+  const M = window.GFMascota && typeof window.GFMascota.estado === 'function' ? window.GFMascota.estado() : null;
+  const max = M && M.cargado ? Math.max(1, Number(M.maxHealth) || 100) : 0;
+  const vida = M && M.cargado ? Math.max(0, Math.min(max, Number(M.health) || 0)) : 0;
+  const pct = max ? vida / max : 1;
+  if ($('battleHubPetName')) $('battleHubPetName').textContent = String(nombre).slice(0, 24);
+  if ($('battleHubPetLvl')) $('battleHubPetLvl').textContent = 'Lv ' + nivel;
+  const barra = $('battleHubPetHp');
+  if (barra) {
+    barra.style.width = Math.round(pct * 1000) / 10 + '%';
+    barra.classList.remove('media'); barra.classList.remove('baja');
+    if (max && pct <= 0.25) barra.classList.add('baja');
+    else if (max && pct <= 0.5) barra.classList.add('media');
+  }
+  if ($('battleHubPetHpTxt')) $('battleHubPetHpTxt').textContent = max ? Math.round(vida) + ' / ' + Math.round(max) : '—';
+  const nota = $('battleHubPetNote');
+  if (nota) {
+    const cada = M && Number(M.regenEveryMs) > 0 ? Math.round(Number(M.regenEveryMs) / 1000) : 0;
+    let txt = 'Your pet enters the arena with this health.';
+    if (max && M.alive === false) txt = 'Your pet is down: it enters with 20% health.';
+    else if (max && pct < 0.2) txt = 'Low health: it enters with the minimum (20%).';
+    else if (max && pct < 1 && cada) txt = 'Enters with this health · heals 1 point every ' + cada + ' s.';
+    nota.textContent = txt;
+  }
 }
 
 closeBattleHub() {

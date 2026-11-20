@@ -2,118 +2,167 @@
  * BattleScene — La ARENA de mascotas, en tiempo real (Grassland Forest)
  * ===========================================================================
  *
- * Tú ERES tu perro: lo mueves por una arena de casillas, apuntas, ladras,
- * te escondes en la hierba alta, rompes cajas doradas para coger huesos de
- * poder y aguantas mientras la niebla cierra el campo. Gana el último en pie.
+ * Tú ERES tu perro: lo mueves por la arena, apuntas, ladras, te escondes en la
+ * hierba alta, rompes cajas para coger huesos de poder y aguantas mientras el
+ * GAS entra desde los bordes. Gana el último en pie.
  *
- *   · 5 batallas diarias contra animales salvajes (la escalera de siempre:
- *     conejo, jabalí, cuervo, zorro y el cocodrilo de jefe).
- *   · Arena PvP: de 2 a 6 jugadores, todos contra todos.
+ *   · 5 batallas diarias contra animales salvajes (cada 24 h desde la primera).
+ *   · Arena PvP: de 2 a 6 jugadores, todos contra todos (bots en lo que falte).
  *   · Práctica: tú contra 3 bots, sin puntos.
+ *
+ * REHECHA EL 2026-11-15 — "las animaciones están descoordinadas, el HUD no
+ * tiene el estilo del juego, no se adapta a todas las resoluciones, los
+ * enemigos van muy rápidos, hay colisiones mal puestas, la zona se marca, se
+ * mueven muy lagueados, los pisos no tienen los efectos de los gráficos y los
+ * mapas no están recortados como los demás". Lo que cambia, y por qué:
+ *
+ *   EL SUELO ES EL DEL JUEGO. Trozos pintados (recortadas_arena_<id>, como el
+ *   resto de mapas, con GFSuelo y lib/tileManager.js) hechos con el tileset
+ *   del pueblo; el agua se mueve (GFAgua), se dejan huellas (GFPisadas) y la
+ *   cámara lleva el post-procesado del juego (GFPost). Lo genera
+ *   tools/generar-arenas.py.
+ *
+ *   LO QUE SE VE ES LO QUE CHOCA. Muros, hierba alta y cajas se dibujan a
+ *   partir de la rejilla que manda el SERVIDOR (brawl:inicio), no de un mapa
+ *   aparte: antes las cajas que el servidor reparte al azar no se dibujaban
+ *   (eran muros invisibles). Las balas salen del cuerpo y dan en el cuerpo
+ *   (REGLAS.ALTO_CUERPO, y cada especie con su tamaño: `golpe`).
+ *
+ *   TODO LO DE LOS DEMÁS VA EN UNA SOLA LÍNEA DE TIEMPO. A los demás se les
+ *   pinta RETRASO_INTERP ms "en el pasado", interpolando entre instantáneas
+ *   por la HORA DEL SERVIDOR (no por cuándo llegan: llegaban a trompicones y
+ *   así se movían). Y lo que les pasa —sus disparos, los golpes, las caídas—
+ *   se aplica con ese mismo retraso (_diferir): la bala sale de la boca del
+ *   perro que se ve y el golpe llega cuando la bala llega. Lo TUYO (tu perro,
+ *   tus disparos) va al momento, sin esperar a la red.
+ *
+ *   LAS ANIMACIONES VAN CON EL PASO. Los fotogramas de andar avanzan con la
+ *   DISTANCIA recorrida (no con un reloj): a más velocidad, más deprisa, y
+ *   quieto no "corre en el sitio". Los animales usan sus dibujos de frente,
+ *   de espaldas y de ataque, según hacia dónde miran (el servidor lo manda).
+ *
+ *   SIN SALTOS DE PÍXEL. Antes las posiciones se redondeaban a píxeles del
+ *   MUNDO: a zoom 3, cada paso eran 3 píxeles de pantalla y el movimiento
+ *   temblaba. Ahora se redondea en pantalla (roundPixels de la cámara) y el
+ *   zoom es entero siempre que se pueda (ver _ajustarZoom).
+ *
+ *   EL GAS no se marca: se ve entrar (ver _pintarGas).
+ *
+ *   EL HUD es HTML con el tema del juego (gf-arena.css, las variables --gfh-*
+ *   de gf-hud.css) e iconos propios (Game/Source/arena, hechos con
+ *   tools/generar-iconos-arena.py, la misma mano que los del HUD).
  *
  * QUIÉN HACE QUÉ
  * ---------------------------------------------------------------------------
  * El SERVIDOR manda (server2.js, con el motor gf-brawl-motor.js incrustado):
  * mueve las balas, reparte el daño, decide quién cae y lleva a los bots. Esta
- * escena dibuja lo que le cuentan y hace tres cosas por su cuenta, para que
- * jugar se sienta inmediato aunque haya 150 ms de red:
- *
- *   1. Mueve a TU perro en cuanto pulsas, con las MISMAS colisiones que el
- *      servidor (GFBrawlMotor.moverCirculo). Si el servidor no está de
- *      acuerdo, manda la posición buena y el perro se recoloca suave.
- *   2. Dibuja tu ladrido en el momento de disparar, y lo casa después con la
- *      bala de verdad cuando llega.
- *   3. Pinta a los demás 110 ms "en el pasado", interpolando entre dos
- *      instantáneas: así se mueven suaves aunque lleguen a saltos.
- *
- * LA ARENA ES UN MAPA DE TILED
- * ---------------------------------------------------------------------------
- * Maps/arena_<id>.json + Game/MAPAS/arena_32.png o arena_32_b.png (la de nieve
- * y cañón; 32 px, 16x16 casillas cada una), que escribe
- * tools/generar-arenas.py. Cada mapa dice su hoja (su tileset). Suelo, decoración y puentes van como capas
- * de tilemap; muros, tapas, matas y cajas como imágenes sueltas, porque
- * tienen que ordenarse en profundidad con los perros (un perro que pasa por
- * detrás de un muro queda tapado por él). La rejilla de CHOQUES no sale del
- * mapa sino del servidor (viene en brawl:inicio): así la física del cliente es
- * siempre la del servidor, aunque alguien edite un mapa y no lo suba.
+ * escena dibuja lo que le cuentan, mueve TU perro con las mismas colisiones
+ * (GFBrawlMotor.moverCirculo) y dibuja tus disparos en el acto.
  *
  * MEMORIA (la escena se REUTILIZA entre batallas)
  * ---------------------------------------------------------------------------
- *   · Oyentes del socket: solo con `this.on()`, que los apunta; limpiar() los
- *     quita uno a uno. El socket es UNO por pestaña y no se toca más.
- *   · Oyentes del DOM: solo con `_escucharDOM()`; init() y limpiar() los
- *     sueltan (si no, desde el segundo combate cada botón contaba doble).
+ *   · Oyentes del socket: solo con `this.on()`; limpiar() los quita.
+ *   · Oyentes del DOM: solo con `_escucharDOM()`; init() y limpiar() los sueltan.
  *   · Relojes del navegador: solo con `_reloj()`; limpiar() los cancela.
- *   · Texturas propias (tileset, perros, animales, piezas): se sueltan al
- *     APAGARSE la escena, cuando Phaser ya ha destruido los sprites que las
- *     usan — al revés, pintaría un fotograma con la textura borrada.
- *   · Todo lo que se crea por mensajes (balas, números, chispas) tiene tope:
- *     con la pestaña oculta Phaser no avanza, pero los mensajes siguen
- *     llegando, y sin tope se apilarían hasta volver.
+ *   · Texturas propias: se sueltan al APAGARSE la escena (_liberarRecursos).
+ *   · Todo lo que se crea por mensajes tiene tope (balas, efectos, números).
  */
 class BattleScene extends Phaser.Scene {
-  static TILESET = 'bz_arena_32';
-  static RUTA_TILESET = './Game/MAPAS/arena_32.png';
-  /* Las hojas de las arenas, por el NOMBRE de tileset que lleva cada mapa.
-     Las cajas, el hueso, los barriles, el comedero y la carne están en las
-     mismas casillas en las dos (ver _catalogo). */
-  static HOJAS = {
-    arena_32:   { clave: 'bz_arena_32',   ruta: './Game/MAPAS/arena_32.png' },
-    arena_32_b: { clave: 'bz_arena_32_b', ruta: './Game/MAPAS/arena_32_b.png' }
-  };
+  static ATLAS = 'bz_obj';
+  static VERSION_ARTE = '20261115a';
   static ARENAS = ['pradera', 'ruinas', 'rio', 'nieve', 'canon'];
   static RETRATO_MASCOTA = './Game/Sprites/mascota/derecha/run_1.png';
+  static ICONOS = './Game/Source/arena/';
 
-  /* LO QUE SE VE, IGUAL PARA TODOS (2026-10-05) — "un zoom justo para los
-     jugadores de móvil y pc en diferentes resoluciones".
-
-     Antes el zoom era ENTERO y salía de dividir la pantalla: un PC de
-     1366x768 veía 21x12 casillas, uno de 1920x1080 20x11, y un móvil EN
-     VERTICAL veía la arena casi entera de arriba abajo (24x53). Quien veía más
-     sabía dónde estaba el otro antes de que el otro le viera a él.
-
-     Ahora es al revés: se fija lo que se ve —como mucho `ancho` casillas en el
-     lado LARGO de la pantalla y `alto` en el corto— y el zoom sale de ahí,
-     con decimales. Así en vertical se ven 19 de alto y 11 de ancho, nunca más.
-     Lo que impedía los decimales eran las rayas entre casillas: el tileset de
-     la arena va EXTRUIDO (GFSuelo.extruir) y ya no salen. */
+  /* LO QUE SE VE, IGUAL PARA TODOS: como mucho `ancho` casillas en el lado
+     LARGO de la pantalla y `alto` en el corto. Quien viera más sabría dónde
+     está el otro antes de que el otro le viera a él. */
   static VISTA = { ancho: 19, alto: 11 };
-  static RETRASO_INTERP = 110;     // ms "en el pasado" a los que se pinta a los demás
+  static RETRASO_INTERP = 100;     // ms "en el pasado" a los que se pinta a los demás
   static ENVIO_MS = 50;            // 20 posiciones por segundo al servidor
   static LATIDO_MS = 250;          // aunque estés quieto, para confirmar correcciones
   static MAX_BALAS = 160;
-  static MAX_EFECTOS = 140;
-  /* Casillas de MARCO alrededor de la arena (un seto, solo se ve). Sin él la
-     cámara choca contra el borde del mapa y, en una esquina, tu perro queda
-     debajo de la tarjeta del HUD; con él siempre puede ir centrado. */
-  static MARCO = 4;
+  static MAX_EFECTOS = 160;
+  static ESPERA_RED_MS = 62000;    // lo que el servidor guarda tu perro sin conexión (60 s) y un poco más
 
-  /* Los efectos de sonido de la arena: WAV de 8 bits que escribe
-     tools/generar-sonidos.js (Game/MUSIC/bz_*.wav). */
   static SONIDOS = ['ladrido_1', 'ladrido_2', 'aullido', 'golpe', 'caja', 'hueso', 'ko', 'cuenta', 'ya', 'victoria', 'derrota',
                     'boom', 'cura', 'alarma'];
 
   static COLOR = {
-    yo: 0x6fe37b, rival: 0xff6b5e, oro: 0xffd24a, municion: 0xff9c3a,
-    vidaMedia: 0xe8bf3a, vidaBaja: 0xe2554a, fondoBarra: 0x0d1320, niebla: 0x3e7d2c
+    yo: 0x6fe37b, rival: 0xff6b5e, oro: 0xffd24a, municion: 0xffa94a, escudo: 0x8fd0ff,
+    vidaMedia: 0xe8bf3a, vidaBaja: 0xe2554a, fondoBarra: 0x14111f
   };
 
-  /* Los rivales que no son perros: sus sprites YA están en el juego (son los
-     animales del mapa). Cada especie dice cuántos fotogramas tiene de cada
-     pose; las que valen 0 se caen a 'quieto'. Todos miran a la DERECHA. */
+  /* Cada arena, con qué se levanta y qué suelo pisa. `fondo` es el color de
+     fondo de la cámara: el borde del suelo pintado se funde hacia él
+     (tools/generar-arenas.py, FONDO). `tileset` es el que lee el agua. */
+  static TEMAS = {
+    pradera: { borde: 'seto', muro: 'seto', hierba: 'hierba', suelo: 'hierba', fondo: '#0e2214', tileset: 'bz_ts_pueblo', ruta: './Game/MAPAS/tiles.png' },
+    ruinas:  { borde: 'seto', muro: 'roca', hierba: 'hierba', suelo: 'hierba', fondo: '#0e2214', tileset: 'bz_ts_pueblo', ruta: './Game/MAPAS/tiles.png' },
+    rio:     { borde: 'seto', muro: 'roca', hierba: 'hierba', suelo: 'hierba', fondo: '#0e2214', tileset: 'bz_ts_pueblo', ruta: './Game/MAPAS/tiles.png' },
+    nieve:   { borde: 'roca_nieve', muro: 'roca_nieve', hierba: 'hierba_nieve', suelo: 'nieve', fondo: '#2e3440', tileset: 'bz_ts_tundra', ruta: './Game/MAPAS/tundra/tiles_tundra.png' },
+    canon:   { borde: 'roca_arena', muro: 'roca_arena', hierba: 'hierba_seca', suelo: 'arena', fondo: '#342a1c', tileset: 'bz_ts_desierto', ruta: './Game/MAPAS/desierto/tiles_desierto.png' }
+  };
+
+  /* Los luchadores que no son perros: sus sprites YA están en el juego (los
+     animales del mapa, en 2.5D). Cada especie dice cuántos fotogramas tiene
+     de cada pose; `dirs` = también de frente (_abajo) y de espaldas
+     (_arriba). Todos miran a la DERECHA. */
   static ESPECIES = {
     perro:     { via: 'mascota',  quieto: 4, camina: 4 },
-    conejo:    { via: 'animales', pre: 'conejo_',  quieto: 2, camina: 4 },
-    cerdo:     { via: 'animales', pre: 'cerdo_',   quieto: 2, camina: 4 },
+    conejo:    { via: 'animales', pre: 'conejo_',  quieto: 2, camina: 4, dirs: 1 },
+    cerdo:     { via: 'animales', pre: 'cerdo_',   quieto: 2, camina: 4, dirs: 1 },
     cuervo:    { via: 'cuervo',   pre: 'cuervo_',  quieto: 2, camina: 4 },
-    zorro:     { via: 'animales', pre: 'zorro_',   quieto: 2, camina: 4, ataque: 3 },
-    zorra:     { via: 'animales', pre: 'zorra_',   quieto: 2, camina: 4, ataque: 3 },
-    cocodrilo: { via: 'animales', pre: 'cocodrilo_', quieto: 2, camina: 4, ataque: 3 },
-    vibora:    { via: 'animales', pre: 'serpiente_vibora_', quieto: 2, camina: 0, repta: 4, ataque: 3 },
-    coral:     { via: 'animales', pre: 'serpiente_coral_',  quieto: 2, camina: 0, repta: 4, ataque: 3 },
-    topo:      { via: 'animales', pre: 'topo_',    quieto: 2, camina: 4 },
-    vaca:      { via: 'animales', pre: 'vaca_',    quieto: 2, camina: 4 }
+    zorro:     { via: 'animales', pre: 'zorro_',   quieto: 2, camina: 4, ataque: 3, dirs: 1 },
+    zorra:     { via: 'animales', pre: 'zorra_',   quieto: 2, camina: 4, ataque: 3, dirs: 1 },
+    cocodrilo: { via: 'animales', pre: 'cocodrilo_', quieto: 2, camina: 4, ataque: 3, dirs: 1 },
+    vibora:    { via: 'animales', pre: 'serpiente_vibora_', quieto: 2, camina: 0, repta: 4, ataque: 3, dirs: 1 },
+    coral:     { via: 'animales', pre: 'serpiente_coral_',  quieto: 2, camina: 0, repta: 4, ataque: 3, dirs: 1 },
+    topo:      { via: 'animales', pre: 'topo_',    quieto: 2, camina: 4, dirs: 1 },
+    vaca:      { via: 'animales', pre: 'vaca_',    quieto: 2, camina: 4, dirs: 1 }
   };
+
+  /* Lo que se recoge del suelo: su dibujo en el atlas y el color de su brillo. */
+  static OBJETOS = {
+    hueso:    { foto: 'hueso',    brillo: 0xffe6a0 },
+    carne:    { foto: 'carne',    brillo: 0xff8a6a },
+    escudo:   { foto: 'escudo',   brillo: 0x66baff },
+    rapidez:  { foto: 'rapidez',  brillo: 0x7bf0d4 },
+    municion: { foto: 'municion', brillo: 0xffc777 },
+    super:    { foto: 'super',    brillo: 0xcd8cff }
+  };
+
+  /* Cómo se dibuja cada tipo de bala: pieza de pixel art de gf-batalla-arte
+     (`x_…`) o fotograma del atlas de la arena. `giro` = cuánto hay que girar
+     el dibujo para que mire hacia donde vuela. */
+  static BALAS = {
+    onda:      { pieza: 'x_onda' },
+    aullido:   { pieza: 'x_aullido', luz: true },
+    embestida: { pieza: 'x_embestida' },
+    zarpa:     { pieza: 'x_zarpa' },
+    mordisco:  { pieza: 'x_mordisco' },
+    diente:    { pieza: 'x_diente' },
+    veneno:    { pieza: 'x_veneno' },
+    colmillo:  { foto: 'espina', escala: 0.75 },
+    pluma:     { foto: 'pluma', giro: Math.PI / 2 },
+    fuego:     { foto: 'bola_fuego', luz: true, gira: true }
+  };
+
+  /** Un número fijo por casilla (el mismo que azar_celda en tools/generar-arenas.py). */
+  static _azarCelda(x, y, n) {
+    let h = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+    return ((h ^ (h >>> 16)) >>> 0) % n;
+  }
+
+  /** La huella de lo PINTADO en el suelo (agua, puentes, comederos): la misma
+      cuenta que tools/generar-arenas.py, que la deja en el mapa.json. */
+  static huellaSuelo(filas) {
+    let h = 0x811c9dc5;
+    const txt = filas.map((f) => String(f).replace(/[^~=+]/g, '.')).join('\n');
+    for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ('0000000' + h.toString(16)).slice(-8);
+  }
 
   constructor() {
     super({ key: 'BattleScene' });
@@ -165,13 +214,13 @@ class BattleScene extends Phaser.Scene {
     this.vistas = new Map();
     this.balasVista = [];
     this.efectosVivos = [];
-    this.huesosVista = new Map();
+    this.objetosVista = new Map();
     this.numerosLibres = [];
     this.pred = null;
     this.desvio = { x: 0, y: 0 };      // lo que queda de una recolocación suave
     this.teclas = {};
     this.movTactil = { x: 0, y: 0 };
-    this.apunte = { ang: 0, mostrar: false, sup: false, ratonX: 0, ratonY: 0, raton: false, ratonEn: 0 };
+    this.apunte = { ang: 0, mostrar: false, sup: false, ratonX: 0, ratonY: 0, raton: false, ratonEn: 0, tactil: false };
     this.disparoMantenido = false;
     this.seq = 0;
     this.seqDisparo = 0;
@@ -183,35 +232,28 @@ class BattleScene extends Phaser.Scene {
     this.municion = 3;
     this.superCarga = 0;
     this.ultimoDisparoLocal = 0;
+    this.ultimoSuperLocal = 0;
     this.misBajas = 0;
     this.quedan = 0;
-    this.zona = null;
-    this.zonaR = null;
-    this.zonaRObjetivo = null;
-    this.zonaC = null;                 // centro de la niebla AHORA (se desliza)
-    this.zonaCObjetivo = null;
-    this.zonaSig = null;               // el anillo de la siguiente zona segura
-    this.zonaEstado = 0;               // 0 esperando · 1 cerrando · 2 cerrada
-    this.zonaCambioEn = 0;             // performance.now() del próximo cambio
-    this._zonaPintada = -1;
-    this._zonaPintadaC = null;
-    this._nieblaDibujadaEn = -Infinity;
+    this.gas = null;
+    this._gasPintado = -1;
+    this._gasAlfa = 0;
     this._camaraGolpeEn = -Infinity;
     this._camaraRetroceso = { x: 0, y: 0 };
     this._camaraAnticipo = { x: 0, y: 0 };
-    this._sigPintado = '';
-    this._sinRedDesde = 0;             // desde cuándo no hay conexión (reconexión)
+    this._camaraCentro = null;
+    this._sinRedDesde = 0;
     this._pidioVolverEn = 0;
     this._ultimoSnap = 0;
     this._busquedaDesde = 0;
     this._pvpDeadlineScheduled = false;
     this._colaAgotada = false;
-    this._texArena = BattleScene.TILESET;
-    this._marcoNombre = 'muro_seto_15';
     this.tCombateLocal = 0;
     this.seguidoId = null;
     this.arbustosApagados = new Set();
-    this._avisosNiebla = { previo: false, empieza: false, final: false, fase: -1 };
+    this._arbustosMovidos = new Map();
+    this._rotasRecientes = new Map();
+    this._avisosGas = { previo: false, empieza: false, final: false };
     this._hud = {};
     this._tactil = false;
     this._zoom = 1;
@@ -227,6 +269,16 @@ class BattleScene extends Phaser.Scene {
     this._volviendoDesde = 0;
     this._faltan = new Set();
     this._ultimoSonido = {};
+    this._diferidos = [];              // lo de los demás, que se aplica RETRASO_INTERP después
+    this._offsets = [];                // (llegada local − hora del servidor) de las últimas instantáneas
+    this._offset = null;
+    this._botonesRendirse = [];
+    this._sueloDe = null;              // la arena cuyo suelo está puesto
+    this._agua = null;
+    this.map = null;                   // el mapa de casillas del suelo (lo lee GFAgua)
+    this._capaSuelo = null;
+    this._sueloRespaldo = null;
+    this._teclasHasta = 0;
     this._volumenSFX = (() => {
       // El mismo ajuste que el mapa (GameScene.loadAudioSettings).
       try {
@@ -239,13 +291,10 @@ class BattleScene extends Phaser.Scene {
   }
 
   preload() {
-    Object.values(BattleScene.HOJAS).forEach((h) => {
-      if (!this.textures.exists(h.clave)) this.load.spritesheet(h.clave, h.ruta, { frameWidth: 32, frameHeight: 32 });
-    });
-    BattleScene.ARENAS.forEach((id) => {
-      const k = 'bz_mapa_' + id;
-      if (!this.cache.tilemap.exists(k)) this.load.tilemapTiledJSON(k, './Maps/arena_' + id + '.json');
-    });
+    const v = '?v=' + BattleScene.VERSION_ARTE;
+    if (!this.textures.exists(BattleScene.ATLAS)) {
+      this.load.atlas(BattleScene.ATLAS, './Game/MAPAS/arena/objetos.png' + v, './Game/MAPAS/arena/objetos.json' + v);
+    }
     // El perro, siempre: es tu luchador y el de cualquier otro jugador.
     for (let i = 1; i <= 4; i++) {
       if (!this.textures.exists('bz_esp_perro_d_' + i)) this.load.image('bz_esp_perro_d_' + i, './Game/Sprites/mascota/derecha/run_' + i + '.png');
@@ -257,8 +306,9 @@ class BattleScene extends Phaser.Scene {
         if (!this.cache.audio.exists(k)) this.load.audio(k, './Game/MUSIC/bz_' + n + '.wav');
       });
     }
-    // `once` no basta (cada archivo que falla dispara uno); se apunta y se
-    // quita en create(): el cargador es de la escena y la escena se reutiliza.
+    // Lo que falla al cargar se apunta (cada archivo que falla dispara uno).
+    // Se queda puesto mientras viva la escena: también carga al pelear.
+    if (this._errorCarga) this.load.off('loaderror', this._errorCarga);
     this._errorCarga = (file) => {
       if (!file || !file.key) return;
       this._faltan.add(file.key);
@@ -268,24 +318,37 @@ class BattleScene extends Phaser.Scene {
   }
 
   create() {
-    if (this._errorCarga) { this.load.off('loaderror', this._errorCarga); this._errorCarga = null; }
     this.scale.on('resize', this.onResize, this);
     document.body.classList.add('in-battle');
 
     const A = window.GFBatallaArte;
     if (A) {
-      A.efectos(this);
-      if (A.proyectiles) A.proyectiles(this);
+      try { if (A.arenaPixel) A.arenaPixel(this); } catch (e) { console.warn('⚠️ Arena: piezas de pixel art', e); }
+      try { if (A.proyectiles) A.proyectiles(this); } catch (e) { /* el brillo es opcional */ }
     }
-    this.cameras.main.setBackgroundColor('#132a1b');
+    this._atlasOk = this.textures.exists(BattleScene.ATLAS) && !this._faltan.has(BattleScene.ATLAS);
+    if (this._atlasOk) { try { this.textures.get(BattleScene.ATLAS).setFilter(Phaser.Textures.FilterMode.NEAREST); } catch (e) {} }
+    const cam = this.cameras.main;
+    cam.setBackgroundColor(BattleScene.TEMAS.pradera.fondo);
+    // Se redondea EN PANTALLA (no en el mundo): nítido y sin saltos.
+    cam.setRoundPixels(true);
     this.gApunte = this.add.graphics().setDepth(39000);
+    this.gGas = this.add.graphics().setDepth(44100);
 
     this.montarUI();
-    if (window.GFCharacterSkills) window.GFCharacterSkills.battle(this);
     this.montarControles();
     this.avisoHorizontal();
     this._ajustarZoom();
     this.montarFondoDeEspera();
+    // El aspecto del juego: el post-procesado (de día y sin el tiempo del
+    // pueblo: la arena se juega con luz) y casi sin desenfoque de bordes ni
+    // separación de colores: en combate emborronaban a quien viene por el lado
+    // (los cofres y los barriles del borde salían con filo rojo y azul).
+    try {
+      if (window.GFPost && window.GFPost.montar(this, { interior: true }) && window.GFPost.ajustar) {
+        window.GFPost.ajustar({ focoDe: 0.95, focoA: 1.7, radio: 0.4, aberracion: 0.06 });
+      }
+    } catch (e) { console.warn('⚠️ Arena: post-procesado', e); }
 
     this.socket = window.globalSocket;
     if (!this.socket) {
@@ -319,225 +382,283 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   // LA ARENA
   // =========================================================================
-  /** Nombre → fotograma del tileset, leído de las propiedades del propio mapa. */
-  _catalogo(clave) {
-    if (this._cat) return this._cat;
-    const cat = {};
-    try {
-      const json = this.cache.tilemap.get(clave);
-      const ts = json && json.data && json.data.tilesets && json.data.tilesets[0];
-      (ts && ts.tiles || []).forEach((t) => {
-        const p = (t.properties || []).find((q) => q.name === 'nombre');
-        if (p) cat[p.value] = t.id;
-      });
-    } catch (e) { /* sin catálogo: se usan los de respaldo */ }
-    // Los de respaldo son los del generador (tools/generar-arenas.py): la
-    // fila 12 es igual en las dos hojas.
-    const def = { caja_1: 192, caja_2: 193, caja_3: 194, caja_oro_1: 195, caja_oro_2: 196, hueso: 197,
-                  barril_1: 202, barril_2: 203, barril_3: 204, cuenco: 205, carne: 206 };
-    Object.keys(def).forEach((k) => { if (cat[k] == null) cat[k] = def[k]; });
-    this._cat = cat;
-    return cat;
+  _temaDe(id, tema) {
+    const M = window.GFBrawlMotor;
+    const t = tema || (M && M.ARENAS[id] && M.ARENAS[id].tema) || id;
+    return BattleScene.TEMAS[t] ? t : 'pradera';
   }
 
-  /** La hoja (textura + nombre de tileset) y el marco que dice el mapa `clave`. */
-  _hojaDe(clave) {
-    let nombre = 'arena_32', marco = 'muro_seto_15';
-    try {
-      const json = this.cache.tilemap.get(clave);
-      const datos = json && json.data;
-      const ts = datos && datos.tilesets && datos.tilesets[0];
-      if (ts && BattleScene.HOJAS[ts.name]) nombre = ts.name;
-      const p = (datos && datos.properties || []).find((q) => q.name === 'marco');
-      if (p && p.value) marco = p.value;
-    } catch (e) { /* la A, por defecto */ }
-    return { nombre, clave: BattleScene.HOJAS[nombre].clave, marco };
+  _foto(nombre) {
+    if (!this._atlasOk) return null;
+    try { return this.textures.get(BattleScene.ATLAS).has(nombre) ? nombre : null; } catch (e) { return null; }
   }
 
   /**
-   * Monta la arena `id`. Devuelve un objeto con todo lo creado, para poder
-   * deshacerlo de golpe. `filas` (la rejilla del servidor) solo se usa si el
-   * mapa no ha cargado: entonces se dibuja una arena de bloques de color, que
-   * se juega igual.
+   * Monta la arena `id` con la rejilla `R` (la del servidor en una partida).
+   * El suelo (trozos pintados, agua) solo se cambia si es otra arena: el de
+   * la espera se aprovecha si toca la misma.
    */
-  construirArena(id, filas) {
-    const clave = 'bz_mapa_' + id;
-    const hoja = this._hojaDe(clave);
-    const T = hoja.clave;
-    this._texArena = T;
-    this._marcoNombre = hoja.marco;
-    const C = 32;
-    const res = { id, mapa: null, capas: [], objetos: [], arbustos: new Map(), cajas: new Map(), ancho: 30, alto: 22 };
-    this._cat = null;
-    this._catalogo(clave);
-    if (!this.cache.tilemap.exists(clave) || !this.textures.exists(T) || this._faltan.has(T)) {
-      return this.construirArenaDeRespaldo(res, filas);
+  construirArena(id, R, tema) {
+    tema = this._temaDe(id, tema);
+    const res = { id, tema, R, objetos: [], arbustos: new Map(), cajas: new Map(), restos: [] };
+    if (!R) return res;
+    if (this._sueloDe !== id) this._montarSuelo(id, tema, R);
+    this._sueloDeRespaldo(R, tema);
+    this._dibujarMuros(res);
+    this._dibujarArbustos(res);
+    this._dibujarCajas(res);
+    return res;
+  }
+
+  /** El suelo pintado, el agua que se mueve y el color de fondo. */
+  _montarSuelo(id, tema, R) {
+    const T = BattleScene.TEMAS[tema];
+    this._sueloDe = id;
+    this.cameras.main.setBackgroundColor(T.fondo);
+    if (window.GFSuelo) {
+      const carpeta = 'recortadas_arena_' + id;
+      const huella = BattleScene.huellaSuelo(window.GFBrawlMotor ? window.GFBrawlMotor.filasDe(R) : []);
+      try {
+        window.GFSuelo.montar(this, {
+          carpeta, prefijo: 'arena_' + id, capas: [], profundidad: -1000, margenPx: 600,
+          alListo: () => {
+            /* EL SUELO TIENE QUE SER EL DE ESTA REJILLA. Si alguien cambia una
+               arena y no regenera su suelo (o el navegador sirve uno viejo),
+               el agua pintada no sería la que choca: se quita el pintado y
+               se queda el de respaldo, que sale de la rejilla. */
+            try {
+              const meta = this.cache.json.get('gfsuelo_' + carpeta);
+              if (meta && meta.huella && meta.huella !== huella) {
+                console.warn('⚠️ Arena: el suelo pintado de ' + id + ' no es el de esta rejilla (' + meta.huella + ' ≠ ' + huella + '); se usa el de respaldo');
+                window.GFSuelo.desmontar(this);
+              } else if (this._sueloRespaldo) {
+                this._sueloRespaldo.setVisible(false);
+              }
+            } catch (e) {}
+          }
+        });
+      } catch (e) { console.warn('⚠️ Arena: suelo pintado', e); }
     }
-    let mapa;
+    this._montarAgua(id, tema, R);
+    this._montarPisadas(T.suelo);
+  }
+
+  /* EL SUELO DE RESPALDO: lo mínimo para jugar si los trozos no llegan (sin
+     red, una arena sin generar): el campo de un color, el agua y los
+     puentes, sacados de la rejilla. Se esconde en cuanto se ve el pintado. */
+  _sueloDeRespaldo(R, tema) {
+    if (this._sueloRespaldo) { try { this._sueloRespaldo.destroy(); } catch (e) {} this._sueloRespaldo = null; }
+    const C = R.celda, m = R.marco;
+    const colores = { pradera: 0x4f8f3c, ruinas: 0x4f8f3c, rio: 0x4f8f3c, nieve: 0xdfe6ee, canon: 0xd8b77a };
+    const g = this.add.graphics().setDepth(-1100);
+    g.fillStyle(colores[tema] || 0x4f8f3c, 1).fillRect(m * C, m * C, (R.ancho - 2 * m) * C, (R.alto - 2 * m) * C);
+    for (let y = 0; y < R.alto; y++) {
+      for (let x = 0; x < R.ancho; x++) {
+        const ch = R.celdas[y * R.ancho + x];
+        if (ch === '~') g.fillStyle(0x3f86c7, 1).fillRect(x * C, y * C, C, C);
+        else if (ch === '=') g.fillStyle(0x9a6b3d, 1).fillRect(x * C, y * C, C, C);
+      }
+    }
+    const visible = !(window.GFSuelo && window.GFSuelo.estado && (window.GFSuelo.estado(this) || {}).capaEscondida);
+    g.setVisible(visible);
+    this._sueloRespaldo = g;
+  }
+
+  /** El agua que se mueve (GFAgua), como en el mapa salvaje. */
+  _montarAgua(id, tema, R) {
+    const G = window.GFAgua;
+    try { if (G) G.desmontar(this); } catch (e) {}
+    this._quitarMapaAgua();
+    this._agua = { id };
+    if (!G || !R || R.celdas.indexOf('~') < 0) return;
+    const T = BattleScene.TEMAS[tema];
+    const claveMapa = 'bz_suelo_' + id;
+    const run = this._battleRun;
+    const v = '?v=' + BattleScene.VERSION_ARTE;
+    this._cargarRecursos([
+      { tipo: 'tilemap', clave: claveMapa, ruta: './Maps/arena_' + id + '.json' + v },
+      { tipo: 'image', clave: T.tileset, ruta: T.ruta + v }
+    ]).then((ok) => {
+      if (!ok || this._cleaned || this._battleRun !== run || !this._agua || this._agua.id !== id) return;
+      try {
+        this.textures.get(T.tileset).setFilter(Phaser.Textures.FilterMode.NEAREST);
+        this.map = this.make.tilemap({ key: claveMapa });
+        const ts = this.map.addTilesetImage('Tileset_mapa', T.tileset, 16, 16);
+        this._capaSuelo = ts ? this.map.createLayer('suelo', ts, 0, 0) : null;
+        if (this._capaSuelo) this._capaSuelo.setVisible(false).setDepth(-1050);
+        G.montar(this, { capa: 'suelo', textura: T.tileset, vida: null, excluir: this._puentesPx(R) });
+      } catch (e) { console.warn('⚠️ Arena: agua animada', e); }
+    });
+  }
+
+  _quitarMapaAgua() {
+    try { if (this._capaSuelo) this._capaSuelo.destroy(); } catch (e) {}
+    try { if (this.map) this.map.destroy(); } catch (e) {}
+    this._capaSuelo = null;
+    this.map = null;
+  }
+
+  /** Los puentes, en px: el agua de debajo no se anima (se taparía el tablero). */
+  _puentesPx(R) {
+    const C = R.celda, zonas = [];
+    for (let y = 0; y < R.alto; y++) {
+      for (let x = 0; x < R.ancho; x++) {
+        if (R.celdas[y * R.ancho + x] === '=') zonas.push({ x: x * C - 6, y: y * C - 6, width: C + 12, height: C + 12 });
+      }
+    }
+    return zonas;
+  }
+
+  _montarPisadas(suelo) {
+    const P = window.GFPisadas;
+    if (!P) return;
     try {
-      mapa = this.make.tilemap({ key: clave });
-    } catch (e) {
-      console.warn('⚠️ Arena: el mapa ' + clave + ' no se pudo leer:', e);
-      return this.construirArenaDeRespaldo(res, filas);
-    }
-    // Extruido: con el zoom con decimales (ver VISTA) no salen rayas.
-    const Tx = window.GFSuelo && window.GFSuelo.extruir ? window.GFSuelo.extruir(this, T, C) : null;
-    const ts = Tx ? mapa.addTilesetImage(hoja.nombre, Tx, C, C, 1, 2) : mapa.addTilesetImage(hoja.nombre, T);
-    res.mapa = mapa;
-    res.ancho = mapa.width;
-    res.alto = mapa.height;
-    const W = mapa.width;
-    ['suelo', 'deco', 'puente'].forEach((n, i) => {
-      const capa = mapa.createLayer(n, ts, 0, 0);
-      if (capa) { capa.setDepth(-1000 + i); res.capas.push(capa); }
-    });
-    const esDe = (capa, x, y) => {
-      const t = mapa.getTileAt(x, y, true, capa);
-      return !!(t && t.index > 0);
-    };
-    const recorrer = (nombre, fn) => {
-      const capa = mapa.getLayer(nombre);
-      if (!capa) return;
-      for (let y = 0; y < capa.data.length; y++) {
-        const fila = capa.data[y];
-        for (let x = 0; x < fila.length; x++) {
-          const t = fila[x];
-          if (t && t.index > 0) fn(t.index - 1, x, y);
-        }
-      }
-    };
-    /* La sombra al pie de cada muro: lo que hace que un bloque parezca alto
-       y no pintado en el suelo. Un solo Graphics para todas. */
-    const sombras = this.add.graphics().setDepth(-990);
-    res.objetos.push(sombras);
-    recorrer('muros', (f, x, y) => {
-      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C);
-      res.objetos.push(im);
-      if (!esDe('muros', x, y + 1)) {
-        sombras.fillStyle(0x000000, 0.24);
-        sombras.fillRect(x * C + 1, (y + 1) * C, C - 2, 5);
-        sombras.fillStyle(0x000000, 0.11);
-        sombras.fillRect(x * C + 2, (y + 1) * C + 5, C - 4, 4);
-      }
-    });
-    // La tapa va en la casilla de ENCIMA pero es del muro de abajo: misma profundidad.
-    recorrer('muros_tapa', (f, x, y) => {
-      res.objetos.push(this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 2) * C));
-    });
-    const apuntarArbusto = (celda, im) => {
-      if (!res.arbustos.has(celda)) res.arbustos.set(celda, []);
-      res.arbustos.get(celda).push(im);
-    };
-    recorrer('arbustos', (f, x, y) => {
-      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C - 2);
-      res.objetos.push(im);
-      apuntarArbusto(y * W + x, im);
-    });
-    recorrer('arbustos_tapa', (f, x, y) => {
-      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 2) * C - 2);
-      res.objetos.push(im);
-      apuntarArbusto((y + 1) * W + x, im);
-    });
-    this._marco(res, mapa.width, mapa.height);
-    const cat = this._cat;
-    recorrer('cajas', (f, x, y) => {
-      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C - 1);
-      res.objetos.push(im);
-      res.cajas.set(y * W + x, { img: im, oro: f === cat.caja_oro_1, barril: f === cat.barril_1, rota: false });
-    });
-    return res;
+      if (this.__gfPisadas && this.__gfPisadas.suelo === suelo) return;
+      if (this.__gfPisadas) P.desmontar(this);
+      P.montar(this, { suelo });
+    } catch (e) {}
   }
 
-  /** El seto que rodea la arena (decorado: los choques ya los pone el motor). */
-  _marco(res, ancho, alto) {
-    const T = this._texArena || BattleScene.TILESET, C = 32, M = BattleScene.MARCO;
-    const W = ancho * C, H = alto * C, m = M * C;
-    const cat = this._cat || {};
-    const f = cat[this._marcoNombre] != null ? cat[this._marcoNombre] : cat.muro_seto_15;
-    const trozos = [[-m, -m, W + 2 * m, m], [-m, H, W + 2 * m, m], [-m, 0, m, H], [W, 0, m, H]];
-    trozos.forEach(([x, y, w, h]) => {
-      let o;
-      if (f != null && this.textures.exists(T)) o = this.add.tileSprite(x, y, w, h, T, f).setOrigin(0, 0);
-      else o = this.add.rectangle(x, y, w, h, 0x2d5b30).setOrigin(0, 0);
-      o.setDepth(-995);
-      res.objetos.push(o);
+  /** Carga lo que falte de `lista` y avisa cuando esté (o no) — sin colgarse. */
+  _cargarRecursos(lista) {
+    const run = this._battleRun;
+    const existe = (r) => (r.tipo === 'tilemap' ? this.cache.tilemap.exists(r.clave) : this.textures.exists(r.clave));
+    let pedidos = 0;
+    lista.forEach((r) => {
+      if (existe(r) || this._faltan.has(r.clave)) return;
+      if (r.tipo === 'tilemap') this.load.tilemapTiledJSON(r.clave, r.ruta);
+      else this.load.image(r.clave, r.ruta);
+      pedidos++;
     });
-    // Sombra hacia dentro y un velo oscuro encima del seto: "esto es fuera".
-    const g = this.add.graphics().setDepth(-994);
-    g.fillStyle(0x07140c, 0.42);
-    trozos.forEach(([x, y, w, h]) => g.fillRect(x, y, w, h));
-    g.fillStyle(0x000000, 0.22);
-    g.fillRect(0, 0, W, 6); g.fillRect(0, 0, 6, H);
-    g.fillStyle(0x000000, 0.12);
-    g.fillRect(0, H - 4, W, 4); g.fillRect(W - 4, 0, 4, H);
-    res.objetos.push(g);
+    if (!pedidos) return Promise.resolve(lista.every(existe));
+    return new Promise((resolve) => {
+      const t0 = Date.now();
+      const revisar = () => {
+        if (this._cleaned || this._battleRun !== run) { resolve(false); return; }
+        if (lista.every((r) => existe(r) || this._faltan.has(r.clave))) { resolve(lista.every(existe)); return; }
+        if (Date.now() - t0 > 9000) { resolve(false); return; }
+        if (!this.load.isLoading()) { try { this.load.start(); } catch (e) {} }
+        this._reloj(80, revisar);
+      };
+      this._reloj(0, revisar);
+    });
   }
 
-  /** Arena de bloques de color: por si el PNG o el JSON no han llegado. */
-  construirArenaDeRespaldo(res, filas) {
-    const C = 32;
-    const rej = filas || (window.GFBrawlMotor && window.GFBrawlMotor.ARENAS[res.id] && window.GFBrawlMotor.ARENAS[res.id].filas) || [];
-    res.alto = rej.length || 22;
-    res.ancho = (rej[0] || '').length || 30;
-    const g = this.add.graphics().setDepth(-1000);
-    res.objetos.push(g);
-    g.fillStyle(0x418546, 1).fillRect(0, 0, res.ancho * C, res.alto * C);
-    this._marco(res, res.ancho, res.alto);
-    for (let y = 0; y < res.alto; y++) {
-      for (let x = 0; x < res.ancho; x++) {
-        const ch = (rej[y] || '').charAt(x);
-        if (ch === '~') g.fillStyle(0x4aa8cf, 1).fillRect(x * C, y * C, C, C);
-        if (ch === '=') g.fillStyle(0xb07f45, 1).fillRect(x * C, y * C, C, C);
-        if (ch === '#') {
-          const r = this.add.rectangle(x * C + 16, y * C + 16, C, C, 0x8b8376).setStrokeStyle(2, 0x3c3730).setDepth((y + 1) * C);
-          res.objetos.push(r);
+  /* LOS MUROS, de la rejilla. Dentro del campo, el muro del tema (seto o
+     rocas); en el primer anillo de fuera, el borde. Lo de más afuera es
+     bosque pintado en el suelo. El seto va en piezas que casan con sus
+     vecinos (seto_<N|E|S|O>, tools/generar-arenas.py). */
+  _dibujarMuros(res) {
+    const R = res.R, C = R.celda, m = R.marco, W = R.ancho, H = R.alto;
+    const T = BattleScene.TEMAS[res.tema];
+    const dentro = (x, y) => x >= m && x < W - m && y >= m && y < H - m;
+    const anillo = (x, y) => !dentro(x, y) && x >= m - 1 && x <= W - m && y >= m - 1 && y <= H - m;
+    const muro = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (dentro(x, y) || anillo(x, y)) && R.celdas[y * W + x] === '#';
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!muro(x, y)) continue;
+        const tipo = anillo(x, y) ? T.borde : T.muro;
+        let img = null;
+        if (tipo === 'seto') {
+          const mask = (muro(x, y - 1) ? 1 : 0) | (muro(x + 1, y) ? 2 : 0) | (muro(x, y + 1) ? 4 : 0) | (muro(x - 1, y) ? 8 : 0);
+          const f = this._foto('seto_' + mask);
+          if (f) img = this.add.image(x * C + 16, (y + 1) * C + 3, BattleScene.ATLAS, f).setOrigin(0.5, 1);
+        } else {
+          const f = this._foto(tipo + '_' + (1 + BattleScene._azarCelda(x, y, 4)));
+          if (f) img = this.add.image(x * C + 16, (y + 1) * C + 2, BattleScene.ATLAS, f).setOrigin(0.5, 1).setFlipX(BattleScene._azarCelda(y, x, 2) === 1);
         }
-        if (ch === '*') {
-          const r = this.add.rectangle(x * C + 16, y * C + 16, C, C, 0x4c9a46, 0.9).setDepth((y + 1) * C - 2);
-          res.objetos.push(r);
-          res.arbustos.set(y * res.ancho + x, [r]);
-        }
-        if (ch === 'c' || ch === 'o' || ch === 'x') {
-          const color = ch === 'o' ? 0xd9b02a : (ch === 'x' ? 0xb8392e : 0xb07f45);
-          const r = this.add.rectangle(x * C + 16, y * C + 16, C - 6, C - 6, color)
-            .setStrokeStyle(2, 0x3a2516).setDepth((y + 1) * C - 1);
-          res.objetos.push(r);
-          res.cajas.set(y * res.ancho + x, { img: r, oro: ch === 'o', barril: ch === 'x', rota: false, respaldo: true });
-        }
-        if (ch === '+') {
-          const r = this.add.ellipse(x * C + 16, y * C + 18, 22, 12, 0xa6582f).setStrokeStyle(2, 0x2a140a).setDepth(-990);
-          res.objetos.push(r);
-        }
+        if (!img) img = this.add.rectangle(x * C + 16, y * C + 16, C, C, 0x5b6a52).setStrokeStyle(2, 0x2a3326);
+        img.setDepth((y + 1) * C);
+        res.objetos.push(img);
       }
     }
-    return res;
+  }
+
+  /* LA HIERBA ALTA: cinco matas por casilla (la del trigo del juego, sin su
+     tierra), cada una en su profundidad: el perro que entra queda tapado por
+     las de delante. */
+  _dibujarArbustos(res) {
+    const R = res.R, C = R.celda, W = R.ancho;
+    const T = BattleScene.TEMAS[res.tema];
+    const sitios = [[7, 13], [24, 11], [15, 22], [3, 28], [28, 27]];
+    for (let y = 0; y < R.alto; y++) {
+      for (let x = 0; x < W; x++) {
+        if (R.celdas[y * W + x] !== '*') continue;
+        const lista = [];
+        sitios.forEach(([px, py], i) => {
+          const jx = BattleScene._azarCelda(x * 7 + i, y, 5) - 2, jy = BattleScene._azarCelda(x, y * 7 + i, 5) - 2;
+          const f = this._foto(T.hierba + '_' + (1 + BattleScene._azarCelda(x + i, y + i, 2)));
+          const yy = y * C + py + jy + 7;
+          const img = f
+            ? this.add.image(x * C + px + jx, yy, BattleScene.ATLAS, f).setOrigin(0.5, 1)
+            : this.add.rectangle(x * C + px + jx, yy, 10, 18, 0x5aa04a).setOrigin(0.5, 1);
+          img.setDepth(yy);
+          res.objetos.push(img);
+          lista.push(img);
+        });
+        res.arbustos.set(y * W + x, lista);
+      }
+    }
+  }
+
+  /* LAS CAJAS: todas las de la rejilla (las del mapa y las que el servidor
+     reparte al azar). Antes solo se dibujaban las del mapa: las otras eran
+     muros invisibles. */
+  _dibujarCajas(res) {
+    const R = res.R, C = R.celda, W = R.ancho;
+    const A = window.GFBatallaArte;
+    Object.keys(R.cajas).forEach((k) => {
+      const idx = Number(k), c = R.cajas[k];
+      const x = idx % W, y = Math.floor(idx / W);
+      const ch = R.celdas[idx];
+      const tipo = ch === 'o' ? 'cofre' : (ch === 'x' ? 'barril' : 'caja');
+      const f = this._foto(tipo === 'barril' ? 'barril_explosivo' : tipo);
+      const px = x * C + 16, py = (y + 1) * C - 2;
+      const img = f
+        ? this.add.image(px, py, BattleScene.ATLAS, f).setOrigin(0.5, 1)
+        : this.add.rectangle(px, py, 26, 24, tipo === 'cofre' ? 0xd9b02a : (tipo === 'barril' ? 0xb8392e : 0xb07f45)).setOrigin(0.5, 1).setStrokeStyle(2, 0x3a2516);
+      img.setDepth((y + 1) * C - 1);
+      const sombra = (A && this.textures.exists(A.pieza('x_sombra')))
+        ? this.add.image(px, py - 1, A.pieza('x_sombra')).setScale(0.85, 0.75).setAlpha(0.32).setDepth(-800)
+        : null;
+      res.objetos.push(img);
+      if (sombra) res.objetos.push(sombra);
+      const caja = { img, sombra, tipo, rota: false, x0: img.x };
+      res.cajas.set(idx, caja);
+      if (c.vida < c.max) this._cajaTocada(caja, c.vida, c.max);
+    });
   }
 
   destruirArena(res) {
     if (!res) return;
-    res.objetos.forEach((o) => { try { o.destroy(); } catch (e) {} });
-    res.capas.forEach((c) => { try { c.destroy(); } catch (e) {} });
-    if (res.mapa) { try { res.mapa.destroy(); } catch (e) {} }
+    res.objetos.forEach((o) => { try { if (this.tweens) this.tweens.killTweensOf(o); o.destroy(); } catch (e) {} });
+    res.restos.forEach((o) => { try { o.destroy(); } catch (e) {} });
     res.objetos.length = 0;
-    res.capas.length = 0;
+    res.restos.length = 0;
     res.arbustos.clear();
     res.cajas.clear();
   }
 
   /** Mientras se busca partida, se ve una arena de fondo y la cámara pasea. */
   montarFondoDeEspera() {
+    const M = window.GFBrawlMotor;
+    if (!M) return;
     const ids = BattleScene.ARENAS;
     const id = ids[(this._battleRun || 0) % ids.length];
-    this.fondoEspera = this.construirArena(id);
+    let R = null;
+    try { R = M.crearRejilla(M.ARENAS[id]); } catch (e) { return; }
+    this.fondoEspera = this.construirArena(id, R);
     const cam = this.cameras.main;
-    const W = this.fondoEspera.ancho * 32, H = this.fondoEspera.alto * 32;
-    const m = BattleScene.MARCO * 32;
-    cam.setBounds(-m, -m, W + 2 * m, H + 2 * m);
-    cam.centerOn(W * 0.3, H * 0.4);
+    const W = R.anchoPx, H = R.altoPx;
+    const z = this._zoom || 1;
+    const vw = cam.width / z, vh = cam.height / z;
+    // El centro de la vista va de un lado al otro del campo, sin salirse del dibujo.
+    const x0 = Math.min(W / 2, Math.max(vw / 2, W * 0.3)), x1 = Math.max(W / 2, Math.min(W - vw / 2, W * 0.7));
+    cam.centerOn(x0, Math.max(vh / 2, Math.min(H - vh / 2, H * 0.42)));
     if (!this._reducedMotion) {
       this._paseo = this.tweens.add({
-        targets: cam, scrollX: { from: cam.scrollX, to: cam.scrollX + W * 0.35 },
-        duration: 16000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+        targets: cam, scrollX: { from: x0 - cam.width / 2, to: x1 - cam.width / 2 },
+        duration: 18000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
       });
     }
   }
@@ -550,25 +671,22 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   // ZOOM Y CÁMARA
   // =========================================================================
+  /* El zoom sale de lo que se ve (VISTA). Y si un zoom ENTERO queda cerca
+     (un 13 % arriba o abajo), se usa ése: a zoom entero cada píxel del dibujo
+     son los mismos píxeles de pantalla y nada "tiembla" al moverse. Si no,
+     cuartos (nunca más que eso de diferencia con lo justo). */
   _ajustarZoom() {
     const cam = this.cameras.main;
     const w = this.scale.width, h = this.scale.height;
-    const m2 = BattleScene.MARCO * 64;
-    const anchoArena = (this.R ? this.R.anchoPx : 960) + m2, altoArena = (this.R ? this.R.altoPx : 704) + m2;
-    /* Lo bastante cerca para que el lado largo no enseñe más de VISTA.ancho
-       casillas ni el corto más de VISTA.alto. Se redondea HACIA ARRIBA a
-       dieciseisavos: nunca se ve más de lo justo, y el valor no tiembla. */
     const largo = Math.max(w, h), corto = Math.min(w, h);
-    let z = Math.max(largo / (BattleScene.VISTA.ancho * 32), corto / (BattleScene.VISTA.alto * 32));
-    // Nunca tan lejos que se vea fuera de la arena.
-    z = Math.max(z, w / anchoArena, h / altoArena);
-    z = Math.ceil(z * 16) / 16;
-    z = Math.max(0.5, Math.min(8, z));
+    const justo = Math.max(largo / (BattleScene.VISTA.ancho * 32), corto / (BattleScene.VISTA.alto * 32));
+    const entero = Math.round(justo);
+    let z = (entero >= 1 && Math.abs(entero - justo) / justo <= 0.13) ? entero : Math.round(justo * 4) / 4;
+    z = Math.max(0.75, Math.min(8, z));
     this._zoom = z;
     cam.setZoom(z);
-    cam.setRoundPixels(true);
-    // Escala de los carteles: se diseñan en píxeles de CSS (texto de 12 px),
-    // y un píxel de CSS son dpr/zoom píxeles del mundo.
+    // Escala de los carteles: se diseñan en píxeles de CSS, y un píxel de CSS
+    // son dpr/zoom píxeles del mundo.
     this._dpr = Math.max(1, Math.round(w / Math.max(1, window.innerWidth || w)));
     this._escalaCartel = this._dpr / z;
     this.vistas.forEach((v) => this._escalarCartel(v));
@@ -579,27 +697,82 @@ class BattleScene extends Phaser.Scene {
     if (this._revisarOrientacion) this._revisarOrientacion();
   }
 
+  /** La cámara sigue a tu perro (o, caído, a quien sigue en pie), sin salirse del dibujo. */
+  _camara(dt) {
+    const yo = this.vistas.get(this.yoId);
+    let foco = null;
+    if (yo && yo.vivo) foco = yo;
+    else if (this.matchId) {
+      let s = this.seguidoId ? this.vistas.get(this.seguidoId) : null;
+      if (!s || !s.vivo || s.oculto) {
+        s = null;
+        this.vistas.forEach((v) => { if (!s && v.vivo && !v.oculto && !v.yo) s = v; });
+        this.seguidoId = s ? s.id : null;
+      }
+      foco = s || yo;
+    }
+    if (!foco || !this.R) return;
+    const cam = this.cameras.main;
+    const anticipo = this._camaraAnticipo, retro = this._camaraRetroceso;
+    const apuntando = foco.yo && (this.apunte.mostrar || (this.apunte.raton && !this._tactil)) && !this._reducedMotion;
+    const distancia = apuntando ? 22 : 0;
+    anticipo.x += (Math.cos(this.apunte.ang || 0) * distancia - anticipo.x) * Math.min(1, dt * 4);
+    anticipo.y += (Math.sin(this.apunte.ang || 0) * distancia - anticipo.y) * Math.min(1, dt * 4);
+    retro.x *= Math.max(0, 1 - dt * 14); retro.y *= Math.max(0, 1 - dt * 14);
+    let tx = foco.x + anticipo.x + retro.x, ty = foco.y - 8 + anticipo.y + retro.y;
+    const vw = cam.width / this._zoom, vh = cam.height / this._zoom;
+    const W = this.R.anchoPx, H = this.R.altoPx;
+    tx = vw >= W ? W / 2 : Math.max(vw / 2, Math.min(W - vw / 2, tx));
+    ty = vh >= H ? H / 2 : Math.max(vh / 2, Math.min(H - vh / 2, ty));
+    if (!this._camaraCentro) this._camaraCentro = { x: tx, y: ty };
+    const c = this._camaraCentro;
+    const k = Math.min(1, dt * 12);
+    c.x += (tx - c.x) * k;
+    c.y += (ty - c.y) * k;
+    cam.centerOn(c.x, c.y);
+  }
+
+  _centrarCamara(x, y) {
+    this._camaraCentro = null;
+    this.cameras.main.centerOn(x, y);
+  }
+
+  _impulsoCamara(tipo, ang, fuerza = 1) {
+    if (this._reducedMotion || document.hidden || this._cleaned) return;
+    const ahora = performance.now();
+    if (tipo === 'tiro' || tipo === 'super') {
+      const r = this._camaraRetroceso;
+      const n = tipo === 'super' ? 7 : 3;
+      r.x = -Math.cos(ang) * n; r.y = -Math.sin(ang) * n;
+    }
+    if (tipo === 'tiro' || ahora - this._camaraGolpeEn < 180) return;
+    this._camaraGolpeEn = ahora;
+    const duracion = tipo === 'explosion' ? 150 : 85;
+    this.cameras.main.shake(duracion, Math.min(0.0025, Math.max(0, fuerza) * 0.0025), false);
+  }
+
   // =========================================================================
   // LUCHADORES
   // =========================================================================
-  _rutasEspecie(id, pose, n) {
+  _rutasEspecie(id, pose, n, dir) {
     const E = BattleScene.ESPECIES[id];
     if (!E || E.via === 'mascota') return [];
+    const suf = dir ? '_' + dir : '';
     const out = [];
     for (let i = 1; i <= n; i++) {
       // (2026-10-12) Los animales, los de 2.5D (tools/generar-animales3d.py).
       const base = E.via === 'cuervo' ? './Game/Sprites/cuervo3d/' : './Game/Sprites/animales3d/';
-      // Con versión: los sprites de la fauna se regeneran.
-      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png?v=20261012']);
+      out.push(['bz_esp_' + id + '_' + pose + suf + '_' + i, base + E.pre + pose + suf + '_' + i + '.png?v=20261012']);
     }
     return out;
   }
 
   /**
-   * Descarga los fotogramas de una especie. Se espera MIRANDO LAS TEXTURAS,
-   * no un evento del cargador: `load.start()` se ignora si ya está cargando y
-   * el 'complete' de una tanda resolvía también la de otra especie que aún no
-   * había llegado (el fallo del "peleo contra alguien invisible").
+   * Descarga los fotogramas de una especie (de lado y, si los tiene, de frente
+   * y de espaldas). Se espera MIRANDO LAS TEXTURAS, no un evento del cargador:
+   * `load.start()` se ignora si ya está cargando y el 'complete' de una tanda
+   * resolvía también la de otra especie que aún no había llegado (el fallo
+   * del "peleo contra alguien invisible").
    */
   cargarEspecie(id) {
     const E = BattleScene.ESPECIES[id];
@@ -607,12 +780,15 @@ class BattleScene extends Phaser.Scene {
     if (this._especiesPendientes.has(id)) return this._especiesPendientes.get(id);
     const claves = [];
     let pedidos = 0;
+    const dirs = E.dirs ? ['', 'abajo', 'arriba'] : [''];
     [['quieto', E.quieto], [E.repta ? 'repta' : 'camina', E.repta || E.camina], ['ataque', E.ataque || 0]].forEach(([pose, n]) => {
-      this._rutasEspecie(id, pose, n || 0).forEach(([k, ruta]) => {
-        claves.push(k);
-        if (this.textures.exists(k)) return;
-        this.load.image(k, ruta);
-        pedidos++;
+      dirs.forEach((dir) => {
+        this._rutasEspecie(id, pose, n || 0, dir).forEach(([k, ruta]) => {
+          claves.push(k);
+          if (this.textures.exists(k)) return;
+          this.load.image(k, ruta);
+          pedidos++;
+        });
       });
     });
     if (!pedidos) return Promise.resolve(true);
@@ -621,7 +797,7 @@ class BattleScene extends Phaser.Scene {
       const t0 = Date.now();
       const revisar = () => {
         if (this._cleaned || this._battleRun !== run) { resolve(false); return; }
-        if (claves.every((k) => this.textures.exists(k) || this._faltan.has(k))) { resolve(true); return; }
+        if (claves.every((k) => this.textures.exists(k) || this._faltan.has(k))) { resolve(claves.every((k) => this.textures.exists(k))); return; }
         if (Date.now() - t0 > 6000) { resolve(false); return; }
         if (!this.load.isLoading()) { try { this.load.start(); } catch (e) {} }
         this._reloj(80, revisar);
@@ -632,7 +808,8 @@ class BattleScene extends Phaser.Scene {
     return p;
   }
 
-  _fotogramas(id, pose, lado) {
+  /** Las claves de los fotogramas de una pose (las que existen). `dir`: '', 'abajo' o 'arriba'. */
+  _fotogramas(id, pose, lado, dir) {
     const E = BattleScene.ESPECIES[id] || BattleScene.ESPECIES.perro;
     if (E.via === 'mascota') {
       const out = [];
@@ -642,43 +819,47 @@ class BattleScene extends Phaser.Scene {
       }
       return out;
     }
-    const real = pose === 'camina' ? (E.repta ? 'repta' : (E.camina ? 'camina' : 'quieto')) : pose;
+    let real = pose;
+    if (pose === 'camina') real = E.repta ? 'repta' : (E.camina ? 'camina' : 'quieto');
+    if (pose === 'ataque' && !E.ataque) real = 'quieto';
     const n = real === 'quieto' ? E.quieto : real === 'ataque' ? (E.ataque || 0) : (E.repta || E.camina || 0);
+    const suf = dir && E.dirs ? '_' + dir : '';
     const out = [];
     for (let i = 1; i <= n; i++) {
-      const k = 'bz_esp_' + id + '_' + real + '_' + i;
+      const k = 'bz_esp_' + id + '_' + real + suf + '_' + i;
       if (this.textures.exists(k)) out.push(k);
     }
+    if (!out.length && suf) return this._fotogramas(id, pose, lado, '');
     return out;
   }
 
   crearVista(l) {
     const C = BattleScene.COLOR;
+    const A = window.GFBatallaArte;
     const esYo = l.id === this.yoId;
+    const conPos = Number.isFinite(l.x) && Number.isFinite(l.y);
+    const x = conPos ? l.x : -1000, y = conPos ? l.y : -1000;
     const v = {
       id: l.id, datos: l, especie: l.especie || 'perro', yo: esYo,
-      x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, potencia: 0,
-      vivo: true, oculto: false, enArbusto: false, mira: 1, andando: false,
-      buffer: [{ t: performance.now(), x: l.x, y: l.y }],
-      paso: 0, proximoPaso: 0, golpeHasta: 0, retroceso: 0,
-      ultTexto: {}
+      x, y, hp: l.hp, maxHp: l.maxHp, potencia: l.potencia || 0, golpe: Number(l.golpe) || 12,
+      vivo: l.vivo !== false, oculto: !conPos, enArbusto: false, mira: 1, cara: 0, dir: '',
+      buffer: [], paso: 0, avance: 0, proximoQuieto: 0, ultX: x, ultY: y, huellaX: x, huellaY: y,
+      golpeHasta: 0, retroceso: 0, ataqueHasta: 0, koPendiente: false, ultTexto: {}
     };
-    const A = window.GFBatallaArte;
-    v.sombra = (A && this.textures.exists(A.pieza('sombra')))
-      ? this.add.image(l.x, l.y + 8, A.pieza('sombra')).setDisplaySize(30, 12).setAlpha(0.55)
-      : this.add.ellipse(l.x, l.y + 8, 26, 9, 0x000000, 0.3);
-    v.spr = this.add.sprite(l.x, l.y + 9, '__DEFAULT').setOrigin(0.5, 1);
+    const pieza = (k) => (A && this.textures.exists(A.pieza(k)) ? A.pieza(k) : null);
+    v.sombra = pieza('x_sombra')
+      ? this.add.image(x, y + 8, pieza('x_sombra')).setAlpha(0.34).setDepth(-800)
+      : this.add.ellipse(x, y + 8, 30, 10, 0x000000, 0.3).setDepth(-800);
+    v.aro = pieza('x_aro')
+      ? this.add.image(x, y + 8, pieza('x_aro')).setTint(esYo ? C.yo : C.rival).setAlpha(esYo ? 0.85 : 0.6).setDepth(-799)
+      : this.add.ellipse(x, y + 8, 32, 12).setStrokeStyle(2, esYo ? C.yo : C.rival, 0.8).setDepth(-799);
+    v.spr = this.add.sprite(x, y + 9, '__DEFAULT').setOrigin(0.5, 1);
     if (esYo) {
-      // Un aro a los pies: dónde estás, de un vistazo, en mitad del lío.
-      v.aro = this.add.ellipse(l.x, l.y + 8, 30, 12).setStrokeStyle(2, C.yo, 0.9).setFillStyle(C.yo, 0.12);
-      v.superListo = (A && this.textures.exists(A.pieza('brillo')))
-        ? this.add.image(l.x, l.y, A.pieza('brillo')).setTint(C.oro).setBlendMode(Phaser.BlendModes.ADD).setVisible(false).setDisplaySize(64, 40)
+      v.superListo = pieza('brillo')
+        ? this.add.image(x, y, pieza('brillo')).setTint(C.oro).setBlendMode(Phaser.BlendModes.ADD).setVisible(false).setDisplaySize(64, 34)
         : null;
-    } else {
-      // Los rivales, con un aro rojo fino: en PvP todos son perros iguales y
-      // esto (con la barra roja) es lo que dice de un vistazo quién no eres tú.
-      v.aro = this.add.ellipse(l.x, l.y + 8, 28, 11).setStrokeStyle(1.5, C.rival, 0.8).setFillStyle(C.rival, 0.07);
     }
+    if (v.oculto) { v.spr.setAlpha(0); v.sombra.setVisible(false); v.aro.setVisible(false); }
     this._crearCartel(v);
     this._vestir(v);
     this.vistas.set(l.id, v);
@@ -699,45 +880,48 @@ class BattleScene extends Phaser.Scene {
         g.destroy();
       }
       v.spr.setTexture('bz_bloque').setTint(v.yo ? BattleScene.COLOR.yo : BattleScene.COLOR.rival);
-      v.escala = 1;
       v.marcos = null;
+      v.altoSprite = 22;
+      v.anchoSprite = 22;
       return;
     }
-    v.spr.setTexture(k);
-    const w = v.spr.width || 32, h = v.spr.height || 32;
-    let esc = id === 'perro' ? 1 : Math.min(52 / w, 34 / h);
-    esc = Math.max(0.6, Math.min(1.3, esc));
-    v.escala = esc;
-    v.spr.setScale(esc);
-    v.altoSprite = h * esc;
+    v.spr.clearTint();
+    v.spr.setTexture(k).setScale(1);
+    v.altoSprite = v.spr.height || 30;
+    v.anchoSprite = v.spr.width || 30;
     v.marcos = { id };
+    // La sombra, del ancho del bicho (un cocodrilo no es un conejo).
+    if (v.sombra && v.sombra.setScale) v.sombra.setScale(Math.max(0.55, Math.min(1.9, v.anchoSprite * 0.85 / 36)), 1);
+    if (v.aro && v.aro.setScale) v.aro.setScale(Math.max(0.8, Math.min(1.7, v.anchoSprite * 0.95 / 38)), 1);
+    if (v.cartel) this._escalarCartel(v);
   }
 
+  /* EL CARTEL de encima de cada uno: nombre y nivel, la barra de vida con su
+     número y, en el tuyo, las tres cargas de munición. Medidas en píxeles de
+     CSS (el contenedor se escala a dpr/zoom): la misma letra del juego que
+     el cartel de la mascota en el mapa (PressStart2P de 8 px). */
   _crearCartel(v) {
     const C = BattleScene.COLOR;
-    const res = this._dpr || 1;
+    const res = Math.max(2, this._dpr || 1);
     const est = (tam, color) => ({
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', fontStyle: 'bold',
-      fontSize: tam + 'px', color, stroke: '#0a0f1a', strokeThickness: 3, resolution: res
+      fontFamily: '"PressStart2P", monospace', fontSize: tam + 'px', color,
+      stroke: '#0a0710', strokeThickness: 3, resolution: res
     });
     const d = v.datos;
     const c = this.add.container(v.x, v.y).setDepth(43000);
-    /* Medidas en píxeles de CSS (el contenedor se escala a dpr/zoom):
-         nombre y nivel  ── encima
-         [■■■■■■■ 1520]  ── la barra de vida, con el número dentro
-         ▮▮▮             ── tu munición (solo la tuya), debajo */
-    v.nombre = this.add.text(0, -13, d.petName || 'Pet', est(12, v.yo ? '#c8ffcf' : '#ffffff')).setOrigin(0.5, 1);
-    v.nivel = this.add.text(0, -13, '', est(10, '#ffdc7a')).setOrigin(0, 1);
-    v.barraFondo = this.add.rectangle(0, -6, 54, 11, C.fondoBarra).setOrigin(0.5, 0.5).setStrokeStyle(1, 0x000000, 0.95);
-    v.barra = this.add.rectangle(-26, -6, 52, 9, v.yo ? C.yo : C.rival).setOrigin(0, 0.5);
-    v.vidaTxt = this.add.text(0, -6, '', est(9, '#ffffff')).setOrigin(0.5, 0.5);
-    v.huesos = this.add.text(30, -6, '', est(10, '#ffdc7a')).setOrigin(0, 0.5);
-    c.add([v.barraFondo, v.barra, v.nombre, v.nivel, v.vidaTxt, v.huesos]);
+    v.nombre = this.add.text(0, -12, String(d.petName || 'Pet').slice(0, 16), est(8, v.yo ? '#c8ffcf' : '#ffe9a8')).setOrigin(0.5, 1);
+    v.nivel = this.add.text(0, -12, '', est(7, '#ffd24a')).setOrigin(0, 1);
+    v.barraFondo = this.add.rectangle(0, -5, 50, 9, C.fondoBarra).setOrigin(0.5, 0.5).setStrokeStyle(1, 0x000000, 1);
+    v.barra = this.add.rectangle(-24, -5, 48, 7, v.yo ? C.yo : C.rival).setOrigin(0, 0.5);
+    v.barraLuz = this.add.rectangle(-24, -7, 48, 2, 0xffffff, 0.28).setOrigin(0, 0.5);
+    v.escudoBarra = this.add.rectangle(-24, -5, 0, 7, C.escudo, 0.85).setOrigin(0, 0.5);
+    v.vidaTxt = this.add.text(0, -5, '', est(6, '#ffffff')).setOrigin(0.5, 0.5);
+    c.add([v.barraFondo, v.barra, v.barraLuz, v.escudoBarra, v.nombre, v.nivel, v.vidaTxt]);
     if (v.yo) {
       v.municion = [];
       for (let i = 0; i < 3; i++) {
-        const fondo = this.add.rectangle(-26 + i * 18, 3, 16, 5, C.fondoBarra).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.85);
-        const lleno = this.add.rectangle(-26 + i * 18, 3, 16, 5, C.municion).setOrigin(0, 0.5);
+        const fondo = this.add.rectangle(-24 + i * 16.5, 4, 15, 4, C.fondoBarra).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.9);
+        const lleno = this.add.rectangle(-24 + i * 16.5, 4, 15, 4, C.municion).setOrigin(0, 0.5);
         c.add([fondo, lleno]);
         v.municion.push(lleno);
       }
@@ -749,92 +933,89 @@ class BattleScene extends Phaser.Scene {
 
   _ponerTextoNivel(v) {
     const d = v.datos;
-    v.nivel.setText('Lv.' + (d.nivel || 1));
-    // Nombre y nivel centrados JUNTOS sobre la cabeza.
-    const total = v.nombre.width + 5 + v.nivel.width;
+    v.nivel.setText('Lv' + (d.nivel || 1));
+    const total = v.nombre.width + 4 + v.nivel.width;
     v.nombre.setOrigin(0, 1).setX(-total / 2);
-    v.nivel.setX(-total / 2 + v.nombre.width + 5);
+    v.nivel.setX(-total / 2 + v.nombre.width + 4);
   }
 
   _escalarCartel(v) {
     if (!v.cartel) return;
-    const s = this._escalaCartel || 1;
-    v.cartel.setScale(s);
-    v.cartelAlto = (v.altoSprite || 30) + 4;
+    v.cartel.setScale(this._escalaCartel || 1);
   }
 
   _pintarCartel(v) {
     const C = BattleScene.COLOR;
     const p = Math.max(0, Math.min(1, v.hp / Math.max(1, v.maxHp)));
-    v.barra.width = 52 * p;
-    if (!v.yo) v.barra.fillColor = C.rival;
-    else v.barra.fillColor = p > 0.5 ? C.yo : (p > 0.25 ? C.vidaMedia : C.vidaBaja);
+    const ancho = Math.round(48 * p * 2) / 2;
+    if (v.ultTexto.barra !== ancho) { v.barra.width = ancho; v.barraLuz.width = ancho; v.ultTexto.barra = ancho; }
+    const color = v.yo ? (p > 0.5 ? C.yo : (p > 0.25 ? C.vidaMedia : C.vidaBaja)) : C.rival;
+    if (v.barra.fillColor !== color) v.barra.fillColor = color;
+    const esc = v.yo && this._escudoYo > 0 ? Math.min(48, 48 * this._escudoYo / Math.max(1, v.maxHp)) : 0;
+    if (v.escudoBarra.width !== esc) v.escudoBarra.width = esc;
     const txt = String(Math.max(0, Math.round(v.hp)));
     if (v.ultTexto.vida !== txt) { v.vidaTxt.setText(txt); v.ultTexto.vida = txt; }
-    const hu = v.potencia > 0 ? '🦴' + v.potencia : '';
-    if (v.ultTexto.huesos !== hu) { v.huesos.setText(hu); v.ultTexto.huesos = hu; }
   }
 
   destruirVista(v) {
     ['sombra', 'spr', 'aro', 'superListo', 'cartel'].forEach((k) => {
-      if (v[k]) { try { v[k].destroy(); } catch (e) {} v[k] = null; }
+      if (v[k]) { try { if (this.tweens) this.tweens.killTweensOf(v[k]); v[k].destroy(); } catch (e) {} v[k] = null; }
     });
   }
 
   // =========================================================================
-  // INTERFAZ HTML
+  // INTERFAZ HTML (index.html: #battleUI; estilos en gf-arena.css)
   // =========================================================================
   montarUI() {
     this.ui = document.getElementById('battleUI');
     if (!this.ui) { console.error('❌ Falta #battleUI en el HTML'); return; }
-    this.ui.classList.remove('hidden');
+    this.ui.classList.remove('hidden', 'en-gas', 'caido', 'fin', 'sin-teclas');
     this.ui.classList.add('buscando');
     const $ = (id) => document.getElementById(id);
     this.el = {
       yo: $('bzYo'), retrato: $('bzRetrato'), nombre: $('bzYoNombre'), nivel: $('bzYoNivel'),
       vidaBarra: $('bzYoVidaBarra'), vida: $('bzYoVida'), vidaTxt: $('bzYoVidaTxt'),
-      huesos: $('bzYoHuesos'), bajas: $('bzYoBajas'),
-      modo: $('bzModo'), relojTxt: $('bzReloj'), quedan: $('bzQuedan'), salir: $('bzSalir'),
-      feed: $('bzFeed'), aviso: $('bzAviso'), dolor: $('bzDolor'),
+      huesos: $('bzYoHuesos'), bajas: $('bzYoBajas'), escudo: $('bzYoEscudo'), rapidez: $('bzYoRapidez'),
+      modo: $('bzModo'), relojTxt: $('bzReloj'), quedan: $('bzQuedan'), gas: $('bzGasEstado'), gasTxt: $('bzGasTxt'),
+      salir: $('bzSalir'), feed: $('bzFeed'), aviso: $('bzAviso'), dolor: $('bzDolor'),
       busqueda: $('bzBusqueda'), busqTitulo: $('bzBusquedaTitulo'), busqTexto: $('bzBusquedaTexto'),
       sala: $('bzSala'), busqTiempo: $('bzBusquedaTiempo'), practicar: $('bzPracticar'), cancelar: $('bzCancelar'),
       lobby: $('bzLobby'), listo: $('bzListo'),
       tactil: $('bzTactil'), zonaMover: $('bzZonaMover'), stickMover: $('bzStickMover'),
       zonaDisparo: $('bzZonaDisparo'), stickDisparo: $('bzStickDisparo'), superBtn: $('bzSuper'), superAnillo: $('bzSuperAnillo'),
-      pie: $('bzPie'), superBarra: $('bzSuperBarra'), superRelleno: $('bzSuperRelleno'), superTexto: $('bzSuperTexto'),
+      pie: $('bzPie'), municionHud: $('bzMunicion'), superBarra: $('bzSuperBarra'), superRelleno: $('bzSuperRelleno'), superTexto: $('bzSuperTexto'),
       caido: $('bzCaido'), caidoTitulo: $('bzCaidoTitulo'), caidoTexto: $('bzCaidoTexto'), mirar: $('bzMirar'), volverCaido: $('bzVolverCaido'),
       resultado: $('bzResultado'), resPuesto: $('bzResPuesto'), resTitulo: $('bzResTitulo'), resSub: $('bzResSub'),
       resPremios: $('bzResPremios'), resTabla: $('bzResTabla'), otraVez: $('bzOtraVez'), volver: $('bzVolver'),
-      nieblaEstado: $('bzNieblaEstado'), fuera: $('bzFuera'), fueraTxt: $('bzFueraTxt'), flecha: $('bzFlecha'),
-      red: $('bzRed')
+      fuera: $('bzFuera'), fueraTxt: $('bzFueraTxt'), flecha: $('bzFlecha'), red: $('bzRed')
     };
     const e = this.el;
+    this._botonesRendirse = [e.salir].filter(Boolean);
     // Estado de partida: todo a cero (la UI es la misma de la batalla anterior).
-    [e.caido, e.resultado, e.aviso, e.nieblaEstado, e.fuera, e.red].forEach((n) => n && n.classList.add('hidden'));
-    if (this.ui) this.ui.classList.remove('en-niebla');
+    [e.caido, e.resultado, e.aviso, e.gas, e.fuera, e.red, e.escudo, e.rapidez].forEach((n) => n && n.classList.add('hidden'));
     if (e.busqueda) e.busqueda.classList.remove('hidden');
     if (e.feed) e.feed.textContent = '';
     if (e.dolor) e.dolor.classList.remove('activo');
-    if (e.relojTxt) { e.relojTxt.textContent = '--:--'; e.relojTxt.classList.remove('niebla', 'poco'); }
+    if (e.relojTxt) e.relojTxt.textContent = '--:--';
     if (e.quedan) e.quedan.textContent = '-';
     if (e.modo) e.modo.textContent = this.modo === 'bot' ? 'Daily battle' : (this.modo === 'practica' ? 'Practice' : 'Arena PvP');
-    if (e.nombre) e.nombre.textContent = this.datosJugador.petName && this.datosJugador.petName !== '---' ? this.datosJugador.petName : 'Your dog';
+    if (e.nombre) e.nombre.textContent = this.datosJugador.petName && this.datosJugador.petName !== '---' ? this.datosJugador.petName : 'Your pet';
     if (e.nivel) e.nivel.textContent = '';
     if (e.retrato) e.retrato.style.backgroundImage = "url('" + BattleScene.RETRATO_MASCOTA + "')";
-    if (e.huesos) e.huesos.textContent = '🦴 0';
-    if (e.bajas) e.bajas.textContent = '💥 0';
+    if (e.huesos) e.huesos.textContent = '0';
+    if (e.bajas) e.bajas.textContent = '0';
     this._pintarVidaHUD(1, 1);
     this._pintarSuperHUD(0);
+    this._pintarMunicionHUD(3);
     if (e.practicar) e.practicar.classList.toggle('hidden', this.modo !== 'pvp');
     if (e.sala) e.sala.textContent = '';
-    if (e.busqTiempo) e.busqTiempo.textContent = '';
-    // La sala de espera (2026-10-10): vacía hasta que el servidor mande la lista.
+    if (e.busqTiempo) e.busqTiempo.textContent = '0:00';
     this._listo = false;
     if (e.lobby) { e.lobby.textContent = ''; e.lobby.classList.add('hidden'); }
     this._pintarBotonListo(false);
     this.estadoBusqueda(
       this.modo === 'bot' ? 'Preparing your daily battle…' : (this.modo === 'practica' ? 'Preparing practice…' : 'Searching for players…'),
-      this.modo === 'pvp' ? 'Be the last dog standing. Up to 6 players.' : 'Get ready!'
+      this.modo === 'pvp' ? 'Be the last pet standing. 2 to 6 players; empty places are filled with bots.' : 'Get ready!'
     );
 
     this._escucharDOM(e.salir, 'click', () => this.pedirRendicion(e.salir));
@@ -848,12 +1029,8 @@ class BattleScene extends Phaser.Scene {
     this._cancelarConfirmacion();
   }
 
-  /* LA SALA DE ESPERA (2026-10-10). "En el PvP no puedo ver a los otros
-     jugadores que entraron conmigo; quiero un botón de listo para que, si
-     todos los unidos le dan, podamos jugar, y el resto sean bots." El
-     servidor manda la lista en `brawl:sala` (ver brawlAvisarSala); aquí se
-     pinta y el botón "Ready" manda `brawl:listo`. Los nombres van con
-     textContent: los escribe cada jugador. */
+  /* LA SALA DE ESPERA: quién ha entrado y quién está listo. Los nombres van
+     con textContent: los escribe cada jugador. */
   _pintarSala(d) {
     const e = this.el;
     if (!e) return;
@@ -863,24 +1040,31 @@ class BattleScene extends Phaser.Scene {
       e.lobby.classList.toggle('hidden', !lista.length);
       lista.forEach((x) => {
         const li = document.createElement('li');
-        li.className = 'bz-lobby-fila' + (x.listo ? ' listo' : '') + (x.yo ? ' yo' : '');
+        li.className = 'ga-lobby-fila' + (x.listo ? ' listo' : '') + (x.yo ? ' yo' : '');
+        const img = document.createElement('img');
+        img.src = BattleScene.RETRATO_MASCOTA; img.alt = ''; img.className = 'ga-lobby-retrato';
         const nom = document.createElement('span');
-        nom.className = 'bz-lobby-nombre';
+        nom.className = 'ga-lobby-nombre';
         nom.textContent = String(x.nombre || 'Player').slice(0, 24) + (x.yo ? ' (you)' : '');
-        const pet = document.createElement('span');
-        pet.className = 'bz-lobby-mascota';
-        pet.textContent = String(x.mascota || 'Pet').slice(0, 20) + ' · Lv.' + (Number(x.nivel) || 1);
+        const pet = document.createElement('small');
+        pet.textContent = String(x.mascota || 'Pet').slice(0, 20) + ' · Lv' + (Number(x.nivel) || 1);
+        nom.appendChild(pet);
         const est = document.createElement('span');
-        est.className = 'bz-lobby-estado';
-        est.textContent = x.listo ? '✔ Ready' : 'Not ready';
-        li.appendChild(nom); li.appendChild(pet); li.appendChild(est);
+        est.className = 'ga-lobby-estado';
+        est.textContent = x.listo ? 'Ready' : 'Waiting';
+        li.appendChild(img); li.appendChild(nom); li.appendChild(est);
         e.lobby.appendChild(li);
       });
       const libres = Math.max(0, (Number(d && d.max) || 6) - lista.length);
       if (libres && lista.length) {
         const li = document.createElement('li');
-        li.className = 'bz-lobby-fila bots';
-        li.textContent = '🤖 ' + libres + (libres === 1 ? ' place' : ' places') + ' for bots';
+        li.className = 'ga-lobby-fila bots';
+        const img = document.createElement('img');
+        img.src = BattleScene.ICONOS + 'bot.png'; img.alt = ''; img.className = 'ga-lobby-retrato';
+        const t = document.createElement('span');
+        t.className = 'ga-lobby-nombre';
+        t.textContent = libres + (libres === 1 ? ' place' : ' places') + ' for bots';
+        li.appendChild(img); li.appendChild(t);
         e.lobby.appendChild(li);
       }
     }
@@ -893,9 +1077,10 @@ class BattleScene extends Phaser.Scene {
     const b = this.el && this.el.listo;
     if (!b) return;
     b.classList.toggle('hidden', !ver);
-    b.textContent = this._listo ? '✔ Ready — tap to cancel' : 'Ready';
+    const t = b.querySelector ? b.querySelector('span') : null;
+    (t || b).textContent = this._listo ? 'Ready! (tap to cancel)' : 'Ready';
     b.classList.toggle('activo', !!this._listo);
-    b.setAttribute('aria-pressed', this._listo ? 'true' : 'false');
+    if (b.setAttribute) b.setAttribute('aria-pressed', this._listo ? 'true' : 'false');
   }
 
   _alternarListo() {
@@ -918,13 +1103,13 @@ class BattleScene extends Phaser.Scene {
     const ancho = Math.round(p * 1000) / 10 + '%';
     if (this._hud.vida !== ancho) { e.vida.style.width = ancho; this._hud.vida = ancho; }
     const clase = p > 0.5 ? '' : (p > 0.25 ? 'media' : 'baja');
-    if (this._hud.vidaClase !== clase) {
+    if (this._hud.vidaClase !== clase && e.vidaBarra) {
       e.vidaBarra.classList.remove('media', 'baja');
       if (clase) e.vidaBarra.classList.add(clase);
       this._hud.vidaClase = clase;
     }
     const txt = Math.max(0, Math.round(hp)) + ' / ' + Math.round(maxHp);
-    if (this._hud.vidaTxt !== txt) { e.vidaTxt.textContent = txt; this._hud.vidaTxt = txt; }
+    if (this._hud.vidaTxt !== txt && e.vidaTxt) { e.vidaTxt.textContent = txt; this._hud.vidaTxt = txt; }
   }
 
   _pintarSuperHUD(carga) {
@@ -937,9 +1122,23 @@ class BattleScene extends Phaser.Scene {
     const lista = c >= 1;
     if (e.superRelleno) e.superRelleno.style.width = (c * 100) + '%';
     if (e.superBarra) e.superBarra.classList.toggle('lista', lista);
-    if (e.superTexto) e.superTexto.textContent = lista ? 'SUPER READY · E' : 'SUPER';
+    if (e.superTexto) e.superTexto.textContent = lista ? 'SUPER READY' : 'SUPER';
     if (e.superAnillo) e.superAnillo.style.strokeDashoffset = String(176 * (1 - c));
     if (e.superBtn) { e.superBtn.classList.toggle('listo', lista); e.superBtn.disabled = !lista; }
+  }
+
+  _pintarMunicionHUD(m) {
+    const cont = this.el && this.el.municionHud;
+    if (!cont || !cont.children) return;
+    const clave = Math.round(m * 20);
+    if (this._hud.municion === clave) return;
+    this._hud.municion = clave;
+    for (let i = 0; i < cont.children.length; i++) {
+      const c = Math.max(0, Math.min(1, m - i));
+      const n = cont.children[i];
+      n.style.setProperty('--carga', String(c));
+      n.classList.toggle('llena', c >= 1);
+    }
   }
 
   aviso(texto, op) {
@@ -947,27 +1146,45 @@ class BattleScene extends Phaser.Scene {
     if (!el) return;
     op = op || {};
     el.textContent = texto;
-    el.classList.remove('hidden', 'pop', 'oro', 'peque');
+    el.classList.remove('hidden', 'pop', 'oro', 'peque', 'malo');
     if (op.oro) el.classList.add('oro');
     if (op.peque) el.classList.add('peque');
+    if (op.malo) el.classList.add('malo');
     void el.offsetWidth;                       // reinicia la animación
     if (!this._reducedMotion) el.classList.add('pop');
     if (this._plazoAviso) window.clearTimeout(this._plazoAviso);
     this._plazoAviso = this._reloj(op.ms || 1100, () => { el.classList.add('hidden'); });
   }
 
-  alFeed(html) {
+  /** Quién ha tumbado a quién: nombres con textContent, el icono del KO en medio. */
+  alFeed(asesino, victima) {
     const f = this.el && this.el.feed;
     if (!f) return;
     const li = document.createElement('li');
-    li.innerHTML = html;
+    const nombre = (v) => {
+      const s = document.createElement('span');
+      s.className = v && v.yo ? 'yo' : 'rival';
+      s.textContent = v ? String(v.datos.petName || 'Pet').slice(0, 16) : '?';
+      return s;
+    };
+    if (asesino) {
+      li.appendChild(nombre(asesino));
+      const img = document.createElement('img');
+      img.src = BattleScene.ICONOS + 'ko.png'; img.alt = 'knocked out';
+      li.appendChild(img);
+      li.appendChild(nombre(victima));
+    } else {
+      const img = document.createElement('img');
+      img.src = BattleScene.ICONOS + 'gas.png'; img.alt = '';
+      li.appendChild(nombre(victima));
+      li.appendChild(img);
+      const t = document.createElement('span');
+      t.textContent = 'is out';
+      li.appendChild(t);
+    }
     f.appendChild(li);
-    while (f.children.length > 5) f.removeChild(f.firstChild);
+    while (f.children.length > 4) f.removeChild(f.firstChild);
     this._reloj(5200, () => { li.classList.add('sale'); this._reloj(420, () => li.remove()); });
-  }
-
-  _esc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   /**
@@ -980,7 +1197,11 @@ class BattleScene extends Phaser.Scene {
     if (this.estado !== 'combate' && this.estado !== 'cuenta') { this._cancelarConfirmacion(); this.rendirse(); return; }
     if (this._confirmandoRendicion) { this._cancelarConfirmacion(); this.rendirse(); return; }
     this._confirmandoRendicion = true;
-    if (boton) { boton.classList.add('confirmar'); boton.textContent = 'Confirm?'; }
+    if (boton) {
+      boton.classList.add('confirmar');
+      const t = boton.querySelector ? boton.querySelector('.ga-redondo-txt') : null;
+      (t || boton).textContent = 'Confirm?';
+    }
     if (this._plazoConfirmar) window.clearTimeout(this._plazoConfirmar);
     this._plazoConfirmar = this._reloj(3500, () => this._cancelarConfirmacion());
   }
@@ -988,10 +1209,15 @@ class BattleScene extends Phaser.Scene {
   _cancelarConfirmacion() {
     if (this._plazoConfirmar) { window.clearTimeout(this._plazoConfirmar); this._plazoConfirmar = null; }
     this._confirmandoRendicion = false;
-    const b = this.el && this.el.salir;
-    if (!b) return;
-    b.classList.remove('confirmar');
-    b.textContent = (this.estado === 'fin' || this.estado === 'caido') ? 'Back to map' : 'Surrender';
+    const botones = (this._botonesRendirse || []).slice();
+    if (this.el && this.el.salir && botones.indexOf(this.el.salir) < 0) botones.push(this.el.salir);
+    const texto = (this.estado === 'fin' || this.estado === 'caido') ? 'Back to map' : 'Surrender';
+    botones.forEach((b) => {
+      if (!b || !b.classList) return;
+      b.classList.remove('confirmar');
+      const t = b.querySelector ? b.querySelector('.ga-redondo-txt') : null;
+      (t || b).textContent = texto;
+    });
   }
 
   _escucharDOM(target, event, callback, opciones) {
@@ -1213,9 +1439,7 @@ class BattleScene extends Phaser.Scene {
     this._buscandoIniciado = true;
     this.registrarSocket();
     this._pedirPartida();
-    // Cronómetro de la búsqueda, con el reloj del navegador (corre aunque
-    // Phaser esté parado con la pestaña oculta). Con _reloj y no con un
-    // setInterval: se apaga solo al limpiar la escena y al dejar de buscar.
+    // Cronómetro de la búsqueda, con el reloj del navegador.
     const t0 = Date.now();
     const tic = () => {
       if (this.estado !== 'buscando' || !this.el || !this.el.busqTiempo) return;
@@ -1234,9 +1458,7 @@ class BattleScene extends Phaser.Scene {
     this._emitir(ev);
     /* VIGILANTE. Si la petición se pierde (el socket se reconecta justo en
        medio), se repite una vez; si aun así no llega nada, se avisa y se
-       vuelve al mapa en vez de dejar al jugador mirando un "buscando…" eterno.
-       En PvP solo se vigila que la cola conteste: esperar a otros jugadores
-       puede tardar de verdad, y para eso está el botón de cancelar. */
+       vuelve al mapa en vez de dejar al jugador mirando un "buscando…" eterno. */
     const run = this._battleRun;
     this._intentoPeticion = (this._intentoPeticion || 0) + 1;
     const intentoDe = this._intentoPeticion;
@@ -1257,12 +1479,13 @@ class BattleScene extends Phaser.Scene {
         this.volverEnBreve(2600);
       });
     });
-    // La búsqueda dura 150 s; el servidor completa las plazas con bots.
+    // Red de seguridad del PvP: el servidor lanza la sala mucho antes (45 s
+    // como mucho); si a los 170 s seguimos buscando, se le vuelve a pedir.
     if (this.modo === 'pvp' && !this._pvpDeadlineScheduled) {
       this._pvpDeadlineScheduled = true;
       this._reloj(170000, () => {
         if (this._battleRun !== run || this.estado !== 'buscando' || this.matchId || this.modo !== 'pvp') return;
-        this.estadoBusqueda('Preparing the arena…', 'Waiting for the server to complete the remaining places with bots.');
+        this.estadoBusqueda('Preparing the arena…', 'Waiting for the server to fill the empty places with bots.');
         this._emitir('brawl:cola');
       });
     }
@@ -1280,7 +1503,7 @@ class BattleScene extends Phaser.Scene {
     if (this.el && this.el.lobby) { this.el.lobby.textContent = ''; this.el.lobby.classList.add('hidden'); }
     this._listo = false;
     this._pintarBotonListo(false);
-    this.estadoBusqueda('Preparing practice…', 'You against 3 bots. No points — just training.');
+    this.estadoBusqueda('Preparing practice…', 'You against 3 bots. No points, just training.');
     this._pedirPartida();
   }
 
@@ -1288,25 +1511,19 @@ class BattleScene extends Phaser.Scene {
     this.on('brawl:enCola', (d) => {
       this._respuestaCola = true;
       if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
-      this.estadoBusqueda('Searching for players…', 'Be the last dog standing. Up to 6 players.');
-      this._busquedaTerminaEn = Date.now() + (Number.isFinite(d.empiezaEnMs) ? d.empiezaEnMs : 150000);
+      this.estadoBusqueda('Searching for players…', 'Be the last pet standing. 2 to 6 players; empty places are filled with bots.');
+      if (Number.isFinite(d.empiezaEnMs)) this._busquedaTerminaEn = Date.now() + d.empiezaEnMs;
       this._jugadoresBuscando = Number(d.enCola) || 1;
     });
     this.on('brawl:sala', (d) => {
       this._respuestaCola = true;
       if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
-      const n = Number(d.jugadores) || 2, max = Number(d.max) || 6;
-      const seg = Math.ceil((Number(d.empiezaEnMs) || 0) / 1000);
+      const n = Number(d.jugadores) || 1;
       this._busquedaTerminaEn = Date.now() + (Number(d.empiezaEnMs) || 0);
       this._jugadoresBuscando = n;
-      // Solo en la sala, "Ready" ya no lanza la partida (2026-10-11): se espera
-      // a los demás (ver brawlComprobarListos en server2.js). Se dice.
       this.estadoBusqueda(n > 1 ? 'Players found!' : 'Waiting for players…',
         n > 1 ? 'Press Ready when you are set. When everyone here is ready the battle starts at once; empty places are filled with bots.'
-              : 'Players who search now join this lobby. With two or more ready it starts at once; if not, when the timer ends, with bots in the empty places.');
-      // (Antes: una fila de puntitos con los ocupados. Ahora la lista con los
-      //  nombres; la cuenta atrás la escribe update() en bzSala.)
-      if (this.el.sala && !this._busquedaTerminaEn) this.el.sala.textContent = n + ' / ' + max + ' · ' + seg + 's';
+              : 'Players who search now join you here. Press Ready and the battle starts in a few seconds, with bots in the empty places.');
       this._pintarSala(d);
     });
     this.on('brawl:fueraCola', () => {});
@@ -1324,8 +1541,7 @@ class BattleScene extends Phaser.Scene {
     this.on('brawl:error', (d) => {
       /* Tras repetir la petición, "ya estás en una batalla" casi siempre es la
          PRIMERA petición, que sigue en marcha (el servidor tardó). Irse ahora
-         dejaría esa partida empezando sin nadie (y gastaría una diaria): se
-         sigue esperando a su brawl:inicio. */
+         dejaría esa partida empezando sin nadie (y gastaría una diaria). */
       if (d.error === 'already_in_battle' && this._reintentado && this.estado === 'buscando') {
         this._reintentado = false;
         return;
@@ -1333,21 +1549,22 @@ class BattleScene extends Phaser.Scene {
       this._respuestaCola = true;
       let msg = 'Could not start the battle.';
       if (d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
-      // (2026-10-19) El servidor no deja batallar sin nombre (gfSocketConNombre).
       if (d.error === 'name_required') msg = 'Choose your character name first to battle.';
       else if (d.error === 'already_in_battle') msg = 'You are already in a battle (maybe in another tab).';
-      else if (d.error === 'daily_limit') msg = 'You already played your ' + ((d.daily && d.daily.max) || 5) + ' daily battles. Come back tomorrow!';
+      else if (d.error === 'daily_limit') {
+        const ms = Number(d.daily && d.daily.resetsInMs) || 0;
+        msg = 'You already played your ' + ((d.daily && d.daily.max) || 5) + ' daily battles.' + (ms > 0 ? ' Back in ' + BattleScene.duracion(ms) + '.' : '');
+      }
       if (this.estado === 'buscando') this.estadoBusqueda('Oops', msg + ' Back to the map…');
       else this.aviso(msg, { peque: true, ms: 3000 });
       this.estado = 'fin';
       this._cancelarConfirmacion();
       this.volverEnBreve(3200);
     });
-    /* SI SE CAE LA CONEXIÓN A MITAD, NO SE PIERDE LA PARTIDA (2026-10-02).
-       El servidor guarda tu perro unos segundos con un piloto automático (ver
-       brawlEsperarVuelta en server2.js). Socket.IO reconecta solo; en cuanto
-       vuelve, se pide la partida ('brawl:volver') y llega un brawl:inicio con
-       `reanudar` (ver reanudarPartida). Mientras, un cartel "Reconnecting…". */
+    /* SI SE CAE LA CONEXIÓN A MITAD, NO SE PIERDE LA PARTIDA. El servidor
+       guarda tu perro un minuto con un piloto automático (BRAWL_GRACIA_MS).
+       Socket.IO reconecta solo; en cuanto vuelve, se pide la partida
+       ('brawl:volver') y llega un brawl:inicio con `reanudar`. */
     this.on('disconnect', () => {
       if (this.estado === 'buscando') {
         this._respuestaCola = false;
@@ -1376,10 +1593,19 @@ class BattleScene extends Phaser.Scene {
       this._pintarRed(false);
       this.estado = 'fin';
       this._cancelarConfirmacion();
-      this.aviso(d && d.error === 'ended' ? 'The battle ended while you were away' : 'Could not rejoin the battle — back to the map',
+      this.aviso(d && d.error === 'ended' ? 'The battle ended while you were away' : 'Could not rejoin the battle, back to the map',
                  { peque: true, ms: 2600 });
       this.volverEnBreve(2600);
     });
+  }
+
+  /** "2h 05m", "12m", "45s": lo que falta, para las diarias. */
+  static duracion(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+    if (m > 0) return m + 'm';
+    return s + 's';
   }
 
   /** Recién (re)conectado en plena partida: pedirla otra vez. */
@@ -1407,7 +1633,7 @@ class BattleScene extends Phaser.Scene {
     if (!d || !d.matchId || !d.arena || !Array.isArray(d.luchadores)) return;
     if (this.matchId) {
       // Ya estamos en una: si es la MISMA y viene con `reanudar`, es que se
-      // cortó la red y el servidor nos devuelve la partida tal y como va.
+      // cortó la red (o se pidió el estado) y el servidor la manda tal y como va.
       if (d.reanudar && d.matchId === this.matchId) this.reanudarPartida(d);
       return;
     }
@@ -1433,23 +1659,19 @@ class BattleScene extends Phaser.Scene {
     });
     Object.keys(this.R.cajas).forEach((k) => { if (!vivas.has(Number(k))) M.romperCaja(this.R, Number(k)); });
 
+    // La arena de la partida (el suelo de la espera se aprovecha si es la misma).
     this.quitarFondoDeEspera();
-    this.arena = this.construirArena(d.arena.id, d.arena.filas);
-    this.arena.cajas.forEach((c, i) => { if (!vivas.has(i)) this._cajaRota(i, c, false); });
+    this.arena = this.construirArena(d.arena.id, this.R, d.arena.tema);
 
     this._ajustarZoom();
-    const cam = this.cameras.main;
-    const m = BattleScene.MARCO * 32;
-    cam.setBounds(-m, -m, this.R.anchoPx + 2 * m, this.R.altoPx + 2 * m);
-
     d.luchadores.forEach((l) => this.crearVista(l));
     const yo = this.vistas.get(this.yoId);
     if (yo) {
       this.pred = { x: yo.x, y: yo.y };
-      cam.centerOn(yo.x, yo.y);
+      this._centrarCamara(yo.x, yo.y - 8);
       this._pintarVidaHUD(yo.hp, yo.maxHp);
-      if (this.el && this.el.nivel) this.el.nivel.textContent = 'Lv.' + (yo.datos.nivel || 1);
-      if (this.el && this.el.nombre) this.el.nombre.textContent = yo.datos.petName || 'Your dog';
+      if (this.el && this.el.nivel) this.el.nivel.textContent = 'Lv ' + (yo.datos.nivel || 1);
+      if (this.el && this.el.nombre) this.el.nombre.textContent = yo.datos.petName || 'Your pet';
     }
     // Los animales, a por sus sprites (mientras, se ven como perro).
     const run = this._battleRun;
@@ -1460,12 +1682,12 @@ class BattleScene extends Phaser.Scene {
       });
     });
 
-    this._ponerZona(d.zona);
+    this._ponerGas(d.gas);
     this._ponerObjetos(d.objetos);
     // Los que ya habían caído (si se entra a mitad: reconexión).
     d.luchadores.forEach((l) => {
       const v = this.vistas.get(l.id);
-      if (v && l.vivo === false && v.vivo) { v.vivo = false; this._caer(v); }
+      if (v && l.vivo === false && v.vivo) { v.vivo = false; v.hp = 0; this._caer(v, false); }
     });
     this.quedan = d.luchadores.filter((l) => l.vivo !== false).length;
     if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
@@ -1507,6 +1729,7 @@ class BattleScene extends Phaser.Scene {
     this.estado = 'combate';
     this.tCombateLocal = performance.now();
     this._ultimoSnap = this.tCombateLocal;
+    this._teclasHasta = this.tCombateLocal + 14000;
     this.aviso('FIGHT!', { oro: true, ms: 900 });
     this._sonar('ya');
     this._cancelarConfirmacion();
@@ -1518,45 +1741,57 @@ class BattleScene extends Phaser.Scene {
     this.estado = yo && yo.vivo ? 'combate' : 'caido';
     this.tCombateLocal = performance.now() - Math.max(0, enCombateMs || 0);
     this._ultimoSnap = performance.now();
-    // Los avisos de la niebla que ya pasaron, no se repiten.
-    const z = this.zona;
-    if (z && enCombateMs >= z.inicioMs - 5000) this._avisosNiebla.previo = true;
-    if (z && enCombateMs >= z.inicioMs) this._avisosNiebla.empieza = true;
+    this._teclasHasta = 0;
+    const g = this.gas;
+    if (g && enCombateMs >= g.inicioMs - 5000) this._avisosGas.previo = true;
+    if (g && enCombateMs >= g.inicioMs) this._avisosGas.empieza = true;
   }
 
-  /** La niebla del inicio: el plan de fases y dónde está ahora. */
-  _ponerZona(z) {
-    this.zona = z || null;
-    if (!z) return;
-    const r = Number.isFinite(z.r) ? z.r : z.r0;
-    this.zonaR = r;
-    this.zonaRObjetivo = r;
-    this.zonaC = { x: z.cx, y: z.cy };
-    this.zonaCObjetivo = { x: z.cx, y: z.cy };
-    // Hasta la primera instantánea, el anillo siguiente sale del plan.
-    const f = Array.isArray(z.fases) && z.fases[0];
-    this.zonaSig = f ? { x: f[2], y: f[3], r: f[4] } : null;
-    this._zonaPintada = -1;
-    this._sigPintado = '';
+  /** Lo que se sabe del gas al empezar (o al volver). */
+  _ponerGas(g) {
+    if (!g || !this.R) { this.gas = null; return; }
+    const R = this.R;
+    const nuevo = !this.gas;
+    this.gas = {
+      d: Number(g.d) || 0, dObj: Number(g.d) || 0, estado: Number(g.estado) || 0, vel: Number(g.vel) || 3.6,
+      max: Number(g.max) || 0, inicioMs: Number(g.inicioMs) || 30000, maxMs: Number(g.maxMs) || 210000,
+      x0: Number.isFinite(g.x0) ? g.x0 : R.juego.x0, y0: Number.isFinite(g.y0) ? g.y0 : R.juego.y0,
+      x1: Number.isFinite(g.x1) ? g.x1 : R.juego.x1, y1: Number.isFinite(g.y1) ? g.y1 : R.juego.y1
+    };
+    this._gasPintado = -1;
+    if (nuevo || !this.gasBandas) this._crearGas();
   }
 
-  /** Lo que hay en el suelo al entrar (huesos y carne). */
+  /* EL GAS SE VE ENTRAR. Cuatro bandas de una loseta de nubes verdes (pocas
+     y grandes: nada de burbujas) que crecen desde los bordes, por ENCIMA de
+     todo (a quien está dentro se le ve a través) y un filo claro donde
+     acaban. Nada se marca antes de que empiece. */
+  _crearGas() {
+    const A = window.GFBatallaArte;
+    const clave = A && this.textures.exists(A.pieza('x_gas')) ? A.pieza('x_gas') : null;
+    if (this.gasBandas) this.gasBandas.forEach((b) => { try { b.destroy(); } catch (e) {} });
+    this.gasBandas = [0, 1, 2, 3].map(() => {
+      const b = clave ? this.add.tileSprite(0, 0, 2, 2, clave) : this.add.rectangle(0, 0, 2, 2, 0x5aa84a);
+      return b.setOrigin(0, 0).setDepth(44000).setAlpha(0).setVisible(false);
+    });
+  }
+
+  /** Lo que hay en el suelo al entrar (huesos, carne, suministros). */
   _ponerObjetos(lista) {
-    this.huesosVista.forEach((h) => { try { if (h.flota) h.flota.remove(); if (h.late) h.late.remove(); h.img.destroy(); if (h.brillo) h.brillo.destroy(); } catch (e) {} });
-    this.huesosVista.clear();
-    (lista || []).forEach((o) => this.alObjeto({ id: o[0], x: o[1], y: o[2], tipo: o[3] }));
+    this.objetosVista.forEach((h) => this._quitarObjeto(h));
+    this.objetosVista.clear();
+    (lista || []).forEach((o) => this._crearObjeto({ id: o[0], x: o[1], y: o[2], tipo: o[3] }, false));
   }
 
   /**
-   * VUELVE LA CONEXIÓN a mitad de partida (ver brawlVolver en server2.js).
-   * La arena ya está montada: se pone al día lo que haya cambiado mientras
-   * tanto —cajas rotas, quién ha caído, dónde está cada uno, lo del suelo, la
-   * niebla— y se sigue jugando. Tu perro lo ha llevado un piloto automático:
-   * se recoloca donde lo dejó.
+   * VUELVE LA CONEXIÓN a mitad de partida (o se ha pedido el estado). Se pone
+   * al día lo que haya cambiado —cajas rotas, quién ha caído, dónde está cada
+   * uno, lo del suelo, el gas— y se sigue jugando.
    */
   reanudarPartida(d) {
     const M = window.GFBrawlMotor;
     if (!M || !this.R || !this.arena) return;
+    this._sacarDiferidos(Infinity);
     const vivas = new Set((d.arena.cajas || []).map((c) => c[0]));
     Object.keys(this.R.cajas).forEach((k) => {
       const i = Number(k);
@@ -1569,92 +1804,111 @@ class BattleScene extends Phaser.Scene {
       const v = this.vistas.get(l.id);
       if (!v) return;
       v.hp = l.hp; v.maxHp = l.maxHp; v.potencia = l.potencia || 0;
-      if (l.vivo === false) { if (v.vivo) { v.vivo = false; this._caer(v); } return; }
-      v.x = l.x; v.y = l.y;
-      if (v.buffer) v.buffer.length = 0;
-      v.oculto = false;
-      if (v.yo) {
-        this.pred = { x: l.x, y: l.y };
-        this.desvio.x = 0; this.desvio.y = 0;
-        this._pintarVidaHUD(v.hp, v.maxHp);
-      }
+      if (l.vivo === false) { v.hp = 0; if (v.vivo) { v.vivo = false; this._caer(v, false); } return; }
+      v.buffer.length = 0;
+      if (Number.isFinite(l.x) && Number.isFinite(l.y)) {
+        v.x = l.x; v.y = l.y; v.oculto = false;
+        if (v.yo) {
+          this.pred = { x: l.x, y: l.y };
+          this.desvio.x = 0; this.desvio.y = 0;
+          this._pintarVidaHUD(v.hp, v.maxHp);
+        }
+      } else if (!v.yo) v.oculto = true;
     });
     this.quedan = d.luchadores.filter((l) => l.vivo !== false).length;
     if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
-    this._ponerZona(d.zona);
+    this._ponerGas(d.gas);
     this._ponerObjetos(d.objetos);
     this.balasVista.forEach((b) => this._quitarBala(b, false));
     this.balasVista = [];
     if (d.fase === 'combate') this._empezarYa(Number(d.enCombateMs) || 0);
+    const yaHabiaRed = !!this._sinRedDesde;
     this._sinRedDesde = 0;
     this._pidioVolverEn = 0;
     this._ultimoSnap = performance.now();
     this._pintarRed(false);
-    this.aviso('Reconnected!', { peque: true, ms: 1400 });
+    if (yaHabiaRed) this.aviso('Reconnected!', { peque: true, ms: 1400 });
+  }
+
+  /* LA HORA DEL SERVIDOR. Cada instantánea trae la suya (`t`). La diferencia
+     entre cuándo llega y esa hora es el desfase de relojes MÁS lo que tardó
+     la red; la más pequeña de las últimas es la mejor estimación del desfase
+     (la que menos esperó). Con eso cada muestra se coloca en su momento, por
+     muy a trompicones que lleguen. */
+  _medirReloj(ahora, ts) {
+    const o = ahora - ts;
+    this._offsets.push(o);
+    if (this._offsets.length > 60) this._offsets.shift();
+    let min = Infinity;
+    for (let i = 0; i < this._offsets.length; i++) if (this._offsets[i] < min) min = this._offsets[i];
+    this._offset = min;
   }
 
   alSnap(d) {
     if (!this.matchId || !Array.isArray(d.f)) return;
     const ahora = performance.now();
     this._ultimoSnap = ahora;
-    const z = d.z;
-    if (Array.isArray(z)) {
-      // [radio, x, y, radio sig., x sig., y sig., estado, ms hasta el cambio]
-      this.zonaRObjetivo = z[0];
-      this.zonaCObjetivo = { x: z[1], y: z[2] };
-      if (!this.zonaC) this.zonaC = { x: z[1], y: z[2] };
-      this.zonaSig = z[3] > 0 ? { r: z[3], x: z[4], y: z[5] } : null;
-      if (z[6] !== this.zonaEstado && z[6] === 1) this._alCerrarNiebla();
-      this.zonaEstado = z[6];
-      this.zonaCambioEn = ahora + (Number(z[7]) || 0);
-    } else if (Number.isFinite(z)) this.zonaRObjetivo = z;     // servidor de antes
+    const ts = Number(d.t);
+    if (!Number.isFinite(ts)) return;
+    this._medirReloj(ahora, ts);
+    // El gas: [px que ha entrado, estado].
+    if (Array.isArray(d.z) && this.gas) {
+      const dz = Number(d.z[0]);
+      if (Number.isFinite(dz)) this.gas.dObj = dz;
+      const est = Number(d.z[1]);
+      if (est !== this.gas.estado) {
+        if (est === 1) this._alEntrarGas();
+        if (est === 2 && this.estado === 'combate') this.aviso('Final zone!', { peque: true, ms: 2000 });
+        this.gas.estado = est;
+      }
+    }
     const vistos = new Set();
     for (let i = 0; i < d.f.length; i++) {
       const f = d.f[i];
       const v = this.vistas.get(f[0]);
-      if (!v || !v.vivo) continue;
+      if (!v) continue;
       vistos.add(f[0]);
-      v.hp = f[3];
-      v.andando = !!(f[4] & 2);
-      v.enArbusto = !!(f[4] & 4);
-      v.potencia = f[5] || 0;
-      if (f[6]) v.maxHp = f[6];
-      if (v.yo) continue;
-      v.mira = (f[4] & 8) ? -1 : 1;
-      if (v.oculto) {
-        // Reaparece: sin interpolar desde donde se escondió (sería un fogonazo
-        // cruzando media arena), se planta donde está.
-        v.buffer.length = 0;
-        v.x = f[1]; v.y = f[2];
-      }
-      v.oculto = false;
-      v.buffer.push({ t: ahora, x: f[1], y: f[2] });
-      if (v.buffer.length > 24) v.buffer.splice(0, v.buffer.length - 24);
+      v.buffer.push({ ts, x: f[1], y: f[2], hp: f[3], band: f[4], pot: f[5] || 0, maxHp: f[6] || v.maxHp, cara: Number.isFinite(f[7]) ? f[7] : null });
+      if (v.buffer.length > 40) v.buffer.splice(0, v.buffer.length - 40);
     }
-    // Los que no vienen están escondidos (en la hierba, lejos de ti).
-    this.vistas.forEach((v, id) => { if (!v.yo && v.vivo && !vistos.has(id)) v.oculto = true; });
+    // Los que no vienen están escondidos (en la hierba, lejos de ti) o caídos.
+    this.vistas.forEach((v, id) => {
+      if (!v.vivo || vistos.has(id)) return;
+      const u = v.buffer[v.buffer.length - 1];
+      if (!u || !u.oculto) v.buffer.push({ ts, oculto: true });
+    });
 
     const y = d.y;
     if (y) {
-      this.municion = (Number(y.m) || 0) / 100;
-      this.superCarga = (Number(y.s) || 0) / 100;
+      // Lo que se gastó aquí hace nada todavía no lo sabe el servidor.
+      const m = (Number(y.m) || 0) / 100, s = (Number(y.s) || 0) / 100;
+      this.municion = ahora - this.ultimoDisparoLocal < 350 ? Math.min(this.municion, m) : m;
+      this.superCarga = ahora - this.ultimoSuperLocal < 350 ? Math.min(this.superCarga, s) : s;
       const yo = this.vistas.get(this.yoId);
-      if (yo) {
-        yo.hp = y.hp;
-        if (Number(y.v) > 0) yo.datos.vel = Number(y.v);
-        this._pintarVidaHUD(yo.hp, yo.maxHp);
-        if (this.el?.huesos) {
-          const status = '🦴 ' + yo.potencia + (y.e > 0 ? ' · 🛡 ' + Math.ceil(y.ed / 1000) + 's' : '') +
-            (y.r > 0 ? ' · » ' + Math.ceil(y.r / 1000) + 's' : '');
-          if (this.el.huesos.textContent !== status) this.el.huesos.textContent = status;
-        }
-      }
+      if (yo && Number(y.v) > 0) yo.datos.vel = Number(y.v);
+      this._escudoYo = Number(y.e) || 0;
+      this._poderesHUD(Number(y.ed) || 0, Number(y.r) || 0);
       if (Number(y.c) > this.cAplicada) {
         if (y.x != null && y.y != null) this._recolocar(Number(y.x), Number(y.y));
         this.cAplicada = Number(y.c);
       }
     }
     this._pintarSuperHUD(this.superCarga);
+  }
+
+  /** El escudo y la carrera que llevas, con lo que les queda. */
+  _poderesHUD(escudoMs, rapidezMs) {
+    const e = this.el;
+    if (!e) return;
+    const pon = (n, ms) => {
+      if (!n) return;
+      const vis = ms > 0;
+      n.classList.toggle('hidden', !vis);
+      const b = n.querySelector ? n.querySelector('b') : null;
+      if (vis && b) { const t = Math.ceil(ms / 1000) + 's'; if (b.textContent !== t) b.textContent = t; }
+    };
+    pon(e.escudo, escudoMs);
+    pon(e.rapidez, rapidezMs);
   }
 
   /** El servidor dice que tu perro está en otro sitio: se recoloca, suave. */
@@ -1665,6 +1919,22 @@ class BattleScene extends Phaser.Scene {
     else { this.desvio.x += dx; this.desvio.y += dy; }
     this.pred.x = x; this.pred.y = y;
     this.envioX = NaN;          // que la próxima entrada salga ya, con la c nueva
+  }
+
+  // ── Lo de los demás, en su momento ───────────────────────────────────────
+  /** Se aplica dentro de RETRASO_INTERP ms: cuando se ve pasar (ver la cabecera). */
+  _diferir(fn) {
+    if (document.hidden) { try { fn(); } catch (e) { console.error('BattleScene diferido:', e); } return; }
+    this._diferidos.push({ t: performance.now() + BattleScene.RETRASO_INTERP, fn });
+    if (this._diferidos.length > 300) this._sacarDiferidos(Infinity);
+  }
+
+  _sacarDiferidos(hasta) {
+    const q = this._diferidos;
+    while (q.length && q[0].t <= hasta) {
+      const e = q.shift();
+      try { e.fn(); } catch (err) { console.error('BattleScene diferido:', err); }
+    }
   }
 
   // ── Disparos ──────────────────────────────────────────────────────────────
@@ -1685,6 +1955,7 @@ class BattleScene extends Phaser.Scene {
     if (sup) {
       if (this.superCarga < 1) return false;
       this.superCarga = 0;
+      this.ultimoSuperLocal = ahora;
       this._pintarSuperHUD(0);
     } else {
       if (this.municion < 1) { this._sinMunicion(yo); return false; }
@@ -1694,16 +1965,19 @@ class BattleScene extends Phaser.Scene {
     const s = ++this.seqDisparo;
     this._emitir('brawl:disparo', { a: Math.round(ang * 1000) / 1000, sup: sup ? 1 : 0, s });
     // Se dibuja YA, sin esperar al servidor; luego se casa con la de verdad.
+    const alto = (window.GFBrawlMotor && window.GFBrawlMotor.REGLAS.ALTO_CUERPO) || 7;
     const balas = arma.balas || 1;
     for (let i = 0; i < balas; i++) {
       const off = balas > 1 ? (i / (balas - 1) - 0.5) * arma.abanico * Math.PI / 180 : 0;
       this._nuevaBala({
-        id: null, duenio: this.yoId, x: this.pred.x, y: this.pred.y, ang: ang + off,
+        id: null, duenio: this.yoId, x: this.pred.x, y: this.pred.y - alto, ang: ang + off,
         vel: arma.vel, alcance: arma.alcance, radio: arma.radio, tipo: arma.tipo,
         atraviesa: !!arma.atraviesa, prevista: true, s, orden: i
       });
     }
     if (Math.abs(Math.cos(ang)) > 0.2) yo.mira = Math.cos(ang) > 0 ? 1 : -1;
+    yo.cara = ang;
+    yo.ataqueHasta = ahora + 260;
     this._fogonazo(yo, ang, sup);
     this._impulsoCamara(sup ? 'super' : 'tiro', ang);
     if (sup) this._sonar(yo.especie === 'perro' ? 'aullido' : 'golpe');
@@ -1713,8 +1987,7 @@ class BattleScene extends Phaser.Scene {
 
   /** Disparo con apuntado automático al rival visible más cercano. */
   dispararAuto(sup) {
-    const ang = this._anguloAuto(sup);
-    return this.disparar(sup, ang);
+    return this.disparar(sup, this._anguloAuto(sup));
   }
 
   _anguloAuto(sup) {
@@ -1725,57 +1998,55 @@ class BattleScene extends Phaser.Scene {
     this.vistas.forEach((v) => {
       if (v.yo || !v.vivo || v.oculto) return;
       const d = Math.hypot(v.x - this.pred.x, v.y - this.pred.y);
-      // Un poco de preferencia por lo que está a tiro.
       const peso = d <= arma.alcance * 1.1 ? d : d + 1000;
       if (peso < md) { md = peso; mejor = v; }
     });
     if (!mejor) return this.apunte.ang || (yo.mira < 0 ? Math.PI : 0);
-    // Adelantar el tiro con la velocidad que lleva (de sus dos últimas posiciones).
-    let vx = 0, vy = 0;
-    const b = mejor.buffer;
-    if (b.length >= 2) {
-      const a1 = b[b.length - 1], a0 = b[b.length - 2];
-      const dt = Math.max(16, a1.t - a0.t) / 1000;
-      vx = (a1.x - a0.x) / dt; vy = (a1.y - a0.y) / dt;
-    }
+    // Adelantar el tiro con la velocidad que lleva (la que se le ve).
+    const vx = mejor.velX || 0, vy = mejor.velY || 0;
     const d = Math.hypot(mejor.x - this.pred.x, mejor.y - this.pred.y);
     const t = d / Math.max(60, arma.vel || 360);
     return Math.atan2(mejor.y + vy * t * 0.7 - this.pred.y, mejor.x + vx * t * 0.7 - this.pred.x);
   }
 
   _sinMunicion(yo) {
-    if (!yo || !yo.municion || this._parpadeoMunicion) return;
+    if (!yo || this._parpadeoMunicion) return;
     this._parpadeoMunicion = true;
-    yo.municion.forEach((m) => { m.fillColor = 0xe2554a; });
-    this._reloj(160, () => {
+    if (yo.municion) yo.municion.forEach((m) => { m.fillColor = 0xe2554a; });
+    if (this.el && this.el.municionHud) this.el.municionHud.classList.add('vacia');
+    this._reloj(180, () => {
       this._parpadeoMunicion = false;
       const v = this.vistas.get(this.yoId);
       if (v && v.municion) v.municion.forEach((m) => { m.fillColor = BattleScene.COLOR.municion; });
+      if (this.el && this.el.municionHud) this.el.municionHud.classList.remove('vacia');
     });
   }
 
   _nuevaBala(o) {
     const A = window.GFBatallaArte;
-    const clave = A ? A.pieza('p_' + (o.tipo || 'onda')) : null;
     if (this.balasVista.length >= BattleScene.MAX_BALAS) {
       const vieja = this.balasVista.shift();
       if (vieja && vieja.spr) vieja.spr.destroy();
     }
+    const T = BattleScene.BALAS[o.tipo] || BattleScene.BALAS.onda;
     let spr = null;
-    if (clave && this.textures.exists(clave)) {
-      spr = this.add.image(o.x, o.y, clave).setRotation(o.ang).setDepth(40000);
-      if (o.tipo === 'aullido' || o.tipo === 'fuego') spr.setBlendMode(Phaser.BlendModes.ADD);
+    if (T.pieza && A && this.textures.exists(A.pieza(T.pieza))) {
+      spr = this.add.image(o.x, o.y, A.pieza(T.pieza)).setOrigin(0.25, 0.5).setRotation(o.ang);
+    } else if (T.foto && this._foto(T.foto)) {
+      spr = this.add.image(o.x, o.y, BattleScene.ATLAS, T.foto).setRotation(o.ang + (T.giro || 0)).setScale(T.escala || 1);
     } else {
-      spr = this.add.circle(o.x, o.y, Math.max(3, o.radio || 6), 0xffffff).setDepth(40000);
+      spr = this.add.circle(o.x, o.y, Math.max(3, o.radio || 6), 0xffffff);
     }
-    const b = Object.assign({ dx: Math.cos(o.ang), dy: Math.sin(o.ang), resto: o.alcance, nace: performance.now(), spr, golpeados: new Set() }, o);
+    spr.setDepth(40000);
+    if (T.luz) spr.setBlendMode(Phaser.BlendModes.ADD);
+    const b = Object.assign({ dx: Math.cos(o.ang), dy: Math.sin(o.ang), resto: o.alcance, nace: performance.now(), spr, gira: !!T.gira }, o);
     this.balasVista.push(b);
     return b;
   }
 
   alBalas(d) {
-    if (!Array.isArray(d.b)) return;
-    if (d.o === this.yoId && d.s != null) {
+    if (!Array.isArray(d.b) || !d.b.length) return;
+    if (d.o === this.yoId) {
       // Las mías: casar las dibujadas con su id de verdad.
       const mias = this.balasVista.filter((b) => b.prevista && b.s === d.s && b.id == null);
       if (mias.length) {
@@ -1783,15 +2054,27 @@ class BattleScene extends Phaser.Scene {
         d.b.forEach((datos, i) => { if (mias[i]) { mias[i].id = datos[0]; mias[i].prevista = false; } });
         return;
       }
+      // Sin dibujar (el piloto automático, mientras volvía la red): al momento.
+      this._balasDe(d);
+      return;
     }
-    if (document.hidden) return;              // nada que dibujar ahora
-    d.b.forEach((x) => {
-      this._nuevaBala({ id: x[0], duenio: d.o, x: x[1], y: x[2], ang: x[3], vel: x[4], alcance: x[5], radio: x[6], tipo: x[7], atraviesa: !!d.sup && (x[7] === 'aullido' || x[7] === 'embestida') });
-    });
+    this._diferir(() => this._balasDe(d));
+  }
+
+  _balasDe(d) {
+    if (this._cleaned || !this.R) return;
     const quien = this.vistas.get(d.o);
+    if (!document.hidden) {
+      d.b.forEach((x) => {
+        this._nuevaBala({ id: x[0], duenio: d.o, x: x[1], y: x[2], ang: x[3], vel: x[4], alcance: x[5], radio: x[6], tipo: x[7], atraviesa: !!d.sup && (x[7] === 'aullido' || x[7] === 'embestida') });
+      });
+    }
     if (quien && !quien.yo) {
-      if (Math.abs(Math.cos(d.b[0][3])) > 0.2) quien.mira = Math.cos(d.b[0][3]) > 0 ? 1 : -1;
-      this._fogonazo(quien, d.b[0][3], !!d.sup);
+      const a = d.b[0][3];
+      if (Math.abs(Math.cos(a)) > 0.2) quien.mira = Math.cos(a) > 0 ? 1 : -1;
+      quien.ataqueHasta = performance.now() + 260;
+      quien.caraFija = { ang: a, hasta: performance.now() + 320 };
+      this._fogonazo(quien, a, !!d.sup);
       if (quien.especie === 'perro') {
         this._sonar(d.sup ? 'aullido' : 'ladrido_2', { x: quien.x, y: quien.y, vol: 0.7, detune: 150 + Math.random() * 150 });
       } else if (d.sup) this._sonar('golpe', { x: quien.x, y: quien.y, vol: 0.8, detune: -300 });
@@ -1802,39 +2085,58 @@ class BattleScene extends Phaser.Scene {
     const M = window.GFBrawlMotor;
     if (!M || !this.R) return;
     const ahora = performance.now();
+    const alto = M.REGLAS.ALTO_CUERPO || 7;
     const quedan = [];
     for (let i = 0; i < this.balasVista.length; i++) {
       const b = this.balasVista[i];
       // Una bala dibujada que el servidor no confirma en medio segundo es que
       // no salió (te quedaste sin munición en el servidor): se apaga.
       if (b.prevista && b.id == null && ahora - b.nace > 600) { this._quitarBala(b, false); continue; }
+      const mia = b.duenio === this.yoId;
       const choque = M.avanzarBala(this.R, b, Math.min(b.resto, b.vel * dt), (bb) => {
-        if (bb.atraviesa) return false;
+        // Una caja que se acaba de romper aún paraba la bala en el servidor
+        // (las de los demás se ven con retraso): aquí también.
+        const idx = Math.floor(bb.y / this.R.celda) * this.R.ancho + Math.floor(bb.x / this.R.celda);
+        const rota = this._rotasRecientes.get(idx);
+        if (!mia && rota && rota > ahora) return true;
+        if (bb.atraviesa || !mia) return false;
+        // Las mías se paran al tocar a quien se ve (el servidor dirá si dio).
         let tocado = false;
         this.vistas.forEach((v) => {
-          if (tocado || !v.vivo || v.oculto || v.id === bb.duenio) return;
-          const rr = 11 + (bb.radio || 6);
-          if ((v.x - bb.x) * (v.x - bb.x) + (v.y - bb.y) * (v.y - bb.y) <= rr * rr) tocado = true;
+          if (tocado || !v.vivo || v.oculto || v.yo) return;
+          const rr = v.golpe + (bb.radio || 6);
+          const gx = v.x - bb.x, gy = v.y - alto - bb.y;
+          if (gx * gx + gy * gy <= rr * rr) tocado = true;
         });
         return tocado;
       });
-      if (b.spr) b.spr.setPosition(b.x, b.y);
+      if (b.spr) {
+        b.spr.setPosition(b.x, b.y);
+        if (b.gira) b.spr.rotation += dt * 9;
+      }
       if (choque) { this._quitarBala(b, !!(choque.muro || choque.caja != null)); continue; }
-      if (b.resto <= 0) { this._quitarBala(b, false); continue; }
+      if (b.resto <= 0) { this._quitarBala(b, false, true); continue; }
       quedan.push(b);
     }
     this.balasVista = quedan;
   }
 
-  _quitarBala(b, contraMuro) {
+  _quitarBala(b, contraMuro, alFinal) {
     if (b.spr) {
-      if (contraMuro && !document.hidden) this._chispas(b.x, b.y, 4, 0xe8dcbc, 18);
+      if (contraMuro && !document.hidden) this._chispas(b.x, b.y, 4, 0xe8dcbc, 16);
+      else if (alFinal && !document.hidden) this._pieza('x_humo', b.x, b.y, { color: 0xffffff, escala: 0.3, alfa: 0.35, dura: 260, mezcla: false, tween: { scale: 0.5, alpha: 0 } });
       b.spr.destroy();
       b.spr = null;
     }
   }
 
   alGolpe(d) {
+    if (d.o === this.yoId && !d.boom) this._golpe(d);
+    else this._diferir(() => this._golpe(d));
+  }
+
+  _golpe(d) {
+    if (this._cleaned) return;
     // La bala que dio desaparece (si no atraviesa).
     for (let i = 0; i < this.balasVista.length; i++) {
       const b = this.balasVista[i];
@@ -1842,19 +2144,18 @@ class BattleScene extends Phaser.Scene {
     }
     const v = this.vistas.get(d.t);
     if (!v) return;
-    v.hp = d.hp;
-    v.golpeHasta = performance.now() + 90;
+    v.golpeHasta = performance.now() + 80;
+    v.retroceso = Math.max(v.retroceso, 0.7);
     if (!document.hidden) {
       const col = d.boom ? 0xff9a3c : (d.sup ? BattleScene.COLOR.oro : (v.yo ? 0xff7a6a : 0xfff0c0));
-      this._impacto(d.x, d.y, col, !!d.sup);
-      this._numero(v.x, v.y - (v.altoSprite || 28), '-' + d.d, v.yo ? '#ff8f83' : (d.sup ? '#ffd24a' : '#ffffff'), !!d.sup);
+      this._impacto(d.x, d.y, col, !!d.sup || !!d.boom);
+      this._numero(v.x, v.y - (v.altoSprite || 28) - 4, '-' + d.d, v.yo ? '#ff8f83' : (d.sup ? '#ffd24a' : '#ffffff'), !!d.sup);
     }
     if (v.yo || d.o === this.yoId) this._sonar('golpe', { detune: v.yo ? -200 : 0 });
     if (v.yo) {
-      this._pintarVidaHUD(v.hp, v.maxHp);
       if (this.el && this.el.dolor) {
         this.el.dolor.classList.add('activo');
-        this._reloj(120, () => this.el && this.el.dolor && this.el.dolor.classList.remove('activo'));
+        this._reloj(140, () => this.el && this.el.dolor && this.el.dolor.classList.remove('activo'));
       }
       this._impulsoCamara('dano', 0, d.sup ? 1 : 0.6);
     }
@@ -1863,180 +2164,240 @@ class BattleScene extends Phaser.Scene {
   alCaja(d) {
     const M = window.GFBrawlMotor;
     if (this.R) {
-      if (d.rota) M.romperCaja(this.R, d.i);
+      if (d.rota) { M.romperCaja(this.R, d.i); this._rotasRecientes.set(d.i, performance.now() + 400); }
       else if (this.R.cajas[d.i]) this.R.cajas[d.i].vida = d.vida;
     }
     const c = this.arena && this.arena.cajas.get(d.i);
     if (!c || c.rota) return;
     if (d.rota) { this._cajaRota(d.i, c, true); return; }
-    const cat = this._cat || {};
-    if (!c.respaldo && d.vida <= d.max / 2) c.img.setFrame(c.barril ? cat.barril_2 : (c.oro ? cat.caja_oro_2 : cat.caja_2));
-    if (!this._reducedMotion && !document.hidden) {
-      const x0 = c.img.x;
+    this._cajaTocada(c, d.vida, d.max);
+    if (!this._reducedMotion && !document.hidden && c.img) {
+      const x0 = c.x0;
+      if (this.tweens) this.tweens.killTweensOf(c.img);
       this.tweens.add({ targets: c.img, x: { from: x0 - 2, to: x0 }, duration: 70, ease: 'Sine.easeOut', repeat: 1, onComplete: () => { if (c.img) c.img.x = x0; } });
-      this._chispas(c.img.x, c.img.y, 5, c.barril ? 0xff8a3a : 0xc9975a, 20);
+      this._chispas(c.img.x, c.img.y - 12, 5, c.tipo === 'barril' ? 0xff8a3a : 0xc9975a, 18);
     }
   }
 
+  /** Una caja tocada se oscurece un poco (cuanto más tocada, más). */
+  _cajaTocada(c, vida, max) {
+    if (!c || !c.img || !c.img.setTint) return;
+    const p = Math.max(0, Math.min(1, vida / Math.max(1, max)));
+    const k = Math.round(150 + 105 * p);
+    c.img.setTint((k << 16) | (Math.round(k * 0.94) << 8) | Math.round(k * 0.86));
+  }
+
+  /* UNA CAJA ROTA salta en cuatro trozos (sus propios pedazos del atlas) que
+     se quedan en el suelo, y una polvareda. El barril deja su mancha de
+     quemado: el estallido lo pinta alBoom. */
   _cajaRota(i, c, conEfecto) {
     c.rota = true;
-    const cat = this._cat || {};
-    if (c.respaldo) { c.img.setAlpha(0.25); c.img.setDepth(-980); return; }
-    // El barril deja su marca quemada; el estallido lo pinta alBoom.
-    c.img.setFrame(c.barril ? cat.barril_3 : cat.caja_3).setDepth(-980);
-    if (c.barril) return;
-    if (conEfecto && !document.hidden) {
+    const x = c.img ? c.img.x : 0, y = c.img ? c.img.y : 0;
+    try { if (this.tweens) this.tweens.killTweensOf(c.img); c.img.destroy(); } catch (e) {}
+    try { if (c.sombra) c.sombra.destroy(); } catch (e) {}
+    c.img = null; c.sombra = null;
+    const res = this.arena;
+    if (c.tipo === 'barril') {
       const A = window.GFBatallaArte;
-      this._sonar('caja', { x: c.img.x, y: c.img.y });
-      this._chispas(c.img.x, c.img.y, 12, c.oro ? BattleScene.COLOR.oro : 0xc9975a, 34);
-      if (A) this._pieza('humo', c.img.x, c.img.y, { color: 0xe8dcbc, escala: 0.3, alfa: 0.7, dura: 520, mezcla: false, tween: { scale: 0.7, alpha: 0, y: c.img.y - 12 } });
+      if (A && this.textures.exists(A.pieza('x_sombra'))) {
+        const mancha = this.add.image(x, y - 6, A.pieza('x_sombra')).setScale(1.2, 1.1).setAlpha(0.45).setTint(0x1a120c).setDepth(-850);
+        if (res) res.restos.push(mancha);
+      }
+      return;
+    }
+    const pre = c.tipo === 'cofre' ? 'cofre_trozo_' : 'caja_trozo_';
+    for (let k = 1; k <= 4; k++) {
+      const f = this._foto(pre + k);
+      if (!f) continue;
+      const ang = (k / 4) * Math.PI * 2 + 0.6, dist = 10 + (k % 2) * 6;
+      const tx = x + Math.cos(ang) * dist, ty = y - 4 + Math.sin(ang) * dist * 0.6;
+      const t = this.add.image(x, y - 10, BattleScene.ATLAS, f).setDepth(-840).setRotation((k - 2) * 0.35);
+      if (res) res.restos.push(t);
+      if (conEfecto && !this._reducedMotion && !document.hidden) {
+        this.tweens.add({ targets: t, x: tx, y: ty, rotation: t.rotation + (k % 2 ? 1.2 : -1.2), alpha: 0.85, duration: 420, ease: 'Quad.easeOut' });
+      } else { t.setPosition(tx, ty); t.setAlpha(0.85); }
+    }
+    if (conEfecto && !document.hidden) {
+      this._sonar('caja', { x, y });
+      this._chispas(x, y - 10, 10, c.tipo === 'cofre' ? BattleScene.COLOR.oro : 0xc9975a, 30);
+      this._pieza('x_humo', x, y - 10, { color: 0xe8dcbc, escala: 0.6, alfa: 0.7, dura: 520, mezcla: false, tween: { scale: 1.2, alpha: 0, y: y - 22 } });
     }
   }
 
   alObjeto(d) {
-    if (this.huesosVista.has(d.id)) return;
-    const cat = this._cat || {};
+    this._diferir(() => this._crearObjeto(d, true));
+  }
+
+  _crearObjeto(d, animado) {
+    if (this._cleaned || this.objetosVista.has(d.id)) return;
+    const T = BattleScene.OBJETOS[d.tipo] || BattleScene.OBJETOS.hueso;
     const A = window.GFBatallaArte;
-    const T = this._texArena || BattleScene.TILESET;
-    const carne = d.tipo === 'carne';
-    const poderes = { escudo: [0x66baff, 'S'], rapidez: [0x7bf0d4, '»'], municion: [0xffc777, 'M'], super: [0xcd8cff, '★'] };
-    const poder = poderes[d.tipo];
+    const x = Number(d.x), y = Number(d.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const sombra = A && this.textures.exists(A.pieza('x_sombra'))
+      ? this.add.image(x, y + 6, A.pieza('x_sombra')).setScale(0.5, 0.5).setAlpha(0.3).setDepth(-800) : null;
     const brillo = (A && this.textures.exists(A.pieza('brillo')))
-      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(poder ? poder[0] : (carne ? 0xff8a6a : BattleScene.COLOR.oro)).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
+      ? this.add.image(x, y, A.pieza('brillo')).setTint(T.brillo).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(36, 24).setAlpha(0.65).setDepth(y - 1)
       : null;
-    const img = poder
-      ? this.add.container(d.x, d.y, [this.add.rectangle(0, 0, 20, 20, poder[0]).setStrokeStyle(2, 0xffffff),
-          this.add.text(0, 0, poder[1], { fontFamily: 'Arial', fontSize: '14px', fontStyle: 'bold', color: '#182238' }).setOrigin(0.5)]).setDepth(d.y - 20)
-      : this.textures.exists(T)
-      ? this.add.image(d.x, d.y, T, carne ? cat.carne : cat.hueso).setDepth(d.y - 20)
-      : this.add.rectangle(d.x, d.y, 16, carne ? 12 : 6, carne ? 0xc4552f : 0xf3ecd8).setDepth(d.y - 20);
-    img.setScale(0.1);
-    this.tweens.add({ targets: img, scale: 0.8, duration: 260, ease: 'Back.easeOut' });
-    const flota = this._reducedMotion ? null : this.tweens.add({ targets: img, y: d.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 260 });
-    const late = (brillo && !this._reducedMotion) ? this.tweens.add({ targets: brillo, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 }) : null;
-    this.huesosVista.set(d.id, { img, brillo, flota, late });
+    const f = this._foto(T.foto);
+    const img = f ? this.add.image(x, y + 4, BattleScene.ATLAS, f).setOrigin(0.5, 1) : this.add.rectangle(x, y, 12, 10, T.brillo);
+    img.setDepth(y + 4);
+    const h = { img, brillo, sombra, flota: null, late: null, tipo: d.tipo };
+    if (animado && !this._reducedMotion && !document.hidden) {
+      img.setScale(0.2);
+      this.tweens.add({ targets: img, scale: 1, duration: 260, ease: 'Back.easeOut' });
+    }
+    if (!this._reducedMotion) {
+      h.flota = this.tweens.add({ targets: img, y: y, duration: 720, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 260 });
+      if (brillo) h.late = this.tweens.add({ targets: brillo, alpha: 0.3, duration: 720, yoyo: true, repeat: -1 });
+    }
+    this.objetosVista.set(d.id, h);
+  }
+
+  _quitarObjeto(h) {
+    try { if (h.flota) h.flota.remove(); if (h.late) h.late.remove(); } catch (e) {}
+    ['img', 'brillo', 'sombra'].forEach((k) => { try { if (h[k]) { if (this.tweens) this.tweens.killTweensOf(h[k]); h[k].destroy(); } } catch (e) {} h[k] = null; });
   }
 
   alRecoger(d) {
-    const h = this.huesosVista.get(d.id);
+    if (d.por === this.yoId) this._recoger(d);
+    else this._diferir(() => this._recoger(d));
+  }
+
+  _recoger(d) {
+    if (this._cleaned) return;
+    const h = this.objetosVista.get(d.id);
     const v = this.vistas.get(d.por);
     if (h) {
-      this.huesosVista.delete(d.id);
-      if (h.flota) h.flota.remove();
-      if (h.late) h.late.remove();
-      if (h.brillo) h.brillo.destroy();
-      if (v && !this._reducedMotion && !document.hidden) {
-        this.tweens.add({ targets: h.img, x: v.x, y: v.y - 16, scale: 0.3, alpha: 0, duration: 220, onComplete: () => h.img.destroy() });
-      } else h.img.destroy();
+      this.objetosVista.delete(d.id);
+      try { if (h.flota) h.flota.remove(); if (h.late) h.late.remove(); } catch (e) {}
+      try { if (h.brillo) h.brillo.destroy(); if (h.sombra) h.sombra.destroy(); } catch (e) {}
+      if (v && h.img && !this._reducedMotion && !document.hidden) {
+        this.tweens.add({ targets: h.img, x: v.x, y: v.y - 16, scale: 0.4, alpha: 0, duration: 220, onComplete: () => { try { h.img.destroy(); } catch (e) {} } });
+      } else { try { h.img.destroy(); } catch (e) {} }
     }
-    if (v) {
-      v.potencia = d.potencia;
-      v.maxHp = d.maxHp;
-      v.hp = d.hp;
-      if (['escudo', 'rapidez', 'municion', 'super'].includes(d.tipo)) {
-        if (v.yo) {
-          if (d.vel) v.datos.vel = d.vel;
-          if (Number.isFinite(d.m)) this.municion = d.m;
-          if (Number.isFinite(d.s)) this.superCarga = d.s;
-          const nombres = { escudo: 'SHIELD · 8s', rapidez: 'SPEED +20% · 8s', municion: '+AMMO', super: '+35% SUPER' };
-          this.aviso(nombres[d.tipo], { peque: true, ms: 1600 });
-          this._pintarSuperHUD(this.superCarga);
-          this._sonar('hueso');
-        }
-        return;
-      }
-      if (d.tipo === 'carne') {
-        if (!document.hidden) this._numero(v.x, v.y - (v.altoSprite || 28), '+' + (d.cura || ''), '#7dff8a', true);
-        if (v.yo) {
-          this._pintarVidaHUD(v.hp, v.maxHp);
-          this.aviso('+HEALTH', { peque: true, ms: 1000 });
-          this._sonar('cura');
-        }
-        return;
-      }
+    if (!v) return;
+    v.potencia = d.potencia;
+    if (Number.isFinite(d.maxHp)) v.maxHp = d.maxHp;
+    if (Number.isFinite(d.hp)) v.hp = d.hp;
+    if (['escudo', 'rapidez', 'municion', 'super'].includes(d.tipo)) {
       if (v.yo) {
-        this._pintarVidaHUD(v.hp, v.maxHp);
-        if (this.el && this.el.huesos) this.el.huesos.textContent = '🦴 ' + d.potencia;
-        this.aviso('+1 POWER BONE', { peque: true, ms: 1200 });
+        if (d.vel) v.datos.vel = d.vel;
+        if (Number.isFinite(d.m)) this.municion = d.m;
+        if (Number.isFinite(d.s)) this.superCarga = d.s;
+        const nombres = { escudo: 'SHIELD · 8s', rapidez: 'SPEED +20% · 8s', municion: '+AMMO', super: '+35% SUPER' };
+        this.aviso(nombres[d.tipo], { peque: true, ms: 1500 });
+        this._pintarSuperHUD(this.superCarga);
         this._sonar('hueso');
       }
+      return;
+    }
+    if (d.tipo === 'carne') {
+      if (!document.hidden) {
+        this._numero(v.x, v.y - (v.altoSprite || 28) - 4, '+' + (d.cura || ''), '#7dff8a', true);
+        this._pieza('x_anillo', v.x, v.y - 6, { color: 0x7dff8a, escala: 0.3, alfa: 0.8, dura: 420, tween: { scale: 0.9, alpha: 0 } });
+      }
+      if (v.yo) { this.aviso('+HEALTH', { peque: true, ms: 1000 }); this._sonar('cura'); }
+      return;
+    }
+    if (v.yo) {
+      if (this.el && this.el.huesos) this.el.huesos.textContent = String(d.potencia);
+      this.aviso('+1 POWER BONE', { peque: true, ms: 1200 });
+      this._sonar('hueso');
     }
   }
 
   /** Un barril explota: fogonazo, onda, humo, chispas y temblor si te pilla cerca. */
   alBoom(d) {
+    this._diferir(() => this._boom(d));
+  }
+
+  _boom(d) {
     const x = Number(d.x), y = Number(d.y), r = Number(d.r) || 76;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || this._cleaned) return;
     this._sonar('boom', { x, y });
     if (document.hidden) return;
-    this._pieza('estallido', x, y, { color: 0xffb347, escala: 0.12, dura: 380, prof: 42000, tween: { scale: r / 70, alpha: 0, angle: 30 } });
-    this._pieza('anillo', x, y, { color: 0xffe08a, escala: 0.1, alfa: 0.9, dura: 420, prof: 42000, tween: { scale: r / 55, alpha: 0 } });
-    this._pieza('brillo', x, y, { color: 0xff7a2a, escala: 1.2, alfa: 0.9, dura: 300, prof: 42000, tween: { scale: 3, alpha: 0 } });
+    this._pieza('x_golpe', x, y - 8, { color: 0xffb347, escala: 0.6, dura: 360, prof: 42000, tween: { scale: r / 26, alpha: 0, angle: 30 } });
+    this._pieza('x_anillo', x, y - 4, { color: 0xffe08a, escala: 0.3, alfa: 0.9, dura: 420, prof: 42000, tween: { scale: r / 22, alpha: 0 } });
+    this._pieza('brillo', x, y - 8, { color: 0xff7a2a, escala: 1.2, alfa: 0.9, dura: 300, prof: 42000, tween: { scale: 3, alpha: 0 } });
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + 0.4;
-      this._pieza('humo', x + Math.cos(a) * 10, y + Math.sin(a) * 8, {
-        color: 0x5a4c44, escala: 0.3, alfa: 0.75, dura: 900, mezcla: false, prof: 41500,
-        tween: { scale: 0.85, alpha: 0, x: x + Math.cos(a) * 34, y: y + Math.sin(a) * 26 - 16 }
+      this._pieza('x_humo', x + Math.cos(a) * 10, y - 6 + Math.sin(a) * 8, {
+        color: 0x5a4c44, escala: 0.7, alfa: 0.75, dura: 900, mezcla: false, prof: 41500,
+        tween: { scale: 1.6, alpha: 0, x: x + Math.cos(a) * 34, y: y + Math.sin(a) * 26 - 22 }
       });
     }
-    this._chispas(x, y, 16, 0xff9a3c, 60);
+    this._chispas(x, y - 8, 14, 0xff9a3c, 56);
     const yo = this.vistas.get(this.yoId);
     if (yo && !this._reducedMotion) {
       const dist = Math.hypot(yo.x - x, yo.y - y);
       if (dist < r * 4) this._impulsoCamara('explosion', 0, Math.max(0.15, 1 - dist / (r * 4)));
     }
+    if (window.GFPost && window.GFPost.pulso) { try { window.GFPost.pulso(0.35); } catch (e) {} }
   }
 
   alKO(d) {
+    const v = this.vistas.get(d.t);
+    if (v) v.koPendiente = true;          // que la interpolación no lo esconda antes de caer
+    if (d.k === this.yoId) this._ko(d);
+    else this._diferir(() => this._ko(d));
+  }
+
+  _ko(d) {
+    if (this._cleaned) return;
     const v = this.vistas.get(d.t);
     const k = d.k ? this.vistas.get(d.k) : null;
     this.quedan = Number(d.quedan) || Math.max(0, this.quedan - 1);
     if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
     if (v && v.vivo) {
+      if (Number.isFinite(d.x) && Number.isFinite(d.y) && !v.yo) { v.x = d.x; v.y = d.y; }
       v.vivo = false;
-      this._caer(v);
+      v.koPendiente = false;
+      // El último golpe no llega en ninguna instantánea (ya no está vivo): sin
+      // esto la barra se quedaba con la vida de antes del golpe.
+      v.hp = 0;
+      if (v.yo) this._pintarVidaHUD(0, v.maxHp);
+      this._caer(v, true);
       this._sonar('ko', { x: v.x, y: v.y, vol: v.yo ? 1 : 0.8 });
     }
-    const nombre = (x) => x ? this._esc(x.datos.petName || 'Pet') : '?';
-    const clase = (x) => (x && x.yo) ? 'yo' : 'rival';
-    if (k && v) this.alFeed('<span class="' + clase(k) + '">' + nombre(k) + '</span> 💥 <span class="' + clase(v) + '">' + nombre(v) + '</span>');
-    else if (v) this.alFeed('<span class="' + clase(v) + '">' + nombre(v) + '</span> is out');
-    if (k && k.yo) {
+    this.alFeed(k && k !== v ? k : null, v);
+    if (k && k.yo && v && !v.yo) {
       this.misBajas++;
-      if (this.el && this.el.bajas) this.el.bajas.textContent = '💥 ' + this.misBajas;
+      if (this.el && this.el.bajas) this.el.bajas.textContent = String(this.misBajas);
       this.aviso('KNOCKOUT!', { oro: true, ms: 1000 });
     }
     if (v && v.yo) {
       this.estado = 'caido';
+      if (this.ui) this.ui.classList.add('caido');
       this.apunte.mostrar = false;
       this._cancelarConfirmacion();
       // En la diaria y la práctica el final llega al momento: no hace falta
       // ofrecer "mirar". En PvP sí: la partida sigue sin ti.
       if (this.modo === 'pvp' && this.quedan > 1 && this.el && this.el.caido) {
         this.el.caidoTitulo.textContent = 'Knocked out!';
-        this.el.caidoTexto.textContent = 'You finished #' + d.puesto + '. ' + (k ? 'Knocked out by ' + (k.datos.petName || 'a rival') + '.' : '');
+        this.el.caidoTexto.textContent = 'You finished #' + d.puesto + '.' + (k && !k.yo ? ' Knocked out by ' + (k.datos.petName || 'a rival') + '.' : '');
         this.el.caido.classList.remove('hidden');
         this.seguidoId = k && k.vivo ? k.id : null;
       } else {
-        this.aviso('KNOCKED OUT', { ms: 1400 });
+        this.aviso('KNOCKED OUT', { ms: 1400, malo: true });
       }
     }
     if (this.seguidoId === d.t) this.seguidoId = null;
   }
 
-  _caer(v) {
+  _caer(v, conEfecto) {
     if (v.cartel) v.cartel.setVisible(false);
     if (v.aro) v.aro.setVisible(false);
     if (v.superListo) v.superListo.setVisible(false);
     if (!v.spr) return;
-    const A = window.GFBatallaArte;
-    if (!document.hidden && A) {
-      this._pieza('humo', v.x, v.y, { color: 0xe8dcbc, escala: 0.35, alfa: 0.8, dura: 600, mezcla: false, tween: { scale: 0.8, alpha: 0, y: v.y - 18 } });
-      this._chispas(v.x, v.y - 10, 10, 0xffffff, 30);
+    v.spr.setAlpha(1).setVisible(true);
+    if (conEfecto && !document.hidden) {
+      this._pieza('x_humo', v.x, v.y - 6, { color: 0xe8dcbc, escala: 0.7, alfa: 0.85, dura: 600, mezcla: false, tween: { scale: 1.4, alpha: 0, y: v.y - 24 } });
+      this._chispas(v.x, v.y - 12, 10, 0xffffff, 28);
     }
-    if (this._reducedMotion || document.hidden) { v.spr.setAlpha(0.25); v.spr.setAngle(90); return; }
-    this.tweens.add({ targets: v.spr, angle: v.mira < 0 ? -90 : 90, alpha: 0.25, y: v.spr.y + 2, duration: 420, ease: 'Bounce.easeOut' });
-    if (v.sombra) this.tweens.add({ targets: v.sombra, alpha: 0.15, duration: 420 });
+    if (this._reducedMotion || document.hidden || !conEfecto) { v.spr.setAlpha(0.3); v.spr.setAngle(v.mira < 0 ? -90 : 90); return; }
+    this.tweens.add({ targets: v.spr, angle: v.mira < 0 ? -90 : 90, alpha: 0.3, y: v.spr.y + 2, duration: 420, ease: 'Bounce.easeOut' });
+    if (v.sombra) this.tweens.add({ targets: v.sombra, alpha: 0.12, duration: 420 });
   }
 
   // =========================================================================
@@ -2044,6 +2405,7 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   mostrarResultado(d) {
     if (this.estado === 'fin' && this._resultado) return;
+    this._sacarDiferidos(Infinity);
     this.estado = 'fin';
     this._resultado = d;
     this.apunte.mostrar = false;
@@ -2051,9 +2413,12 @@ class BattleScene extends Phaser.Scene {
     this.movTactil = { x: 0, y: 0 };
     this._cancelarConfirmacion();
     const e = this.el;
+    if (this.ui) { this.ui.classList.add('fin'); this.ui.classList.remove('en-gas'); }
     if (!e || !e.resultado) { this.volverEnBreve(4000); return; }
     if (e.caido) e.caido.classList.add('hidden');
     if (e.aviso) e.aviso.classList.add('hidden');
+    if (e.fuera) e.fuera.classList.add('hidden');
+    if (e.gas) e.gas.classList.add('hidden');
     if (this._plazoAviso) { window.clearTimeout(this._plazoAviso); this._plazoAviso = null; }
 
     const gano = d.resultado === 'win';
@@ -2061,10 +2426,9 @@ class BattleScene extends Phaser.Scene {
     this._sonar(gano ? 'victoria' : 'derrota');
     const ordinal = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
     e.resPuesto.textContent = '#' + puesto;
-    // Plata y bronce solo tienen sentido con más de dos: perder un 1 contra 1
-    // no es "quedar segundo".
-    const medalla = puesto === 1 ? '' : (de > 2 && puesto === 2 ? 'plata' : (de > 3 && puesto === 3 ? 'bronce' : 'nada'));
-    e.resPuesto.className = 'bz-medalla ' + medalla;
+    // Plata y bronce solo tienen sentido con más de dos.
+    const medalla = puesto === 1 ? 'oro' : (de > 2 && puesto === 2 ? 'plata' : (de > 3 && puesto === 3 ? 'bronce' : 'nada'));
+    e.resPuesto.className = 'ga-medalla ' + medalla;
     e.resTitulo.textContent = gano ? 'Victory!' : (this.modo === 'pvp' ? ordinal(puesto) + ' place' : 'Defeated');
     e.resTitulo.classList.toggle('gana', gano);
     const rival = (d.tabla || []).find((f) => f.id !== d.yo);
@@ -2072,46 +2436,67 @@ class BattleScene extends Phaser.Scene {
       const esp = rival && window.GFBrawlMotor && window.GFBrawlMotor.ESPECIES[rival.especie];
       e.resSub.textContent = 'Daily battle ' + (d.ronda || '') + '/5' + (rival ? ' · vs ' + rival.petName + (esp ? ' the ' + esp.etiqueta : '') : '');
     } else if (this.modo === 'practica') {
-      e.resSub.textContent = 'Practice — no points, just training.';
+      e.resSub.textContent = 'Practice: no points, just training.';
     } else {
-      e.resSub.textContent = de + ' players · ' + ((this.partida && this.partida.arena && this.partida.arena.nombre) || 'Arena');
+      e.resSub.textContent = de + ' fighters · ' + ((this.partida && this.partida.arena && this.partida.arena.nombre) || 'Arena');
     }
 
+    // Lo ganado, con sus iconos (los textos van con textContent).
     const premios = [];
     const yoFila = (d.tabla || []).find((f) => f.id === d.yo);
-    if (this.modo !== 'practica') premios.push(['+' + (d.puntos || 0) + ' pts', (d.puntos || 0) > 0 ? 'oro' : '']);
-    // La arena da EXP al personaje y, desde 2026-10-03, también a la MASCOTA,
-    // que tiene su propio nivel (ver nivelMascotaEfectivo en server2.js).
-    if (d.exp > 0) premios.push(['+' + d.exp + ' EXP', 'verde']);
-    if (d.petExpGanada > 0) premios.push(['🐾 +' + d.petExpGanada + ' pet EXP', 'verde']);
+    if (this.modo !== 'practica') premios.push(['puntos', '+' + (Number(d.puntos) || 0) + ' pts', (Number(d.puntos) || 0) > 0 ? 'oro' : '']);
+    if (Number(d.exp) > 0) premios.push(['exp', '+' + Number(d.exp) + ' EXP', 'verde']);
+    if (Number(d.petExpGanada) > 0) premios.push(['vivos', '+' + Number(d.petExpGanada) + ' pet EXP', 'verde']);
     if (d.petLevel) {
-      // El servidor manda el nivel de ANTES de la partida: compararlo con el
-      // del luchador daba "Level up" falsos, porque ese era el del personaje.
+      // El servidor manda el nivel de ANTES de la partida.
       const yo = this.vistas.get(this.yoId);
       const nivelAntes = Number.isFinite(Number(d.petLevelAntes)) && d.petLevelAntes !== null
         ? Number(d.petLevelAntes)
         : (yo ? Number(yo.datos.nivel) || 0 : Number(this.datosJugador.nivel) || 0);
-      if (d.petLevel > nivelAntes) premios.push(['⭐ Pet level up! Lv.' + d.petLevel, 'verde']);
-      // El mapa se pone al día ya (también llega por 'petLevelUpdate').
+      if (d.petLevel > nivelAntes) premios.push(['exp', 'Pet level up! Lv ' + d.petLevel, 'oro']);
       window.globalPetLevel = d.petLevel;
       if (d.petExp !== null && d.petExp !== undefined) {
         window.globalPetExp = { petExp: d.petExp, petExpBase: d.petExpBase, petExpSiguiente: d.petExpSiguiente };
       }
     }
-    if (d.daily) premios.push(['Daily ' + d.daily.done + '/' + d.daily.max, '']);
+    if (d.daily && Number.isFinite(Number(d.daily.done))) premios.push(['diarias', 'Daily ' + d.daily.done + '/' + d.daily.max, '']);
     if (yoFila) {
-      premios.push(['💥 ' + yoFila.bajas + ' KO' + (yoFila.bajas === 1 ? '' : 's'), '']);
-      premios.push(['⚔ ' + yoFila.dano + ' dmg', '']);
-      if (yoFila.potencia) premios.push(['🦴 ' + yoFila.potencia, 'oro']);
+      premios.push(['ko', yoFila.bajas + ' KO' + (yoFila.bajas === 1 ? '' : 's'), '']);
+      premios.push(['ladrido', yoFila.dano + ' dmg', '']);
+      if (yoFila.potencia) premios.push(['hueso', String(yoFila.potencia), 'oro']);
     }
-    e.resPremios.innerHTML = premios.map(([t, c]) => '<li class="' + c + '">' + this._esc(t) + '</li>').join('');
-    e.resTabla.innerHTML = (d.tabla || []).slice().sort((a, b) => a.puesto - b.puesto).map((f) => {
+    e.resPremios.textContent = '';
+    premios.forEach(([icono, texto, clase]) => {
+      const li = document.createElement('li');
+      if (clase) li.className = clase;
+      const img = document.createElement('img');
+      img.src = BattleScene.ICONOS + icono + '.png'; img.alt = '';
+      const t = document.createElement('span');
+      t.textContent = texto;
+      li.appendChild(img); li.appendChild(t);
+      e.resPremios.appendChild(li);
+    });
+    e.resTabla.textContent = '';
+    (d.tabla || []).slice().sort((a, b) => a.puesto - b.puesto).forEach((f) => {
       const esp = window.GFBrawlMotor && window.GFBrawlMotor.ESPECIES[f.especie];
-      const quien = f.humano ? this._esc(f.playerName) : (esp ? esp.etiqueta : 'Bot');
-      return '<li class="' + (f.id === d.yo ? 'yo' : '') + '"><span class="pos">#' + f.puesto + '</span>' +
-        '<span class="quien">' + this._esc(f.petName) + '<small>' + quien + '</small></span>' +
-        '<span class="num">💥' + f.bajas + '</span><span class="num">⚔' + f.dano + '</span></li>';
-    }).join('');
+      const li = document.createElement('li');
+      if (f.id === d.yo) li.className = 'yo';
+      const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = '#' + f.puesto;
+      const img = document.createElement('img'); img.className = 'avatar'; img.alt = ''; img.src = this._retratoDe(f.especie);
+      const quien = document.createElement('span'); quien.className = 'quien';
+      quien.textContent = String(f.petName || 'Pet').slice(0, 18);
+      const sub = document.createElement('small');
+      sub.textContent = f.humano ? String(f.playerName || '').slice(0, 20) : (esp ? esp.etiqueta + ' · bot' : 'Bot');
+      quien.appendChild(sub);
+      const ko = document.createElement('span'); ko.className = 'num'; ko.title = 'Knockouts';
+      const iko = document.createElement('img'); iko.src = BattleScene.ICONOS + 'ko.png'; iko.alt = '';
+      ko.appendChild(iko); ko.appendChild(document.createTextNode(String(Number(f.bajas) || 0)));
+      const dn = document.createElement('span'); dn.className = 'num'; dn.title = 'Damage';
+      const idn = document.createElement('img'); idn.src = BattleScene.ICONOS + 'ladrido.png'; idn.alt = '';
+      dn.appendChild(idn); dn.appendChild(document.createTextNode(String(Number(f.dano) || 0)));
+      li.appendChild(pos); li.appendChild(img); li.appendChild(quien); li.appendChild(ko); li.appendChild(dn);
+      e.resTabla.appendChild(li);
+    });
 
     // "Otra vez": la siguiente diaria si quedan, otra cola, otra práctica.
     let otra = 'Play again';
@@ -2142,8 +2527,16 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
+  _retratoDe(especie) {
+    const E = BattleScene.ESPECIES[especie];
+    if (!E || E.via === 'mascota') return BattleScene.RETRATO_MASCOTA;
+    return (E.via === 'cuervo' ? './Game/Sprites/cuervo3d/' : './Game/Sprites/animales3d/') + E.pre + 'quieto_1.png?v=20261012';
+  }
+
   jugarOtraVez() {
-    if (this.estado !== 'fin') return;
+    // Con la escena ya limpia (se volvió al mapa) no se arranca nada: si no,
+    // la arena se pondría a correr ENCIMA del mapa (las dos escenas a la vez).
+    if (this.estado !== 'fin' || this._cleaned || this._volviendo) return;
     const datos = Object.assign({}, this.datosInicio, { modo: this.modo });
     // Que el servidor sepa que ya no estamos (por si el final llegó antes).
     this._emitir('brawl:salir');
@@ -2154,10 +2547,9 @@ class BattleScene extends Phaser.Scene {
   // SONIDO
   // =========================================================================
   /**
-   * Suena un efecto. `cerca`: la posición de quien lo hace, para bajarle el
-   * volumen con la distancia (lo tuyo suena entero, lo del otro lado de la
-   * arena casi no). Con tope: un mismo sonido no se repite en menos de 60 ms
-   * (cinco balas de un abanico que dan a la vez son UN golpe, no cinco).
+   * Suena un efecto. `op.x/y`: la posición de quien lo hace, para bajarle el
+   * volumen con la distancia. Con tope: un mismo sonido no se repite en menos
+   * de 60 ms (cinco balas de un abanico que dan a la vez son UN golpe).
    */
   _sonar(nombre, op) {
     if (!this._volumenSFX || document.hidden || !this.sound) return;
@@ -2191,7 +2583,7 @@ class BattleScene extends Phaser.Scene {
     s.setAlpha(op.alfa == null ? 1 : op.alfa);
     s.setScale(op.escala == null ? 1 : op.escala);
     if (op.rot) s.setRotation(op.rot);
-    if (op.mezcla !== false) s.setBlendMode(Phaser.BlendModes.ADD);
+    if (op.mezcla) s.setBlendMode(Phaser.BlendModes.ADD);
     this.efectosVivos.push(s);
     this.tweens.add(Object.assign({
       targets: s, duration: op.dura || 380, ease: 'Quad.easeOut',
@@ -2208,38 +2600,36 @@ class BattleScene extends Phaser.Scene {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const d = (fuerza || 24) * (0.4 + Math.random() * 0.8);
-      this._pieza('chispa', x, y, {
-        color, escala: 0.12 + Math.random() * 0.14, dura: 260 + Math.random() * 240,
-        tween: { x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, alpha: 0, scale: 0.02, ease: 'Cubic.easeOut' }
+      this._pieza('x_chispa', x, y, {
+        color, escala: 1, dura: 240 + Math.random() * 220, mezcla: true,
+        tween: { x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, alpha: 0, ease: 'Cubic.easeOut' }
       });
     }
   }
 
   _impacto(x, y, color, gordo) {
-    this._pieza('estallido', x, y, { color, escala: 0.08, dura: 260, tween: { scale: gordo ? 0.45 : 0.3, alpha: 0, angle: 40 } });
-    this._pieza('anillo', x, y, { color, escala: 0.05, alfa: 0.8, dura: 320, tween: { scale: gordo ? 0.5 : 0.32, alpha: 0 } });
-    this._chispas(x, y, gordo ? 9 : 5, color, gordo ? 34 : 22);
+    this._pieza('x_golpe', x, y, { color, escala: 0.35, dura: 240, tween: { scale: gordo ? 1.1 : 0.75, alpha: 0, angle: 30 } });
+    this._pieza('x_anillo', x, y, { color, escala: 0.15, alfa: 0.85, dura: 300, tween: { scale: gordo ? 0.75 : 0.5, alpha: 0 } });
+    this._chispas(x, y, gordo ? 8 : 4, color, gordo ? 30 : 20);
   }
 
   _fogonazo(v, ang, sup) {
     if (document.hidden || !v) return;
-    const x = v.x + Math.cos(ang) * 14, y = v.y - 8 + Math.sin(ang) * 14;
-    this._pieza('anillo', x, y, { color: sup ? BattleScene.COLOR.oro : 0xdff4ff, escala: 0.04, alfa: 0.7, dura: 180, tween: { scale: sup ? 0.3 : 0.16, alpha: 0 } });
-    if (v.spr && !this._reducedMotion) {
-      // Un culatazo: se encoge y vuelve, como quien ladra con ganas.
-      v.retroceso = 1;
-    }
+    const alto = (window.GFBrawlMotor && window.GFBrawlMotor.REGLAS.ALTO_CUERPO) || 7;
+    const x = v.x + Math.cos(ang) * 14, y = v.y - alto + Math.sin(ang) * 14;
+    this._pieza('x_anillo', x, y, { color: sup ? BattleScene.COLOR.oro : 0xdff4ff, escala: 0.1, alfa: 0.75, dura: 170, tween: { scale: sup ? 0.6 : 0.32, alpha: 0 } });
+    if (v.spr && !this._reducedMotion) v.retroceso = 1;   // un culatazo: se encoge y vuelve
   }
 
   /** Números de daño: reutilizados (Text cuesta un lienzo cada uno). */
   _numero(x, y, texto, color, gordo) {
     if (document.hidden) return;
     let t = this.numerosLibres.pop();
-    const tam = (gordo ? 16 : 13);
+    const tam = gordo ? 11 : 9;
     if (!t) {
       t = this.add.text(0, 0, '', {
         fontFamily: '"PressStart2P", monospace', fontSize: tam + 'px', color: '#ffffff',
-        stroke: '#0a0f1a', strokeThickness: 4, resolution: this._dpr || 1
+        stroke: '#0a0710', strokeThickness: 4, resolution: Math.max(2, this._dpr || 1)
       }).setOrigin(0.5, 1).setDepth(42000);
     }
     t.setActive(true).setVisible(true);
@@ -2247,10 +2637,10 @@ class BattleScene extends Phaser.Scene {
     const s = this._escalaCartel || 1;
     t.setScale(s * 0.6).setAlpha(1).setPosition(x + (Math.random() - 0.5) * 8, y);
     this.tweens.add({
-      targets: t, y: y - 22, scale: s, duration: 220, ease: 'Back.easeOut',
+      targets: t, y: y - 16, scale: s, duration: 200, ease: 'Back.easeOut',
       onComplete: () => {
         this.tweens.add({
-          targets: t, y: y - 34, alpha: 0, duration: 420, delay: 180,
+          targets: t, y: y - 28, alpha: 0, duration: 420, delay: 160,
           onComplete: () => { t.setVisible(false).setActive(false); if (this.numerosLibres.length < 24) this.numerosLibres.push(t); else t.destroy(); }
         });
       }
@@ -2258,145 +2648,87 @@ class BattleScene extends Phaser.Scene {
   }
 
   // =========================================================================
-  // LA NIEBLA
+  // EL GAS
   // =========================================================================
-  /*
-   * LA NIEBLA, BIEN A LA VISTA.
-   *
-   * FALLO QUE ESTO ARREGLA (2026-10-02) — "la zona que se cierra no está": la
-   * niebla solo se pintaba cuando ya había empezado a encoger, y empezaba
-   * cubriendo hasta las esquinas: con la cámara encima del perro no se veía
-   * nunca. Ahora:
-   *   · el ANILLO DE LA SIGUIENTE ZONA SEGURA (blanco, a trazos) se ve desde
-   *     el primer segundo, y una pastilla bajo el reloj dice cuánto falta;
-   *   · la niebla es más densa y su borde late mientras cierra;
-   *   · si estás FUERA, se tiñe el borde de la pantalla y una flecha señala
-   *     hacia dónde correr (ver _avisoFuera).
-   * Se repinta solo cuando cambia algo (el radio, el centro o el anillo).
-   */
-  _pintarNiebla(time) {
-    if (!this.zona || !this.R || this.zonaR == null) return;
-    const A = window.GFBatallaArte;
-    if (!this.nieblaRT) {
-      this._nieblaMargen = BattleScene.MARCO * 32;
-      const m = this._nieblaMargen;
-      this.nieblaRT = this.add.renderTexture(-m, -m, this.R.anchoPx + m * 2, this.R.altoPx + m * 2).setOrigin(0, 0).setDepth(45000);
-      this.nieblaAnillo = this.add.graphics().setDepth(45001);
-      this.nieblaSig = this.add.graphics().setDepth(45002);
-      if (A && this.textures.exists(A.pieza('circulo'))) this.nieblaGoma = this.make.image({ key: A.pieza('circulo'), add: false });
-      if (A && this.textures.exists(A.pieza('niebla'))) {
-        this.nieblaNubes = this.make.tileSprite({ x: 0, y: 0, width: this.R.anchoPx + m * 2,
-          height: this.R.altoPx + m * 2, key: A.pieza('niebla'), add: false }).setOrigin(0, 0);
-      }
-    }
-    const r = this.zonaR;
-    const c = this.zonaC || { x: this.zona.cx, y: this.zona.cy };
-
-    // El anillo de la siguiente zona segura (a trazos), si se sabe.
-    const s = this.zonaSig;
-    const claveSig = s ? Math.round(s.x) + ',' + Math.round(s.y) + ',' + Math.round(s.r) : '';
-    if (claveSig !== this._sigPintado && this.nieblaSig) {
-      this._sigPintado = claveSig;
-      const g = this.nieblaSig;
-      g.clear();
-      if (s && s.r > 0) {
-        const n = Math.max(24, Math.round(s.r / 9));
-        g.lineStyle(3, 0x0b1a10, 0.35);
-        for (let i = 0; i < n; i += 2) g.beginPath(), g.arc(s.x, s.y, s.r + 1, (i / n) * Math.PI * 2, ((i + 1) / n) * Math.PI * 2), g.strokePath();
-        g.lineStyle(2, 0xffffff, 0.85);
-        for (let i = 0; i < n; i += 2) g.beginPath(), g.arc(s.x, s.y, s.r, (i / n) * Math.PI * 2, ((i + 1) / n) * Math.PI * 2), g.strokePath();
-      }
-    }
-    // El borde late mientras cierra.
-    if (this.nieblaAnillo) this.nieblaAnillo.setAlpha(this._reducedMotion ? 1 :
-      (this.zonaEstado === 1 ? 0.88 + 0.12 * Math.sin((time || 0) / 800) : 1));
-
-    // La niebla: mientras no ha entrado, no hay nada que pintar.
-    if (r >= this.zona.r0 - 1) {
-      if (this.nieblaRT.visible) this.nieblaRT.setVisible(false);
-      this.nieblaAnillo.clear();
-      this._zonaPintada = -1;
-      return;
-    }
-    const pc = this._zonaPintadaC;
-    const cambio = Math.abs(r - this._zonaPintada) >= 0.75 || !pc || Math.abs(pc.x - c.x) >= 0.75 || Math.abs(pc.y - c.y) >= 0.75;
-    const animar = !this._reducedMotion && !document.hidden;
-    if (!cambio && !animar) return;
-    if ((time || 0) - this._nieblaDibujadaEn < 100) return;
-    this._nieblaDibujadaEn = time || 0;
-    this._zonaPintada = r;
-    this._zonaPintadaC = { x: c.x, y: c.y };
-    const rt = this.nieblaRT;
-    rt.setVisible(true);
-    rt.clear();
-    rt.fill(0x153f37, 0.40);
-    if (this.nieblaNubes) {
-      this.nieblaNubes.tilePositionX = animar ? time * 0.008 : 0;
-      this.nieblaNubes.tilePositionY = animar ? -time * 0.005 : 0;
-      rt.draw(this.nieblaNubes, 0, 0);
-    }
-    if (this.nieblaGoma && r > 0) {
-      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(c.x + this._nieblaMargen, c.y + this._nieblaMargen);
-      rt.erase(this.nieblaGoma);
-    }
-    const g = this.nieblaAnillo;
-    g.clear();
-    if (r > 0) {
-      g.lineStyle(18, 0x74ba8b, 0.13).strokeCircle(c.x, c.y, r + 10);
-      g.lineStyle(7, 0x9ad6a0, 0.24).strokeCircle(c.x, c.y, r + 4);
-      g.lineStyle(2, 0xe2ffc2, 0.92).strokeCircle(c.x, c.y, r);
-      // Motas y corrientes fuera del límite: no invaden la zona segura.
-      const fase = animar ? time / 9000 : 0;
-      for (let i = 0; i < 32; i++) {
-        const a = i * Math.PI * 2 / 32 + fase;
-        const rr = r + 10 + (i % 4) * 7 + 3 * Math.sin(fase * 3 + i);
-        g.fillStyle(i % 3 ? 0xbbe9ac : 0x69aa92, 0.35 + (i % 3) * 0.12);
-        g.fillCircle(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr, i % 3 ? 1.5 : 2.5);
-        if (i % 4 === 0) {
-          g.lineStyle(2, 0xc5edb0, 0.25);
-          g.beginPath().arc(c.x, c.y, r + 12, a, a + 0.13).strokePath();
-        }
-      }
-    }
+  _alEntrarGas() {
+    if (this.estado !== 'combate') return;
+    this._avisosGas.empieza = true;
+    this._sonar('alarma');
+    this.aviso('The gas is closing in! Stay in the middle.', { peque: true, ms: 2600 });
   }
 
-  /** La niebla acaba de empezar a cerrar (una fase más). */
-  _alCerrarNiebla() {
-    if (this.estado !== 'combate') return;
-    const av = this._avisosNiebla;
-    av.fase += 1;
-    this._sonar('alarma');
-    if (av.fase > 0) this.aviso('The fog moves in again! Get to the new circle.', { peque: true, ms: 2600 });
+  _pintarGas(time, dt) {
+    const g = this.gas;
+    if (!g || !this.gasBandas || !this.R) return;
+    g.d += (g.dObj - g.d) * Math.min(1, dt * 6);
+    const activo = g.d > 0.5;
+    this._gasAlfa += ((activo ? 1 : 0) - this._gasAlfa) * Math.min(1, dt * 1.5);
+    const alfa = this._gasAlfa * 0.58;
+    const W = this.R.anchoPx, H = this.R.altoPx;
+    const d = g.d;
+    const animar = !this._reducedMotion && !document.hidden;
+    this.gasBandas.forEach((b, i) => {
+      b.setVisible(alfa > 0.01);
+      if (alfa <= 0.01) return;
+      b.setAlpha(alfa);
+      if (animar && b.tilePositionX !== undefined) {
+        b.tilePositionX = time * (i % 2 ? 0.006 : -0.005);
+        b.tilePositionY = time * (i < 2 ? 0.004 : -0.003);
+      }
+    });
+    if (alfa <= 0.01) { if (this._gasPintado !== -2) { this.gGas.clear(); this._gasPintado = -2; } return; }
+    if (Math.abs(d - this._gasPintado) < 0.25 && !animar) return;
+    if (Math.abs(d - this._gasPintado) >= 0.25) {
+      this._gasPintado = d;
+      const x0 = g.x0 + d, y0 = g.y0 + d, x1 = g.x1 - d, y1 = g.y1 - d;
+      const [b0, b1, b2, b3] = this.gasBandas;
+      b0.setPosition(0, 0).setSize(W, Math.max(1, y0));
+      b1.setPosition(0, y1).setSize(W, Math.max(1, H - y1));
+      b2.setPosition(0, y0).setSize(Math.max(1, x0), Math.max(1, y1 - y0));
+      b3.setPosition(x1, y0).setSize(Math.max(1, W - x1), Math.max(1, y1 - y0));
+      // EL FRENTE DEL GAS: una franja más densa que se difumina hacia dentro
+      // de la nube, para que se lea dónde empieza a quemar. Sin raya: el gas
+      // no se marca, se ve (capas translúcidas apiladas, de fina a ancha).
+      const gg = this.gGas;
+      gg.clear();
+      [[3, 0.30], [7, 0.20], [12, 0.12], [18, 0.06]].forEach(([w, a]) => {
+        gg.fillStyle(0x9ee07a, a * this._gasAlfa);
+        gg.fillRect(x0 - w, y0 - w, x1 - x0 + 2 * w, w);
+        gg.fillRect(x0 - w, y1, x1 - x0 + 2 * w, w);
+        gg.fillRect(x0 - w, y0, w, y1 - y0);
+        gg.fillRect(x1, y0, w, y1 - y0);
+      });
+    }
   }
 
   /**
-   * ¿Estás en la niebla? Borde de pantalla teñido, texto y una flecha que
-   * señala la zona buena. Y si la niebla va a cerrar pronto y estás fuera del
-   * próximo anillo, un aviso amarillo con la misma flecha.
+   * ¿Estás en el gas? Borde de pantalla teñido, un texto y una flecha que
+   * señala el sitio seguro más cercano. Y si va a llegarte pronto, un aviso.
    */
-  _avisoFuera(yo, ahora) {
+  _avisoGas(yo, ahora) {
     const e = this.el;
-    if (!e || !e.fuera) return;
+    const M = window.GFBrawlMotor;
+    if (!e || !e.fuera || !M || !this.gas) return;
     let modo = '';
     let destino = null;
-    if (yo && yo.vivo && (this.estado === 'combate') && this.zonaC) {
-      const r = this.zonaR, c = this.zonaC;
-      const activa = this.zona && r < this.zona.r0 - 1;
-      if (activa && Math.hypot(yo.x - c.x, yo.y - c.y) > r) { modo = 'dentro'; destino = c; }
-      else if (this.zonaSig && this.zonaEstado !== 2) {
-        const s = this.zonaSig;
-        const queda = this.zonaCambioEn - ahora;
-        if (Math.hypot(yo.x - s.x, yo.y - s.y) > s.r && queda < 9000) { modo = 'pronto'; destino = s; }
+    const g = this.gas;
+    if (yo && yo.vivo && this.estado === 'combate' && this.R) {
+      const dentro = (d) => yo.x < g.x0 + d || yo.x > g.x1 - d || yo.y < g.y0 + d || yo.y > g.y1 - d;
+      const seguro = (d) => ({ x: Math.max(g.x0 + d + 24, Math.min(g.x1 - d - 24, yo.x)), y: Math.max(g.y0 + d + 24, Math.min(g.y1 - d - 24, yo.y)) });
+      if (g.d > 0.5 && dentro(g.d)) { modo = 'dentro'; destino = seguro(g.d); }
+      else {
+        const pasado = (ahora - this.tCombateLocal);
+        const dentroDe = (ms) => Math.min(g.max, Math.max(0, (pasado + ms - g.inicioMs) / 1000 * g.vel));
+        const pronto = dentroDe(6000);
+        if (pronto > 0.5 && dentro(pronto)) { modo = 'pronto'; destino = seguro(pronto); }
       }
     }
     if (this._hud.fuera !== modo) {
       this._hud.fuera = modo;
       e.fuera.classList.toggle('hidden', !modo);
       e.fuera.classList.toggle('pronto', modo === 'pronto');
-      if (this.ui) this.ui.classList.toggle('en-niebla', modo === 'dentro');
-      if (e.fueraTxt) {
-        e.fueraTxt.textContent = modo === 'dentro' ? "You're in the fog! Get to the safe zone" : 'The fog is coming — move to the white circle';
-      }
+      if (this.ui) this.ui.classList.toggle('en-gas', modo === 'dentro');
+      if (e.fueraTxt) e.fueraTxt.textContent = modo === 'dentro' ? "You're in the gas! Get to the middle" : 'The gas is coming, move to the middle';
     }
     if (modo && destino && e.flecha && yo) {
       const ang = Math.atan2(destino.y - yo.y, destino.x - yo.x) * 180 / Math.PI;
@@ -2410,27 +2742,29 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   update(time, delta) {
     if (this._cleaned) return;
-    if (this.estado === 'buscando' && this.modo === 'pvp' && this._busquedaTerminaEn && this.el?.sala) {
+    if (this.estado === 'buscando' && this.modo === 'pvp' && this._busquedaTerminaEn && this.el && this.el.sala) {
       const seconds = Math.max(0, Math.ceil((this._busquedaTerminaEn - Date.now()) / 1000));
-      const text = (this._jugadoresBuscando || 1) + ' / 6 · ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') + ' · or when everyone is Ready';
+      const text = (this._jugadoresBuscando || 1) + ' / 6 · starts in ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
       if (this.el.sala.textContent !== text) this.el.sala.textContent = text;
     }
     const dt = Math.min(50, Math.max(0, delta || 16)) / 1000;
     const ahora = performance.now();
+    this._sacarDiferidos(ahora);
     const M = window.GFBrawlMotor;
     const enJuego = this.matchId && this.R && M;
 
-    // ── tu perro ──
+    // ── tu perro: se mueve ya, con las mismas paredes que el servidor ──
     const yo = this.vistas.get(this.yoId);
     if (enJuego && yo && yo.vivo && this.pred) {
-      let andando = false;
+      let andado = 0;
       if (this.estado === 'combate') {
         const mv = this._movimiento();
         if (mv.x || mv.y) {
-          const vel = yo.datos.vel || 104;
-          const p = M.moverCirculo(this.R, this.pred.x, this.pred.y, mv.x * vel * dt, mv.y * vel * dt, 11);
-          andando = Math.abs(p[0] - this.pred.x) + Math.abs(p[1] - this.pred.y) > 0.05;
+          const vel = yo.datos.vel || 100;
+          const p = M.moverCirculo(this.R, this.pred.x, this.pred.y, mv.x * vel * dt, mv.y * vel * dt, M.REGLAS.RADIO || 11);
+          andado = Math.hypot(p[0] - this.pred.x, p[1] - this.pred.y);
           if (Math.abs(p[0] - this.pred.x) > 0.05) yo.mira = p[0] > this.pred.x ? 1 : -1;
+          if (andado > 0.05 && ahora > yo.ataqueHasta) yo.cara = Math.atan2(p[1] - this.pred.y, p[0] - this.pred.x);
           this.pred.x = p[0]; this.pred.y = p[1];
         }
         this._enviarPosicion(ahora);
@@ -2441,105 +2775,86 @@ class BattleScene extends Phaser.Scene {
       this.desvio.x -= this.desvio.x * k; this.desvio.y -= this.desvio.y * k;
       yo.x = this.pred.x + this.desvio.x;
       yo.y = this.pred.y + this.desvio.y;
-      yo.andando = andando;
       // Munición que se recarga sola, entre instantánea e instantánea.
       const arma = this._armaMia(false);
       if (arma && arma.recarga && this.municion < 3) this.municion = Math.min(3, this.municion + delta / arma.recarga);
+      this._pintarMunicionHUD(this.municion);
     }
 
-    // ── los demás: 110 ms en el pasado, entre dos instantáneas ──
-    const tPintar = ahora - BattleScene.RETRASO_INTERP;
-    this.vistas.forEach((v) => {
-      if (v.yo || !v.vivo) return;
-      const b = v.buffer;
-      if (!b.length) return;
-      while (b.length >= 2 && b[1].t <= tPintar) b.shift();
-      if (b.length >= 2 && b[0].t <= tPintar) {
-        const f = (tPintar - b[0].t) / Math.max(1, b[1].t - b[0].t);
-        v.x = b[0].x + (b[1].x - b[0].x) * f;
-        v.y = b[0].y + (b[1].y - b[0].y) * f;
-      } else {
-        v.x = b[0].x; v.y = b[0].y;
-      }
-    });
+    this._interpolar(ahora);
 
     // ── apuntar con el ratón ──
     if (yo && this.pred && this.apunte.raton && !this._tactil) {
       const cam = this.cameras.main;
       const p = cam.getWorldPoint(this.input.activePointer.x, this.input.activePointer.y);
       this.apunte.ratonX = p.x; this.apunte.ratonY = p.y;
-      this.apunte.ang = Math.atan2(p.y - (yo.y - 6), p.x - yo.x);
+      this.apunte.ang = Math.atan2(p.y - (yo.y - 7), p.x - yo.x);
     }
 
     this._moverBalas(dt);
     this._pintarVistas(ahora, dt);
     this._pintarApunte(yo);
-    this._arbustosCerca(yo);
-
-    // ── la niebla ──
-    if (this.zonaRObjetivo != null) {
-      if (this.zonaR == null) this.zonaR = this.zonaRObjetivo;
-      const k = Math.min(1, dt * 6);
-      this.zonaR += (this.zonaRObjetivo - this.zonaR) * k;
-      if (this.zonaC && this.zonaCObjetivo) {
-        this.zonaC.x += (this.zonaCObjetivo.x - this.zonaC.x) * k;
-        this.zonaC.y += (this.zonaCObjetivo.y - this.zonaC.y) * k;
-      }
-      this._pintarNiebla(time);
-      this._avisoFuera(yo, ahora);
-    }
+    this._arbustosCerca(yo, ahora);
+    this._pintarGas(time, dt);
+    this._avisoGas(yo, ahora);
     this._pintarReloj(ahora);
     this._vigilarConexion(ahora);
-
-    // ── la cámara ──
-    const cam = this.cameras.main;
-    let foco = null;
-    if (yo && yo.vivo) foco = yo;
-    else if (this.matchId) {
-      // Caído: se mira al que te tumbó o a cualquiera que siga en pie.
-      let s = this.seguidoId ? this.vistas.get(this.seguidoId) : null;
-      if (!s || !s.vivo) {
-        s = null;
-        this.vistas.forEach((v) => { if (!s && v.vivo && !v.oculto) s = v; });
-        this.seguidoId = s ? s.id : null;
-      }
-      foco = s || yo;
-    }
-    if (foco) {
-      const cx = cam.scrollX + cam.width / 2, cy = cam.scrollY + cam.height / 2;
-      const k = Math.min(1, dt * 10);
-      const anticipo = this._camaraAnticipo, retro = this._camaraRetroceso;
-      const apuntando = foco.yo && this.apunte.mostrar && !this._reducedMotion;
-      const distancia = apuntando ? 18 : 0;
-      anticipo.x += (Math.cos(this.apunte.ang || 0) * distancia - anticipo.x) * Math.min(1, dt * 4);
-      anticipo.y += (Math.sin(this.apunte.ang || 0) * distancia - anticipo.y) * Math.min(1, dt * 4);
-      retro.x *= Math.max(0, 1 - dt * 14); retro.y *= Math.max(0, 1 - dt * 14);
-      cam.centerOn(cx + (foco.x + anticipo.x + retro.x - cx) * k,
-        cy + (foco.y - 8 + anticipo.y + retro.y - cy) * k);
-    }
+    this._camara(dt);
+    if (this._teclasHasta && ahora > this._teclasHasta && this.ui) { this._teclasHasta = 0; this.ui.classList.add('sin-teclas'); }
   }
 
-  _impulsoCamara(tipo, ang, fuerza = 1) {
-    if (this._reducedMotion || document.hidden || this._cleaned) return;
-    const ahora = performance.now();
-    if (tipo === 'tiro' || tipo === 'super') {
-      const r = this._camaraRetroceso;
-      const n = tipo === 'super' ? 7 : 3;
-      r.x = -Math.cos(ang) * n; r.y = -Math.sin(ang) * n;
-    }
-    if (tipo === 'tiro' || ahora - this._camaraGolpeEn < 180) return;
-    this._camaraGolpeEn = ahora;
-    const duracion = tipo === 'explosion' ? 150 : 85;
-    this.cameras.main.shake(duracion, Math.min(0.0025, Math.max(0, fuerza) * 0.0025), false);
+  /* LOS DEMÁS, EN SU MOMENTO: se pintan a la hora del servidor de hace
+     RETRASO_INTERP ms, interpolando entre las dos muestras que la rodean.
+     Su vida, sus huesos y si está en la hierba, de la misma muestra (así la
+     barra baja cuando llega la bala que se ve, no antes). */
+  _interpolar(ahora) {
+    if (this._offset == null) return;
+    const tr = ahora - this._offset - BattleScene.RETRASO_INTERP;
+    this.vistas.forEach((v) => {
+      const b = v.buffer;
+      if (!b.length || !v.vivo) return;
+      while (b.length >= 2 && b[1].ts <= tr) b.shift();
+      const a = b[0], c = b[1];
+      let m = a;
+      if (a.oculto) {
+        if (v.koPendiente || v.yo) return;
+        v.oculto = true;
+        return;
+      }
+      if (!v.yo) {
+        let x, y;
+        if (a.ts > tr || !c) {
+          // Sin muestra más nueva: se sigue un poco con la que lleva (60 ms
+          // como mucho) y luego se espera. Mejor quieto que un salto atrás.
+          const ex = !c && a.ts <= tr ? Math.min(60, tr - a.ts) / 1000 : 0;
+          x = a.x + (v.velX || 0) * ex; y = a.y + (v.velY || 0) * ex;
+        } else if (c.oculto) {
+          x = a.x; y = a.y;
+        } else {
+          const f = Math.max(0, Math.min(1, (tr - a.ts) / Math.max(1, c.ts - a.ts)));
+          x = a.x + (c.x - a.x) * f; y = a.y + (c.y - a.y) * f;
+          const span = Math.max(1, c.ts - a.ts) / 1000;
+          v.velX = (c.x - a.x) / span; v.velY = (c.y - a.y) / span;
+          if (f > 0.5) m = c;
+        }
+        if (v.oculto) { v.x = x; v.y = y; v.huellaX = x; v.huellaY = y; v.ultX = x; v.ultY = y; }
+        v.x = x; v.y = y;
+        v.oculto = false;
+        if (m.cara != null && !(v.caraFija && v.caraFija.hasta > ahora)) v.caraServidor = m.cara * Math.PI / 8;
+        v.mira = (m.band & 8) ? -1 : 1;
+      }
+      v.hp = m.hp; v.maxHp = m.maxHp; v.potencia = m.pot;
+      v.enArbusto = !!(m.band & 4);
+    });
   }
 
   /**
-   * SIN NOTICIAS DEL SERVIDOR. En combate llegan 20 instantáneas por segundo;
-   * si en 6 s no llega ninguna, la conexión se ha perdido (o se reconectó con
-   * otro socket, y para el servidor ya eres otro jugador: te dio por caído).
-   * El final no va a llegar nunca, así que se avisa y se vuelve al mapa en vez
-   * de dejar al jugador mirando una arena congelada. Con la pestaña oculta
-   * update() no corre, así que esto no salta por estar en segundo plano.
+   * SIN NOTICIAS DEL SERVIDOR. En combate llegan 20 instantáneas por segundo.
+   * Sin conexión, se espera a que Socket.IO reconecte (el servidor guarda tu
+   * perro un minuto). Conectado pero sin instantáneas, el servidor no nos
+   * tiene enlazados: se le pide la partida cada 3 s; a los 14 s, se acabó.
+   * Con la pestaña oculta update() no corre, así que esto no salta por estar
+   * en segundo plano.
    */
   _vigilarConexion(ahora) {
     if (this.estado !== 'combate' && this.estado !== 'caido' && this.estado !== 'cuenta') return;
@@ -2550,22 +2865,17 @@ class BattleScene extends Phaser.Scene {
       this.aviso(txt, { peque: true, ms: 2600 });
       this.volverEnBreve(2600);
     };
-    // 1) Sin conexión: se espera a que Socket.IO reconecte (el servidor guarda
-    //    tu perro 20 s); pasado ese rato ya no hay partida a la que volver.
     if (!this.socket || !this.socket.connected) {
       if (!this._sinRedDesde) this._sinRedDesde = ahora;
       this._pintarRed(true);
-      if (ahora - this._sinRedDesde > 22000) rendirse('Connection lost — back to the map');
+      if (ahora - this._sinRedDesde > BattleScene.ESPERA_RED_MS) rendirse('Connection lost, back to the map');
       return;
     }
     this._sinRedDesde = 0;
-    // 2) Conectado pero sin instantáneas: el servidor no nos tiene enlazados
-    //    (reconectó con otro socket antes de que llegara el 'connect'). Se pide
-    //    la partida otra vez cada 3 s; si en 14 s no hay nada, se acabó.
     if (!this._ultimoSnap || ahora - this._ultimoSnap < 3000) { this._pintarRed(false); return; }
     this._pintarRed(true);
     if (!this._pidioVolverEn || ahora - this._pidioVolverEn > 3000) this._pedirVolver();
-    if (ahora - this._ultimoSnap > 14000) rendirse('Connection lost — back to the map');
+    if (ahora - this._ultimoSnap > 14000) rendirse('Connection lost, back to the map');
   }
 
   _enviarPosicion(ahora) {
@@ -2587,12 +2897,20 @@ class BattleScene extends Phaser.Scene {
     });
   }
 
+  /** La dirección del dibujo: de lado, de frente (abajo) o de espaldas (arriba). */
+  _dirDe(ang) {
+    const s = Math.sin(ang), c = Math.cos(ang);
+    if (Math.abs(s) > 0.78 && Math.abs(c) < 0.62) return s > 0 ? 'abajo' : 'arriba';
+    return '';
+  }
+
   _pintarVistas(ahora, dt) {
+    const pisadas = window.GFPisadas && this.__gfPisadas ? window.GFPisadas : null;
     this.vistas.forEach((v) => {
       if (!v.spr) return;
       const visible = v.vivo ? !v.oculto : true;
       // Escondido: se desvanece rápido (y no se dibuja nada encima).
-      const alfaObjetivo = !visible ? 0 : (v.enArbusto ? (v.yo ? 0.6 : 0.55) : 1);
+      const alfaObjetivo = !visible ? 0 : (v.enArbusto ? (v.yo ? 0.62 : 0.55) : 1);
       if (v.vivo) v.spr.alpha += (alfaObjetivo - v.spr.alpha) * Math.min(1, dt * 14);
       const vis = v.spr.alpha > 0.02 || !v.vivo;
       v.spr.setVisible(vis);
@@ -2600,41 +2918,81 @@ class BattleScene extends Phaser.Scene {
       if (v.aro) v.aro.setVisible(vis && v.vivo).setPosition(v.x, v.y + 8);
       if (!v.vivo) return;
 
-      // Andar: fotogramas a su ritmo; quieto: el primero, respirando.
-      const pose = v.andando ? 'camina' : 'quieto';
-      const marcos = this._fotogramas(v.especie, pose, v.mira);
-      if (marcos.length) {
-        if (ahora >= v.proximoPaso) {
-          v.proximoPaso = ahora + (v.andando ? 110 : 380);
-          v.paso = (v.paso + 1) % marcos.length;
-        }
-        const k = marcos[Math.min(v.paso, marcos.length - 1)] || marcos[0];
-        if (v.spr.texture.key !== k) v.spr.setTexture(k);
-        // Los animales solo miran a la derecha: se les da la vuelta. El perro
-        // tiene sus propios fotogramas de cada lado.
-        v.spr.setFlipX(v.especie !== 'perro' && v.mira < 0);
+      // ── el paso: la animación avanza con lo andado, no con el reloj ──
+      const andado = Math.hypot(v.x - v.ultX, v.y - v.ultY);
+      v.ultX = v.x; v.ultY = v.y;
+      if (andado < 40) v.avance += andado;               // un salto grande (recolocación) no cuenta
+      const anda = andado > 0.25 * dt * 60;
+      v.quietoDesde = anda ? 0 : (v.quietoDesde || ahora);
+      const andando = anda || (v.quietoDesde && ahora - v.quietoDesde < 90);
+      if (andando) v.proximoQuieto = ahora;
+      // Hacia dónde mira: el servidor (los demás) o su andar / su disparo (tú).
+      let ang = v.cara;
+      if (!v.yo) {
+        if (v.caraFija && v.caraFija.hasta > ahora) ang = v.caraFija.ang;
+        else if (anda) ang = Math.atan2(v.velY || 0, v.velX || 0);
+        else if (v.caraServidor != null) ang = v.caraServidor;
+        v.cara = ang;
       }
-      const resp = v.andando ? Math.abs(Math.sin(ahora * 0.018)) * 1.5 : Math.sin(ahora * 0.004 + v.id) * 0.6;
+      const dir = this._dirDe(ang || 0);
+      let pose = andando ? 'camina' : 'quieto';
+      if (ahora < v.ataqueHasta) pose = 'ataque';
+      const id = v.marcos ? v.marcos.id : 'perro';
+      let marcos = this._fotogramas(id, pose, v.mira, dir);
+      if (!marcos.length && pose === 'ataque') { pose = andando ? 'camina' : 'quieto'; marcos = this._fotogramas(id, pose, v.mira, dir); }
+      if (marcos.length) {
+        let i;
+        if (pose === 'camina') {
+          // Un fotograma cada 7 px andados: la pata se apoya donde avanza.
+          i = Math.floor(v.avance / 7) % marcos.length;
+        } else if (pose === 'ataque') {
+          i = Math.min(marcos.length - 1, Math.floor((1 - (v.ataqueHasta - ahora) / 260) * marcos.length));
+        } else if (id === 'perro') {
+          i = 0;                                          // el perro quieto: su primer dibujo, respirando
+        } else {
+          if (ahora >= v.proximoQuieto) { v.proximoQuieto = ahora + 480; v.paso = (v.paso + 1) % marcos.length; }
+          i = v.paso % marcos.length;
+        }
+        const k = marcos[i] || marcos[0];
+        if (v.spr.texture.key !== k) v.spr.setTexture(k);
+        // Los animales de lado miran a la derecha: se les da la vuelta. El
+        // perro tiene sus propios dibujos de cada lado.
+        v.spr.setFlipX(id !== 'perro' && dir === '' && v.mira < 0);
+      }
+      const resp = andando ? 0 : Math.sin(ahora * 0.004 + v.id) * 0.012;
       if (v.retroceso > 0) v.retroceso = Math.max(0, v.retroceso - dt * 7);
-      const e = v.escala || 1;
-      v.spr.setScale(e * (1 + v.retroceso * 0.08), e * (1 - v.retroceso * 0.1));
-      v.spr.setPosition(Math.round(v.x), Math.round(v.y + 9 - resp));
+      v.spr.setScale(1 + v.retroceso * 0.06, 1 - v.retroceso * 0.08 + resp);
+      v.spr.setPosition(v.x, v.y + 9);
       v.spr.setDepth(v.y + 9);
-      if (v.sombra) v.sombra.setDepth(v.y - 30);
-      if (v.aro) v.aro.setDepth(v.y - 29);
       // Destello blanco al recibir.
       if (ahora < v.golpeHasta) v.spr.setTintFill(0xffffff);
-      else if (v.spr.tintFill) v.spr.clearTint();
+      else if (v.spr.isTintFill || v.spr.tintFill) v.spr.clearTint();
 
-      // El cartel.
+      // ── las huellas, cada zancada ──
+      if (pisadas && anda && vis) {
+        const dh = Math.hypot(v.x - v.huellaX, v.y - v.huellaY);
+        if (dh > 40) { v.huellaX = v.x; v.huellaY = v.y; }
+        else if (dh >= 18) {
+          try { pisadas.pisar(this, v.x, v.y + 7, { rumbo: Math.atan2(v.y - v.huellaY, v.x - v.huellaX), fuerza: 0.55 }); } catch (e) {}
+          v.huellaX = v.x; v.huellaY = v.y;
+        }
+      }
+      // ── la hierba se mueve al pasar (solo con quien se ve) ──
+      if (anda && vis && this.R && this.arena) {
+        const C = this.R.celda;
+        const idx = Math.floor(v.y / C) * this.R.ancho + Math.floor(v.x / C);
+        if (this.arena.arbustos.has(idx)) this._arbustosMovidos.set(idx, ahora + 320);
+      }
+
+      // ── el cartel ──
       if (v.cartel) {
         v.cartel.setVisible(vis && v.spr.alpha > 0.3);
-        v.cartel.setPosition(Math.round(v.x), Math.round(v.y + 9 - (v.altoSprite || 30) - 6 * (this._escalaCartel || 1)));
+        v.cartel.setPosition(v.x, v.y + 9 - (v.altoSprite || 30) - 4 * (this._escalaCartel || 1));
         this._pintarCartel(v);
         if (v.yo && v.municion) {
           for (let i = 0; i < 3; i++) {
             const c = Math.max(0, Math.min(1, this.municion - i));
-            v.municion[i].width = 16 * c;
+            v.municion[i].width = 15 * c;
             v.municion[i].setAlpha(c >= 1 ? 1 : 0.55);
           }
         }
@@ -2642,8 +3000,9 @@ class BattleScene extends Phaser.Scene {
       if (v.superListo) {
         const listo = this.superCarga >= 1 && this.estado === 'combate';
         v.superListo.setVisible(listo);
-        if (listo) v.superListo.setPosition(v.x, v.y + 4).setDepth(v.y - 28).setAlpha(0.45 + Math.sin(ahora * 0.008) * 0.25);
+        if (listo) v.superListo.setPosition(v.x, v.y + 6).setDepth(v.y - 1).setAlpha(0.45 + Math.sin(ahora * 0.008) * 0.25);
       }
+      if (v.yo) this._pintarVidaHUD(v.hp, v.maxHp);
     });
   }
 
@@ -2659,31 +3018,38 @@ class BattleScene extends Phaser.Scene {
     const arma = this._armaMia(sup);
     if (!arma) return;
     const ang = this.apunte.ang;
-    const x = yo.x, y = yo.y - 6;
+    const x = yo.x, y = yo.y - 7;
     const color = sup ? BattleScene.COLOR.oro : 0xffffff;
-    const alfa = sup ? 0.3 : (this.municion >= 1 ? 0.2 : 0.08);
+    const hay = sup || this.municion >= 1;
+    const alfa = sup ? 0.28 : (hay ? 0.2 : 0.07);
     g.fillStyle(color, alfa);
     if (arma.balas > 1 && arma.abanico) {
       const medio = arma.abanico * Math.PI / 360;
       g.slice(x, y, arma.alcance, ang - medio, ang + medio, false);
       g.fillPath();
+      g.lineStyle(1, color, alfa * 2.2);
+      g.beginPath(); g.arc(x, y, arma.alcance, ang - medio, ang + medio, false); g.strokePath();
     } else {
       const w = Math.max(5, arma.radio);
       const nx = -Math.sin(ang) * w, ny = Math.cos(ang) * w;
       const fx = x + Math.cos(ang) * arma.alcance, fy = y + Math.sin(ang) * arma.alcance;
       g.fillPoints([{ x: x + nx, y: y + ny }, { x: fx + nx, y: fy + ny }, { x: fx - nx, y: fy - ny }, { x: x - nx, y: y - ny }], true);
+      g.lineStyle(1, color, alfa * 2.2);
+      g.lineBetween(x + nx, y + ny, fx + nx, fy + ny);
+      g.lineBetween(x - nx, y - ny, fx - nx, fy - ny);
     }
-    g.lineStyle(1, color, alfa * 2);
+    g.lineStyle(2, color, Math.min(0.9, alfa * 3));
     g.strokeCircle(x + Math.cos(ang) * arma.alcance, y + Math.sin(ang) * arma.alcance, 4);
   }
 
-  /** Las matas de alrededor se vuelven transparentes cuando estás dentro. */
-  _arbustosCerca(yo) {
+  /** Las matas de alrededor se vuelven transparentes cuando estás dentro, y se mueven al pasar. */
+  _arbustosCerca(yo, ahora) {
     if (!this.arena || !this.R) return;
     const nuevas = new Set();
-    if (yo && yo.vivo && this.R) {
-      const cx = Math.floor(yo.x / 32), cy = Math.floor(yo.y / 32);
-      if (window.GFBrawlMotor.celdaEn(this.R, cx, cy) === '*') {
+    const C = this.R.celda;
+    if (yo && yo.vivo) {
+      const cx = Math.floor(yo.x / C), cy = Math.floor(yo.y / C);
+      if (this.R.celdas[cy * this.R.ancho + cx] === '*') {
         for (let y = cy - 2; y <= cy + 2; y++) {
           for (let x = cx - 2; x <= cx + 2; x++) {
             const lista = this.arena.arbustos.get(y * this.R.ancho + x);
@@ -2693,41 +3059,42 @@ class BattleScene extends Phaser.Scene {
       }
     }
     this.arbustosApagados.forEach((im) => { if (!nuevas.has(im) && im.active) im.setAlpha(1); });
-    nuevas.forEach((im) => { if (im.active) im.setAlpha(0.45); });
+    nuevas.forEach((im) => { if (im.active) im.setAlpha(0.42); });
     this.arbustosApagados = nuevas;
+    if (!this._arbustosMovidos.size) return;
+    this._arbustosMovidos.forEach((hasta, idx) => {
+      const lista = this.arena.arbustos.get(idx);
+      const fin = hasta <= ahora || this._reducedMotion;
+      if (lista) lista.forEach((im, i) => { if (im.active && im.setRotation) im.setRotation(fin ? 0 : Math.sin(ahora * 0.03 + i) * 0.09); });
+      if (fin) this._arbustosMovidos.delete(idx);
+    });
   }
 
   _pintarReloj(ahora) {
-    if (!this.el || !this.el.relojTxt || !this.zona) return;
+    if (!this.el || !this.gas) return;
     if (this.estado !== 'combate' && this.estado !== 'caido') return;
+    const g = this.gas;
     const pasado = ahora - this.tCombateLocal;
-    const queda = Math.max(0, this.zona.maxMs - pasado);
+    const queda = Math.max(0, g.maxMs - pasado);
     const s = Math.ceil(queda / 1000);
     const txt = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-    if (this._hud.reloj !== txt) { this.el.relojTxt.textContent = txt; this._hud.reloj = txt; }
-    const niebla = pasado >= this.zona.inicioMs;
-    this.el.relojTxt.classList.toggle('niebla', niebla && s > 20);
-    this.el.relojTxt.classList.toggle('poco', s <= 20);
-    // La pastilla de la niebla: cuánto falta para que se mueva / que ya cierra.
-    if (this.el.nieblaEstado) {
-      const q = Math.max(0, Math.ceil((this.zonaCambioEn - ahora) / 1000));
-      const t = this.zonaEstado === 2 ? '☁ Final circle'
-        : (this.zonaEstado === 1 ? '☁ Closing… ' + q + 's' : '☁ Fog in ' + q + 's');
-      if (this._hud.niebla !== t) {
-        this._hud.niebla = t;
-        this.el.nieblaEstado.textContent = t;
-        this.el.nieblaEstado.classList.toggle('cerrando', this.zonaEstado === 1);
-        this.el.nieblaEstado.classList.remove('hidden');
+    if (this._hud.reloj !== txt && this.el.relojTxt) { this.el.relojTxt.textContent = txt; this._hud.reloj = txt; }
+    if (this.el.relojTxt) this.el.relojTxt.classList.toggle('poco', s <= 20);
+    // La pastilla del gas: cuánto falta / que ya entra / que ya no entra más.
+    if (this.el.gas) {
+      const hasta = Math.max(0, Math.ceil((g.inicioMs - pasado) / 1000));
+      const t = g.estado === 2 ? 'Final zone' : (g.estado === 1 || pasado >= g.inicioMs ? 'Gas closing' : 'Gas in ' + hasta + 's');
+      if (this._hud.gas !== t) {
+        this._hud.gas = t;
+        if (this.el.gasTxt) this.el.gasTxt.textContent = t;
+        this.el.gas.classList.toggle('cerrando', g.estado >= 1);
+        this.el.gas.classList.remove('hidden');
       }
     }
-    const av = this._avisosNiebla;
-    if (!av.previo && pasado >= this.zona.inicioMs - 5000 && this.estado === 'combate') {
+    const av = this._avisosGas;
+    if (!av.previo && pasado >= g.inicioMs - 5000 && this.estado === 'combate') {
       av.previo = true;
-      this.aviso('The fog is coming in 5 seconds!', { peque: true, ms: 2600 });
-    }
-    if (!av.empieza && niebla && this.estado === 'combate') {
-      av.empieza = true;
-      this.aviso('The fog is closing in! Stay inside the circle.', { peque: true, ms: 3000 });
+      this.aviso('The gas comes in 5 seconds!', { peque: true, ms: 2600 });
     }
   }
 
@@ -2743,6 +3110,7 @@ class BattleScene extends Phaser.Scene {
       const viva = this._escenaViva !== false;
       const aceptado = window.__gfBatallaEnVertical === true;
       aviso.classList.toggle('hidden', !(esMovil && vertical && viva && !aceptado));
+      if (this.ui) this.ui.classList.toggle('vertical', vertical);
     };
     this._escucharDOM(document.getElementById('battleRotateSeguir'), 'click', () => {
       window.__gfBatallaEnVertical = true;
@@ -2764,7 +3132,7 @@ class BattleScene extends Phaser.Scene {
   /** Vuelve al mapa dentro de un rato, con los DOS relojes (ver volverAlMapa). */
   volverEnBreve(ms) {
     const espera = Math.max(0, ms || 0);
-    this.time.delayedCall(espera, () => this.volverAlMapa());
+    try { this.time.delayedCall(espera, () => this.volverAlMapa()); } catch (e) {}
     if (this._plazoVolver) window.clearTimeout(this._plazoVolver);
     this._plazoVolver = window.setTimeout(() => { this._plazoVolver = null; this.volverAlMapa(); }, espera + 900);
   }
@@ -2788,7 +3156,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * SALIR DE LA BATALLA, CON RED DEBAJO (ver la historia en la memoria
+   * SALIR DE LA BATALLA, CON RED DEBAJO (ver la memoria
    * "batallas-entrar-y-salir"): el cerrojo caduca a los 4 s, limpiar() va en
    * try/catch, se comprueba que la escena de destino exista (scene.start con
    * una clave desconocida no hace nada) y hay un reintento por el gestor con
@@ -2848,20 +3216,21 @@ class BattleScene extends Phaser.Scene {
     if (this._plazoVolver) { window.clearTimeout(this._plazoVolver); this._plazoVolver = null; }
     if (this._reintentoVuelta && yaLimpia) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
     if (this._paseo) { this._paseo.remove(); this._paseo = null; }
+    this._diferidos = [];
 
     if (this.input) {
       if (this._alMoverRaton) this.input.off('pointermove', this._alMoverRaton);
       if (this._alPulsarRaton) this.input.off('pointerdown', this._alPulsarRaton);
       if (this._alSoltarRaton) this.input.off('pointerup', this._alSoltarRaton);
     }
+    if (this.load && this._errorCarga) { try { this.load.off('loaderror', this._errorCarga); } catch (e) {} this._errorCarga = null; }
     this.teclas = {};
     this.disparoMantenido = false;
 
     try {
       if (this.socket && !yaLimpia) {
-        // Avisar SIEMPRE de que nos vamos: el servidor suelta el candado (si
-        // no, el siguiente intento respondía 'already_in_battle'). Si la
-        // partida ya acabó, no hace nada.
+        // Avisar SIEMPRE de que nos vamos: el servidor suelta el candado. Si
+        // la partida ya acabó, no hace nada.
         if (this.estado === 'buscando') this._emitir('brawl:salirCola');
         if (this.estado !== 'fin') this._emitir('brawl:salir');
       }
@@ -2873,11 +3242,11 @@ class BattleScene extends Phaser.Scene {
     document.body.classList.remove('in-battle');
     if (this.ui) {
       this.ui.classList.add('hidden');
-      this.ui.classList.remove('tactil', 'buscando');
+      this.ui.classList.remove('tactil', 'buscando', 'en-gas', 'caido', 'fin', 'vertical', 'sin-teclas');
     }
     if (this.el) {
       if (this.el.feed) this.el.feed.textContent = '';
-      [this.el.caido, this.el.resultado, this.el.aviso].forEach((n) => n && n.classList.add('hidden'));
+      [this.el.caido, this.el.resultado, this.el.aviso, this.el.fuera, this.el.red].forEach((n) => n && n.classList.add('hidden'));
       if (this.el.dolor) this.el.dolor.classList.remove('activo');
     }
     this._escenaViva = false;
@@ -2892,37 +3261,50 @@ class BattleScene extends Phaser.Scene {
    * sprites: ahora sí se pueden soltar las texturas sin que nadie las pinte.
    */
   _liberarRecursos() {
+    // Lo de los módulos del juego primero (usan texturas de aquí).
+    try { if (window.GFAgua) window.GFAgua.desmontar(this); } catch (e) {}
+    try { if (window.GFSuelo) window.GFSuelo.desmontar(this); } catch (e) {}
+    this._quitarMapaAgua();
+    this._sueloDe = null;
+    this._agua = null;
     try { this.destruirArena(this.arena); } catch (e) {}
     try { this.destruirArena(this.fondoEspera); } catch (e) {}
     this.arena = null;
     this.fondoEspera = null;
+    if (this._sueloRespaldo) { try { this._sueloRespaldo.destroy(); } catch (e) {} this._sueloRespaldo = null; }
     this.vistas.forEach((v) => this.destruirVista(v));
     this.vistas.clear();
     this.balasVista.forEach((b) => { if (b.spr) { try { b.spr.destroy(); } catch (e) {} } });
     this.balasVista = [];
     this.efectosVivos.forEach((s) => { try { s.destroy(); } catch (e) {} });
     this.efectosVivos = [];
-    this.huesosVista.forEach((h) => { try { h.img.destroy(); if (h.brillo) h.brillo.destroy(); } catch (e) {} });
-    this.huesosVista.clear();
+    this.objetosVista.forEach((h) => this._quitarObjeto(h));
+    this.objetosVista.clear();
     this.numerosLibres.forEach((t) => { try { t.destroy(); } catch (e) {} });
     this.numerosLibres = [];
+    if (this.gasBandas) { this.gasBandas.forEach((b) => { try { b.destroy(); } catch (e) {} }); this.gasBandas = null; }
     if (this.cameras && this.cameras.main) this.cameras.main.resetFX();
-    ['nieblaRT', 'nieblaAnillo', 'nieblaSig', 'nieblaGoma', 'nieblaNubes', 'gApunte'].forEach((k) => {
+    ['gApunte', 'gGas'].forEach((k) => {
       if (this[k]) { try { this[k].destroy(); } catch (e) {} this[k] = null; }
     });
     this.arbustosApagados = new Set();
+    this._arbustosMovidos.clear();
+    this._rotasRecientes.clear();
     this.R = null;
     this.pred = null;
-    this._cat = null;
+    this.gas = null;
 
-    // Las texturas propias: el tileset (1 MB de vídeo), los perros, los
-    // animales y el bloque de respaldo. Las piezas de efecto las lleva su
-    // propio contador (GFBatallaArte), que las suelta con la última escena.
+    // Las texturas propias: los animales, los tilesets del agua, el atlas y
+    // el bloque de respaldo. Las piezas de efecto las lleva su propio
+    // contador (GFBatallaArte), que las suelta con la última escena.
     const T = this.textures;
     try {
       T.getTextureKeys().forEach((k) => {
-        if (k.indexOf('bz_arena_32') === 0 || k.indexOf('bz_esp_') === 0 || k === 'bz_bloque') T.remove(k);
+        if (k.indexOf('bz_esp_') === 0 || k.indexOf('bz_ts_') === 0 || k === 'bz_bloque' || k === BattleScene.ATLAS) T.remove(k);
       });
+    } catch (e) {}
+    try {
+      BattleScene.ARENAS.forEach((id) => { if (this.cache.tilemap.exists('bz_suelo_' + id)) this.cache.tilemap.remove('bz_suelo_' + id); });
     } catch (e) {}
     if (window.GFBatallaArte && window.GFBatallaArte.olvidarEfectos) {
       try { window.GFBatallaArte.olvidarEfectos(this); } catch (e) {}
