@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <!-- PRUEBA SIN SERVIDOR: generado por tools/generar-prueba-offline.js. NO subir. -->
-  <script src="./_prueba_offline_mock.js?nc=mwdah594"></script>
-<script src="./gf-crop-catalog.js?v=20261029.plants1&nc=mwdah594"></script>
-<script src="./gf-items-v2.js?v=20261102.ampl3&nc=mwdah594"></script>
-<script src="./gf-native-crops.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./_prueba_offline_mock.js?nc=mwotum2b"></script>
+<script src="./gf-crop-catalog.js?v=20261029.plants1&nc=mwotum2b"></script>
+<script src="./gf-items-v2.js?v=20261102.ampl3&nc=mwotum2b"></script>
+<script src="./gf-native-crops.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <meta charset="UTF-8" />
   <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
        se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="styless.css?v=20261102.ampl3" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
   <link rel="stylesheet" href="gf-hud.css?v=20261102.ampl3" />
+  <link rel="stylesheet" href="./gf-arena.css?v=22.7.0242fcf0e3df" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -57,197 +58,200 @@
        Versions, hashes and licenses are recorded in vendor/manifest.json and LICENSES.txt. -->
 
   <!-- Phaser (pinned) -->
-  <script src="./vendor/phaser.min.js?v=e92ddef111ba&nc=mwdah594" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+  <script src="./vendor/phaser.min.js?v=e92ddef111ba&nc=mwotum2b" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+  <!-- (2026-11-19) Un sprite con la textura borrada se salta en vez de cortar el
+       dibujo del fotograma (los monstruos "desaparecían todos de golpe"). -->
+  <script src="./gf-dibujo-seguro.js?v=22.8.61860b6dffbd&nc=mwotum2b" defer></script>
 
   <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
-  <script src="./vendor/socket.io.min.js?v=870d83168a0e&nc=mwdah594" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
+  <script src="./vendor/socket.io.min.js?v=870d83168a0e&nc=mwotum2b" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
   <!-- Una sola partida por cuenta: envuelve io() y fetch. Va JUSTO después del cliente de Socket.IO. -->
-  <script src="./gf-sesion-unica.js?v=22.5.d2dc7115673b&nc=mwdah594" defer></script>
+  <script src="./gf-sesion-unica.js?v=22.5.d2dc7115673b&nc=mwotum2b" defer></script>
   <!-- Las invitaciones: pronto a propósito, para guardar el ?ref= del enlace
        antes de que el login se lleve al jugador. Pinta la pestaña "Invites". -->
-  <script src="./gf-invitaciones.js?v=audit20261016.13cf4b40b097&nc=mwdah594" defer></script>
+  <script src="./gf-invitaciones.js?v=audit20261016.13cf4b40b097&nc=mwotum2b" defer></script>
 
   <!-- Ethers -->
-  <script src="./vendor/ethers.umd.min.js?v=532950515fd2&nc=mwdah594" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
+  <script src="./vendor/ethers.umd.min.js?v=532950515fd2&nc=mwotum2b" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
 
   <!-- rex virtual joystick -->
-  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be&nc=mwdah594" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
+  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be&nc=mwotum2b" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
 
   <!-- ============================
        Local scripts (all external, defer). No inline <script> blocks remain.
        Ensure your server serves these files over HTTPS in production.
        ============================ -->
 
-  <script src="./ui-image-fallbacks.js?nc=mwdah594" defer></script>
+  <script src="./ui-image-fallbacks.js?nc=mwotum2b" defer></script>
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./missionspanel.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=22.5.7f8c39d8e3df&nc=mwdah594" defer></script>
-  <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04&nc=mwdah594" defer></script>
+  <script src="./gf-soulbound.js?v=22.5.7f8c39d8e3df&nc=mwotum2b" defer></script>
+  <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04&nc=mwotum2b" defer></script>
   <!-- Relieve 2.5D de personajes, NPC y mascota (2026-10-12): se aplica al
        cargar cada textura; los PNG no se tocan. -->
-  <script src="./gf-relieve.js?v=22.5.770a46e6b095&nc=mwdah594" defer></script>
+  <script src="./gf-relieve.js?v=22.8.ef09126513d3&nc=mwotum2b" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
-  <script src="./gf-nft.js?v=22.5.67f2c6bd03ca&nc=mwdah594" defer></script>
-  <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39&nc=mwdah594" defer></script>
+  <script src="./gf-nft.js?v=22.5.67f2c6bd03ca&nc=mwotum2b" defer></script>
+  <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39&nc=mwotum2b" defer></script>
   <!-- (2026-10-27) El nivel de cada objeto: la tienda, el suelo y el mercado (la MISMA tabla que GF_NIVEL_OBJETO de server2.js). -->
-  <script src="./gf-niveles-objetos.js?v=22.5.eed4a459e168&nc=mwdah594" defer></script>
-  <script src="./gf-lands.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-niveles-objetos.js?v=22.5.eed4a459e168&nc=mwotum2b" defer></script>
+  <script src="./gf-lands.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
-  <script src="./gf-canales.js?v=22.5.525534d76810&nc=mwdah594" defer></script>
-  <script src="./gf-profundidad.js?v=22.6.1affbdbef392&nc=mwdah594" defer></script>
+  <script src="./gf-canales.js?v=22.5.525534d76810&nc=mwotum2b" defer></script>
+  <script src="./gf-profundidad.js?v=22.6.1affbdbef392&nc=mwotum2b" defer></script>
   <!-- (2026-10-26) El tronco de cada árbol encima de su choque (salvaje y zonas). -->
-  <script src="./gf-troncos.js?v=22.5.9c7b9955523d&nc=mwdah594" defer></script>
-  <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8&nc=mwdah594" defer></script>
-  <script src="./gf-nieve.js?v=22.5.435bca8e424f&nc=mwdah594" defer></script>
-  <script src="./gf-pesca.js?v=22.6.a0aafa101d6f&nc=mwdah594" defer></script>
+  <script src="./gf-troncos.js?v=22.5.9c7b9955523d&nc=mwotum2b" defer></script>
+  <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8&nc=mwotum2b" defer></script>
+  <script src="./gf-nieve.js?v=22.5.435bca8e424f&nc=mwotum2b" defer></script>
+  <script src="./gf-pesca.js?v=22.6.a0aafa101d6f&nc=mwotum2b" defer></script>
   <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
-  <script src="./gf-monte.js?v=22.5.077d85a03e35&nc=mwdah594" defer></script>
+  <script src="./gf-monte.js?v=22.5.077d85a03e35&nc=mwotum2b" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
-  <script src="./gf-reposo.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5&nc=mwdah594" defer></script>
-  <script src="./gf-antorchas.js?v=22.5.f602d6102aee&nc=mwdah594" defer></script>
-  <script src="./gf-botes.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-reposo.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
+  <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5&nc=mwotum2b" defer></script>
+  <script src="./gf-antorchas.js?v=22.5.f602d6102aee&nc=mwotum2b" defer></script>
+  <script src="./gf-botes.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.f4e63c49731d">
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
-  <script src="./gf-character-skills.js?v=22.5.b87ce67311d6&nc=mwdah594" defer></script>
-  <script src="./gf-espada.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-poderes.js?v=22.6.21b5fa37b2cf&nc=mwdah594" defer></script>
-  <script src="./gf-npc-tiendas.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-vaca.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-monturas.js?v=22.6.98d3c85a029c&nc=mwdah594" defer></script>
+  <script src="./gf-character-skills.js?v=22.5.b87ce67311d6&nc=mwotum2b" defer></script>
+  <script src="./gf-espada.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-poderes.js?v=22.6.21b5fa37b2cf&nc=mwotum2b" defer></script>
+  <script src="./gf-npc-tiendas.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-vaca.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-monturas.js?v=22.6.98d3c85a029c&nc=mwotum2b" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
-  <script src="./gf-hud-ajuste.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./gf-hud-ajuste.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
   <!-- Caminos para los monstruos (rodean las paredes). Antes que los que lo usan. -->
-  <script src="./gf-rutas.js?v=22.1.c909be131777&nc=mwdah594" defer></script>
+  <script src="./gf-rutas.js?v=22.1.c909be131777&nc=mwotum2b" defer></script>
   <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
-  <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9&nc=mwdah594" defer></script>
-  <script src="./gf-mobs-red.js?v=22.5.437264456c3c&nc=mwdah594" defer></script>
-  <script src="./gf-mina-zombis.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9&nc=mwotum2b" defer></script>
+  <script src="./gf-mobs-red.js?v=22.5.437264456c3c&nc=mwotum2b" defer></script>
+  <script src="./gf-mina-zombis.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
   <!-- Recoger y soltar sin esperar a la cadena: la cola y su contador (2026-10-19). -->
-  <script src="./gf-cola-cadena.js?v=22.5.ae046151620c&nc=mwdah594" defer></script>
+  <script src="./gf-cola-cadena.js?v=22.5.ae046151620c&nc=mwotum2b" defer></script>
   <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
-  <script src="./gf-npcs.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6&nc=mwdah594" defer></script>
-  <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac&nc=mwdah594" defer></script>
-  <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e&nc=mwdah594" defer></script>
-  <script src="./gf-mina-espectros.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./gf-npcs.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-npcs-pueblo.js?v=22.8.ed6afad1c405&nc=mwotum2b" defer></script>
+  <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac&nc=mwotum2b" defer></script>
+  <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e&nc=mwotum2b" defer></script>
+  <script src="./gf-mina-espectros.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-jefes.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-salvaje.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-jefes.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
        Scenes/ZonasScenes.js). -->
-  <script src="./gf-camellos.js?v=22.5.9812a80489cc&nc=mwdah594" defer></script>
-  <script src="./gf-fauna-zonas.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-zonas.js?v=22.5.86e48976ef3e&nc=mwdah594" defer></script>
-  <script src="./gf-agua.js?v=22.5.783d5f911ef3&nc=mwdah594" defer></script>
-  <script src="./gf-suelo.js?v=22.5.1769043b2030&nc=mwdah594" defer></script>
-  <script src="./gf-casas.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6&nc=mwdah594" defer></script>
+  <script src="./gf-camellos.js?v=22.5.9812a80489cc&nc=mwotum2b" defer></script>
+  <script src="./gf-fauna-zonas.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-zonas.js?v=22.5.86e48976ef3e&nc=mwotum2b" defer></script>
+  <script src="./gf-agua.js?v=22.5.783d5f911ef3&nc=mwotum2b" defer></script>
+  <script src="./gf-suelo.js?v=22.5.1769043b2030&nc=mwotum2b" defer></script>
+  <script src="./gf-casas.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6&nc=mwotum2b" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
-  <script src="./gf-tirones.js?v=22.5.ccdc78818f1b&nc=mwdah594" defer></script>
-  <script src="./gf-cuervo.js?v=22.5.748929ecf3f5&nc=mwdah594" defer></script>
-  <script src="./gf-animales.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-mascota.js?v=20261028.3c64a47a028a&nc=mwdah594" defer></script>
+  <script src="./gf-tirones.js?v=22.5.ccdc78818f1b&nc=mwotum2b" defer></script>
+  <script src="./gf-cuervo.js?v=22.5.748929ecf3f5&nc=mwotum2b" defer></script>
+  <script src="./gf-animales.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-mascota.js?v=22.7.ebab3264437b&nc=mwotum2b" defer></script>
   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
-  <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491&nc=mwdah594" defer></script>
-  <script src="./gf-muerte.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb&nc=mwdah594" defer></script>
-  <script src="./gf-carga-mapa.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd&nc=mwdah594" defer></script>
+  <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491&nc=mwotum2b" defer></script>
+  <script src="./gf-muerte.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
+  <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb&nc=mwotum2b" defer></script>
+  <script src="./gf-carga-mapa.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
+  <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd&nc=mwotum2b" defer></script>
   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
   <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
-  <script src="./gf-graficos.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-graficos.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
   <!-- (2026-11-10) La red de la cadena (RPC, explorador, id): la dice el servidor (/api/red). -->
-  <script src="./gf-red.js?v=22.6.39af26bf3483&nc=mwdah594" defer></script>
-  <script src="./gf-economia.js?v=22.6.2dc4b2f140e0&nc=mwdah594" defer></script>
-  <script src="./gf-vip.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf&nc=mwdah594" defer></script>
-  <script src="./gf-viento.js?v=22.5.89ba49f83cf1&nc=mwdah594" defer></script>
-  <script src="./gf-clima.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-red.js?v=22.6.39af26bf3483&nc=mwotum2b" defer></script>
+  <script src="./gf-economia.js?v=22.6.2dc4b2f140e0&nc=mwotum2b" defer></script>
+  <script src="./gf-vip.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf&nc=mwotum2b" defer></script>
+  <script src="./gf-viento.js?v=22.5.89ba49f83cf1&nc=mwotum2b" defer></script>
+  <script src="./gf-clima.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
        tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
-  <script src="./gf-postproceso.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-postproceso.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
-  <script src="./gf-pisadas.js?v=22.5.aaa96d6e798c&nc=mwdah594" defer></script>
+  <script src="./gf-pisadas.js?v=22.5.aaa96d6e798c&nc=mwotum2b" defer></script>
 
   <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
        bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./gf-audio.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
        censo de copas, asi que va detras de los dos. -->
-  <script src="./gf-buho.js?v=audit20261016.8b7ee87197d9&nc=mwdah594" defer></script>
+  <script src="./gf-buho.js?v=audit20261016.8b7ee87197d9&nc=mwotum2b" defer></script>
 
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=audit20261016.d1934b134ee5&nc=mwdah594" defer></script>
+  <script src="./gf-batalla-arte.js?v=22.7.f2b169b4d3fc&nc=mwotum2b" defer></script>
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=audit20261016.8cb3bac3c4b0&nc=mwdah594" defer></script>
+  <script src="./gf-brawl-motor.js?v=22.7.805a18e38ae0&nc=mwotum2b" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
-  <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2&nc=mwdah594" defer></script>
-  <script src="./gf-amigos.js?v=22.6.ca5a76929431&nc=mwdah594" defer></script>
+  <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2&nc=mwotum2b" defer></script>
+  <script src="./gf-amigos.js?v=22.6.ca5a76929431&nc=mwotum2b" defer></script>
   <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
        adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
-  <script src="./gf-admin-ajuste.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-admin-ajuste.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
   <!-- (2026-10-26) El mapa del mundo: tecla M o el botón "Map"; viajar pagando en bronce. -->
-  <script src="./gf-mapa-mundo.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./gf-chat-social.js?v=22.6.b1ec249b680f&nc=mwdah594" defer></script>
-  <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d&nc=mwdah594" defer></script>
+  <script src="./gf-mapa-mundo.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./gf-chat-social.js?v=22.6.b1ec249b680f&nc=mwotum2b" defer></script>
+  <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d&nc=mwotum2b" defer></script>
 
-  <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e&nc=mwdah594" defer></script>
-  <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167&nc=mwdah594" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.6.f1b276a71927&nc=mwdah594" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.6.f768f0bd12c0&nc=mwdah594" defer></script>
+  <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e&nc=mwotum2b" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167&nc=mwotum2b" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.8.9a9f5112afa3&nc=mwotum2b" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.8.8836324809c5&nc=mwotum2b" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.8.0fb2cd939f94&nc=mwotum2b" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./Scenes/MinaScene.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=22.6.cf7f46c11243&nc=mwdah594" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./Scenes/LandsScene.js?v=22.6.cf7f46c11243&nc=mwotum2b" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./Scenes/ZonasScenes.js?v=20261102.ampl3&nc=mwdah594" defer></script>
-  <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef&nc=mwdah594" defer></script>
-  <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa&nc=mwdah594" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.7.367d3e15274f&nc=mwotum2b" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa&nc=mwotum2b" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js?v=22.4.4385704c3485&nc=mwdah594" defer></script>
+  <script src="./Scenes/ShopScene.js?v=22.4.4385704c3485&nc=mwotum2b" defer></script>
 
   <!-- utilities -->
 
@@ -260,31 +264,31 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./Phaser-camera.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
-  <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14&nc=mwdah594" defer></script>
+  <script src="./phaser-rpg-perf.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
+  <script src="./Phaser-camera.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
+  <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14&nc=mwotum2b" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19&nc=mwdah594" defer></script>
-  <script src="./TransactionHub.js?v=22.6.c5afa46cbff0&nc=mwdah594" defer></script>
-  <script src="./SystemaTransaccion.js?v=22.6.99695580da8b&nc=mwdah594" defer></script>
-  <script src="./CraftingHub.js?v=20261102.ampl3&nc=mwdah594" defer></script>
+  <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19&nc=mwotum2b" defer></script>
+  <script src="./TransactionHub.js?v=22.6.c5afa46cbff0&nc=mwotum2b" defer></script>
+  <script src="./SystemaTransaccion.js?v=22.6.99695580da8b&nc=mwotum2b" defer></script>
+  <script src="./CraftingHub.js?v=20261102.ampl3&nc=mwotum2b" defer></script>
   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
-  <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd&nc=mwdah594" defer></script>
-  <script src="./tienda_sistema.js?v=22.6.9314ab5758a1&nc=mwdah594" defer></script>
-  <script src="./phaser-relay-library.js?v=22.5.e35073fb2732&nc=mwdah594" defer></script>
-  <script src="./gf-session-api.js?v=22.4.12349825508f&nc=mwdah594" defer></script>
-  <script src="./hub.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd&nc=mwotum2b" defer></script>
+  <script src="./tienda_sistema.js?v=22.8.dd718f3b4bdd&nc=mwotum2b" defer></script>
+  <script src="./phaser-relay-library.js?v=22.5.e35073fb2732&nc=mwotum2b" defer></script>
+  <script src="./gf-session-api.js?v=22.4.12349825508f&nc=mwotum2b" defer></script>
+  <script src="./hub.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
 
-  <script src="./register-scenes.js?v=22.5.4a66c40ab27f&nc=mwdah594" defer></script>
+  <script src="./register-scenes.js?v=22.5.4a66c40ab27f&nc=mwotum2b" defer></script>
 
-  <script src="./memory-fix.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./memory-fix.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./NotificationHub.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
   <script type="module" src="lib/tileManager.js?v=20261029.auditoria2" defer></script>
@@ -294,30 +298,30 @@
 
   <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
        que las escenas para que ninguna transacción se quede sin registrar. -->
-  <script src="./tx-gate.js?v=22.5.6d14fc1716c7&nc=mwdah594" defer></script>
+  <script src="./tx-gate.js?v=22.5.6d14fc1716c7&nc=mwotum2b" defer></script>
 
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
-  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.6.25206cd35c36&nc=mwdah594" defer></script>
-  <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44&nc=mwdah594" defer></script>
-  <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6&nc=mwdah594" defer></script>
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.6.25206cd35c36&nc=mwotum2b" defer></script>
+  <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44&nc=mwotum2b" defer></script>
+  <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6&nc=mwotum2b" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
-  <script src="./gf-wallet-dashboard.js?v=22.6.eacefd7d6ed5&nc=mwdah594" defer></script>
+  <script src="./gf-wallet-dashboard.js?v=22.6.eacefd7d6ed5&nc=mwotum2b" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
        antes de que se cree el lienzo. No toca el zoom de la cámara. -->
-  <script src="./viewport-fix.js?v=22.4.a4e37828640e&nc=mwdah594" defer></script>
+  <script src="./viewport-fix.js?v=22.4.a4e37828640e&nc=mwotum2b" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="app.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=20261029.auditoria2&nc=mwdah594" defer></script>
+  <script src="./gf-graphics-settings.js?v=20261029.auditoria2&nc=mwotum2b" defer></script>
 
   <!-- ============================
        END HEAD
@@ -827,51 +831,49 @@
   </div>
 </div>
 
-<!-- HUB DE BATALLAS -->
-<div id="battleHubOverlay" class="battle-hub-overlay hidden">
-  <div class="battle-hub-card" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
-    
-    <button class="battle-hub-close" id="battleHubCloseBtn" aria-label="Cerrar menú">✕</button>
+<!-- ===== LA ARENA DE MASCOTAS: el panel de entrada ===== (2026-11-17)
+     Lo abre GameScene.openBattleHub al pisar la entrada de la arena. Solo lo
+     que se usa: tu mascota tal y como va a entrar (su vida de verdad), los
+     tres modos y la clasificación. Estilos en gf-arena.css; los iconos son
+     los de Game/Source/arena (tools/generar-iconos-arena.py). -->
+<div id="battleHubOverlay" class="battle-hub-overlay ga-hub hidden">
+  <div class="ga-hub-caja" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
+    <header class="ga-cab">
+      <img class="ga-cab-icono" src="./Game/Source/arena/arena.png" alt="" width="36" height="36">
+      <h2 id="battleHubTitle" class="ga-titulo">Pet Arena</h2>
+      <button type="button" class="ga-cerrar" id="battleHubCloseBtn" aria-label="Close">✕</button>
+    </header>
 
-    <div class="battle-hub-header">
-      <div class="battle-hub-icon" aria-hidden="true">
-        🐾
+    <div class="ga-hub-cuerpo">
+      <section class="ga-mascota" aria-label="Your pet">
+        <div class="ga-retrato"><img src="./Game/Sprites/mascota/derecha/run_1.png" alt="" width="48" height="48"></div>
+        <div class="ga-mascota-datos">
+          <div class="ga-mascota-nombre"><span id="battleHubPetName">Your pet</span><b class="ga-nivel" id="battleHubPetLvl"></b></div>
+          <div class="ga-vida" title="Your pet enters the arena with this health"><i id="battleHubPetHp"></i><b id="battleHubPetHpTxt">—</b></div>
+          <small id="battleHubPetNote">Your pet enters the arena with this health.</small>
+        </div>
+      </section>
+
+      <div class="ga-modos">
+        <button type="button" id="battleHubAdventureBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/diarias.png" alt=""></span>
+          <span class="btn-text"><strong>Daily battles</strong><small id="battleHubDailyTxt">5 wild animals a day</small></span>
+          <span class="ga-chip" id="battleHubDailyChip">–/5</span>
+        </button>
+        <button type="button" id="battleHubPvpBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/pvp.png" alt=""></span>
+          <span class="btn-text"><strong>Arena PvP</strong><small>2–6 players · last pet standing wins</small></span>
+          <i class="ga-modo-flecha" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="battleHubPracticeBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/practica.png" alt=""></span>
+          <span class="btn-text"><strong>Practice</strong><small>You vs 3 bots · no points</small></span>
+          <i class="ga-modo-flecha" aria-hidden="true"></i>
+        </button>
       </div>
-      <h2 id="battleHubTitle">Pet Arena</h2>
-      <p>Move, bark and be the last dog standing</p>
-    </div>
 
-    <div class="battle-hub-actions">
-      <button id="battleHubAdventureBtn" class="battle-btn battle-btn-adventure">
-        <span class="btn-icon">🌲</span>
-        <span class="btn-text">
-          <strong>5 Daily Battles</strong>
-          <small>Complete the daily challenge</small>
-        </span>
-      </button>
-
-      <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
-        <span class="btn-icon">⚔</span>
-        <span class="btn-text">
-          <strong>Arena PvP</strong>
-          <small>Up to 6 players · last one standing wins</small>
-        </span>
-      </button>
-
-      <button id="battleHubPracticeBtn" class="battle-btn battle-btn-practice">
-        <span class="btn-icon">🎯</span>
-        <span class="btn-text">
-          <strong>Practice</strong>
-          <small>Train against 3 bots · no points</small>
-        </span>
-      </button>
-
-      <button id="battleHubRankingBtn" class="battle-btn battle-btn-ranking">
-        <span class="btn-icon">🏆</span>
-        <span class="btn-text">
-          <strong>Ranking</strong>
-          <small>Season points table</small>
-        </span>
+      <button type="button" id="battleHubRankingBtn" class="ga-enlace">
+        <img src="./Game/Source/arena/ranking.png" alt=""><span>Season ranking</span>
       </button>
     </div>
   </div>
@@ -879,119 +881,131 @@
 
   
 
-<!-- ===== Interfaz de la ARENA (HTML/CSS, adaptable) =====
-     La dibuja y la mueve Scenes/BattleScene.js. Phaser pinta la arena y los
-     luchadores; esto es lo que va encima: tu tarjeta, el reloj, los que
-     quedan, los avisos, los mandos táctiles y las pantallas de búsqueda,
-     de caído y de resultados. -->
-<div id="battleUI" class="battle-ui bz hidden">
+<!-- ===== LA ARENA: el HUD de combate ===== (2026-11-17)
+     Lo mueve Scenes/BattleScene.js (los ids bz*: no cambiarlos, las pruebas
+     de tools/ los usan); estilos en gf-arena.css. Phaser pinta la arena y
+     los luchadores; esto va encima. Todos los textos que vienen de jugadores
+     se escriben con textContent. -->
+<div id="battleUI" class="ga-ui hidden">
 
-  <!-- Arriba: tú · el reloj y los que quedan · rendirse -->
-  <div class="bz-top">
-    <div class="bz-yo" id="bzYo">
-      <div class="bz-retrato" id="bzRetrato" aria-hidden="true"></div>
-      <div class="bz-yo-datos">
-        <div class="bz-yo-nombre"><span id="bzYoNombre">—</span> <span class="bz-nivel" id="bzYoNivel"></span></div>
-        <div class="bz-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
-        <div class="bz-yo-extra">
-          <span id="bzYoHuesos" title="Power bones: +10% damage and health each">🦴 0</span>
-          <span id="bzYoBajas" title="Knockouts">💥 0</span>
+  <!-- Arriba: tú · el reloj, los que quedan y el gas · rendirse -->
+  <div class="ga-arriba">
+    <div class="ga-yo" id="bzYo">
+      <div class="ga-retrato ga-retrato-hud" id="bzRetrato" aria-hidden="true"></div>
+      <div class="ga-yo-datos">
+        <div class="ga-mascota-nombre"><span id="bzYoNombre">Your pet</span><b class="ga-nivel" id="bzYoNivel"></b></div>
+        <div class="ga-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
+        <div class="ga-yo-extra">
+          <span class="ga-dato" title="Power bones: +10% damage and health each"><img src="./Game/Source/arena/hueso.png" alt="Power bones"><b id="bzYoHuesos">0</b></span>
+          <span class="ga-dato" title="Knockouts"><img src="./Game/Source/arena/ko.png" alt="Knockouts"><b id="bzYoBajas">0</b></span>
+          <span class="ga-poder hidden" id="bzYoEscudo" title="Shield"><img src="./Game/Source/arena/escudo.png" alt="Shield"><b></b></span>
+          <span class="ga-poder ga-poder-rapidez hidden" id="bzYoRapidez" title="Speed"><img src="./Game/Source/arena/rapidez.png" alt="Speed"><b></b></span>
         </div>
       </div>
     </div>
-    <div class="bz-centro">
-      <div class="bz-modo" id="bzModo">ARENA</div>
-      <div class="bz-reloj" id="bzReloj">--:--</div>
-      <div class="bz-niebla-estado hidden" id="bzNieblaEstado" title="The fog closes in phases: stay inside the white circle"></div>
-      <div class="bz-quedan" title="Fighters still standing"><span aria-hidden="true">🐾</span><b id="bzQuedan">-</b><small>left</small></div>
+    <div class="ga-centro">
+      <div class="ga-modo-txt" id="bzModo">Arena</div>
+      <div class="ga-marcador">
+        <span class="ga-marca" title="Time left"><img src="./Game/Source/arena/reloj.png" alt=""><b id="bzReloj">--:--</b></span>
+        <span class="ga-marca" title="Fighters still standing"><img src="./Game/Source/arena/vivos.png" alt=""><b id="bzQuedan">-</b></span>
+      </div>
+      <div class="ga-gas hidden" id="bzGasEstado" title="The gas closes in from the edges: stay in the middle"><img src="./Game/Source/arena/gas.png" alt=""><span id="bzGasTxt"></span></div>
     </div>
-    <div class="bz-acciones">
-      <button type="button" id="bzSalir" class="bz-btn bz-btn-salir">Surrender</button>
+    <div class="ga-acciones">
+      <button type="button" id="bzSalir" class="ga-redondo"><img src="./Game/Source/arena/rendirse.png" alt=""><span class="ga-redondo-txt">Surrender</span></button>
     </div>
   </div>
 
   <!-- Quién ha tumbado a quién -->
-  <ol class="bz-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
+  <ol class="ga-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
 
-  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, la niebla… -->
-  <div class="bz-aviso hidden" id="bzAviso" aria-live="assertive"></div>
+  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, el gas… -->
+  <div class="ga-aviso hidden" id="bzAviso" aria-live="assertive"></div>
 
   <!-- El borde rojo al recibir un golpe -->
-  <div class="bz-dolor" id="bzDolor"></div>
+  <div class="ga-dolor" id="bzDolor" aria-hidden="true"></div>
 
-  <!-- Estás en la niebla (o va a llegar): hacia dónde correr -->
-  <div class="bz-fuera hidden" id="bzFuera" role="status" aria-live="polite">
-    <i class="bz-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
+  <!-- Estás en el gas (o va a llegar): hacia dónde correr -->
+  <div class="ga-fuera hidden" id="bzFuera" role="status" aria-live="polite">
+    <i class="ga-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
   </div>
 
-  <!-- Se ha ido la conexión: el servidor te guarda el perro unos segundos -->
-  <div class="bz-red hidden" id="bzRed" role="status" aria-live="polite">
-    <i aria-hidden="true"></i><span>Connection lost — reconnecting…</span>
+  <!-- Se ha ido la conexión: el servidor te guarda la mascota un minuto -->
+  <div class="ga-red hidden" id="bzRed" role="status" aria-live="polite">
+    <i aria-hidden="true"></i><span>Connection lost · reconnecting…</span>
   </div>
 
-  <!-- Buscando partida -->
-  <div class="bz-busqueda" id="bzBusqueda">
-    <div class="bz-busqueda-tarjeta" role="dialog" aria-labelledby="bzBusquedaTitulo">
-      <div class="bz-huellas" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <h2 id="bzBusquedaTitulo">Searching for players…</h2>
-      <p id="bzBusquedaTexto">Be the last dog standing.</p>
-      <div class="bz-sala" id="bzSala" aria-live="polite"></div>
-      <div class="bz-busqueda-tiempo" id="bzBusquedaTiempo">0:00</div>
-      <!-- La sala de espera: quién ha entrado y quién está listo (2026-10-10). -->
-      <ul class="bz-lobby hidden" id="bzLobby" aria-live="polite"></ul>
-      <ul class="bz-consejos" id="bzConsejos">
-        <li><b>Move</b> WASD / left stick</li>
-        <li><b>Bark</b> click / right stick · 3 charges that reload</li>
-        <li><b>Super</b> E or right-click · charges as you hit</li>
-        <li><b>Hide</b> in tall grass · <b>bones</b> make you stronger</li>
+  <!-- Buscando partida (y la sala de espera del PvP) -->
+  <div class="ga-busqueda" id="bzBusqueda">
+    <div class="ga-tarjeta ga-busq" role="dialog" aria-labelledby="bzBusquedaTitulo">
+      <div class="ga-busq-icono" aria-hidden="true"><img src="./Game/Source/arena/buscar.png" alt=""></div>
+      <h2 class="ga-titulo" id="bzBusquedaTitulo">Searching for players…</h2>
+      <p class="ga-texto" id="bzBusquedaTexto">Be the last pet standing.</p>
+      <div class="ga-busq-datos">
+        <span class="ga-pastilla" id="bzSala" aria-live="polite"></span>
+        <span class="ga-pastilla"><img src="./Game/Source/arena/reloj.png" alt=""><b id="bzBusquedaTiempo">0:00</b></span>
+      </div>
+      <ul class="ga-lobby hidden" id="bzLobby" aria-live="polite"></ul>
+      <ul class="ga-consejos" id="bzConsejos">
+        <li><img src="./Game/Source/arena/rapidez.png" alt=""><span><b>Move</b> <em class="solo-pc">WASD or arrows</em><em class="solo-tactil">left side of the screen</em></span></li>
+        <li><img src="./Game/Source/arena/ladrido.png" alt=""><span><b>Bark</b> <em class="solo-pc">click to aim · Space aims for you</em><em class="solo-tactil">tap the right side · drag to aim</em></span></li>
+        <li><img src="./Game/Source/arena/super.png" alt=""><span><b>Super</b> <em class="solo-pc">E or right-click</em><em class="solo-tactil">the gold button</em> · fills as you hit</span></li>
+        <li><img src="./Game/Source/arena/hueso.png" alt=""><span><b>Bones</b> break boxes · +10% damage and health each</span></li>
+        <li><img src="./Game/Source/arena/gas.png" alt=""><span><b>Gas</b> closes in after 30 s · tall grass hides you</span></li>
       </ul>
-      <div class="bz-busqueda-botones">
-        <button type="button" id="bzListo" class="bz-btn bz-btn-listo hidden" aria-pressed="false">Ready</button>
-        <button type="button" id="bzPracticar" class="bz-btn bz-btn-sec">Practice vs bots</button>
-        <button type="button" id="bzCancelar" class="bz-btn bz-btn-ghost">Cancel</button>
+      <div class="ga-botones">
+        <button type="button" id="bzListo" class="ga-boton ga-boton-verde hidden" aria-pressed="false"><img src="./Game/Source/arena/listo.png" alt=""><span>Ready</span></button>
+        <button type="button" id="bzPracticar" class="ga-boton"><img src="./Game/Source/arena/practica.png" alt=""><span>Practice vs bots</span></button>
+        <button type="button" id="bzCancelar" class="ga-boton ga-boton-sec"><span>Cancel</span></button>
       </div>
     </div>
   </div>
 
-  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y dispara con la derecha -->
-  <div class="bz-tactil" id="bzTactil">
-    <div class="bz-zona-mover" id="bzZonaMover"><div class="bz-stick" id="bzStickMover"><i></i></div></div>
-    <div class="bz-zona-disparo" id="bzZonaDisparo"><div class="bz-stick bz-stick-fuego" id="bzStickDisparo"><i></i></div></div>
-    <button type="button" class="bz-super" id="bzSuper" aria-label="Super attack" disabled>
-      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bz-super-fondo" cx="32" cy="32" r="28"/><circle class="bz-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
-      <span>SUPER</span>
+  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y ladra con la derecha -->
+  <div class="ga-tactil" id="bzTactil">
+    <div class="ga-zona ga-zona-mover" id="bzZonaMover"><div class="ga-stick" id="bzStickMover"><i></i></div></div>
+    <div class="ga-zona ga-zona-disparo" id="bzZonaDisparo"><div class="ga-stick ga-stick-fuego" id="bzStickDisparo"><i></i></div></div>
+    <button type="button" class="ga-super" id="bzSuper" aria-label="Super attack" disabled>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="ga-super-fondo" cx="32" cy="32" r="28"/><circle class="ga-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
+      <img src="./Game/Source/arena/super.png" alt="">
     </button>
   </div>
 
-  <!-- Abajo (PC): la barra del súper y las teclas -->
-  <div class="bz-pie" id="bzPie">
-    <div class="bz-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
-    <div class="bz-teclas"><kbd>WASD</kbd> move · <kbd>Click</kbd> bark · <kbd>Space</kbd> auto-aim · <kbd>E</kbd> / <kbd>Right-click</kbd> super</div>
+  <!-- Abajo: las cargas del ladrido, la barra del súper y las teclas -->
+  <div class="ga-pie" id="bzPie">
+    <div class="ga-cargas" id="bzMunicion" title="Bark charges: they reload by themselves"><i></i><i></i><i></i></div>
+    <div class="ga-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
+    <div class="ga-teclas" id="bzTeclas"><kbd>WASD</kbd> move <kbd>Click</kbd> bark <kbd>Space</kbd> auto-aim <kbd>E</kbd> super</div>
   </div>
 
   <!-- Te han tumbado: mirar cómo acaba o volver al mapa -->
-  <div class="bz-caido hidden" id="bzCaido">
-    <div class="bz-caido-tarjeta" role="dialog" aria-labelledby="bzCaidoTitulo">
-      <h3 id="bzCaidoTitulo">Knocked out!</h3>
-      <p id="bzCaidoTexto"></p>
-      <div class="bz-caido-botones">
-        <button type="button" id="bzMirar" class="bz-btn bz-btn-ghost">Keep watching</button>
-        <button type="button" id="bzVolverCaido" class="bz-btn">Back to map</button>
+  <div class="ga-caido hidden" id="bzCaido">
+    <div class="ga-tarjeta ga-tarjeta-peque" role="dialog" aria-labelledby="bzCaidoTitulo">
+      <img class="ga-tarjeta-icono" src="./Game/Source/arena/ko.png" alt="">
+      <h3 class="ga-titulo" id="bzCaidoTitulo">Knocked out!</h3>
+      <p class="ga-texto" id="bzCaidoTexto"></p>
+      <div class="ga-botones">
+        <button type="button" id="bzMirar" class="ga-boton ga-boton-sec"><span>Keep watching</span></button>
+        <button type="button" id="bzVolverCaido" class="ga-boton"><span>Back to map</span></button>
       </div>
     </div>
   </div>
 
   <!-- Resultados -->
-  <div class="bz-resultado hidden" id="bzResultado">
-    <div class="bz-resultado-tarjeta" role="dialog" aria-labelledby="bzResTitulo">
-      <div class="bz-medalla" id="bzResPuesto">#1</div>
-      <h2 id="bzResTitulo">Victory!</h2>
-      <p id="bzResSub"></p>
-      <ul class="bz-premios" id="bzResPremios"></ul>
-      <ol class="bz-tabla" id="bzResTabla"></ol>
-      <div class="bz-resultado-botones">
-        <button type="button" id="bzOtraVez" class="bz-btn bz-btn-sec">Play again</button>
-        <button type="button" id="bzVolver" class="bz-btn">Back to map</button>
+  <div class="ga-resultado hidden" id="bzResultado">
+    <div class="ga-tarjeta ga-res" role="dialog" aria-labelledby="bzResTitulo">
+      <div class="ga-res-cab">
+        <div class="ga-medalla" id="bzResPuesto">#1</div>
+        <div class="ga-res-textos">
+          <h2 class="ga-res-titulo" id="bzResTitulo">Victory!</h2>
+          <p class="ga-texto" id="bzResSub"></p>
+        </div>
+      </div>
+      <ul class="ga-premios" id="bzResPremios"></ul>
+      <ol class="ga-tabla" id="bzResTabla"></ol>
+      <div class="ga-botones">
+        <button type="button" id="bzOtraVez" class="ga-boton ga-boton-sec">Play again</button>
+        <button type="button" id="bzVolver" class="ga-boton">Back to map</button>
       </div>
     </div>
   </div>
@@ -1001,8 +1015,8 @@
 <div id="battleRankOverlay" class="battle-rank-overlay hidden">
   <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
     <div class="battle-rank-head">
-      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
-      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
+      <h2 id="battleRankTitle"><img src="./Game/Source/arena/ranking.png" alt="" width="34" height="34">Pet Battle Ranking</h2>
+      <button type="button" class="battle-rank-close ga-cerrar" id="battleRankCloseBtn" aria-label="Close">✕</button>
     </div>
     <p id="battleRankSeason" class="battle-rank-season"></p>
     <div class="battle-rank-scroll">
@@ -1019,7 +1033,7 @@
     </div>
     <div class="battle-rank-foot">
       <span id="battleRankMe" class="battle-rank-me"></span>
-      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
+      <button type="button" id="battleRankRefreshBtn" class="battle-rank-refresh ga-boton ga-boton-sec"><span>Refresh</span></button>
     </div>
   </div>
 </div>
@@ -1027,11 +1041,11 @@
 <!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
 <div id="battleRotateNotice" class="battle-rotate-notice hidden">
   <div class="battle-rotate-inner">
-    <div class="battle-rotate-icon">📱↻</div>
+    <img class="battle-rotate-icono" src="./Game/Source/arena/girar.png" alt="" width="96" height="96">
     <p>Rotate your phone to landscape to play the battle comfortably.</p>
     <!-- Con el giro automatico bloqueado, sin este boton no habia salida: el
          aviso tapaba la batalla entera (ni jugar ni rendirse). -->
-    <button type="button" id="battleRotateSeguir" class="battle-rotate-seguir">Play in portrait</button>
+    <button type="button" id="battleRotateSeguir" class="battle-rotate-seguir ga-boton ga-boton-sec">Play in portrait</button>
   </div>
 </div>
 

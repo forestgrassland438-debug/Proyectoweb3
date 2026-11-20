@@ -1062,6 +1062,230 @@
     }]
   };
 
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS PIEZAS DE LA ARENA, EN PIXEL ART                        (2026-11-15)
+     ──────────────────────────────────────────────────────────────────────
+     "No quiero feos gráficos ni simples, ni en poderes ni nada."
+
+     Los proyectiles de arriba son arcos y cuadraditos trazados con el pincel
+     suave del canvas: al lado de los sprites del juego (pixel art con su
+     contorno oscuro) se veían de otro sitio, y a zoom 2 los degradados salían
+     a escalones. Estas se pintan PÍXEL A PÍXEL, sin suavizado, con dos o tres
+     tonos por pieza y el mismo contorno oscuro que llevan los personajes y
+     los objetos del juego. Las que lo necesitan van en blanco para teñirlas.
+
+     Lo que ya existía dibujado en el juego NO se repite aquí: la pluma, la
+     bola de fuego, la espina y el orbe salen del atlas de la arena
+     (Game/MAPAS/arena/objetos.png, ver tools/generar-arenas.py).
+
+     Sin motas ni racimos (el dueño del juego tiene tripofobia): el gas son
+     pocas nubes grandes y lisas, no burbujas.
+     ══════════════════════════════════════════════════════════════════════ */
+  var TINTA = '#1d1428';
+
+  /** Un lienzo de píxeles: se pinta en memoria y se vuelca de una vez. */
+  function Pix(w, h) { this.w = w; this.h = h; this.d = new Array(w * h); }
+  Pix.prototype.p = function (x, y, c) {
+    x = Math.round(x); y = Math.round(y);
+    if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.d[y * this.w + x] = c;
+  };
+  Pix.prototype.elipse = function (cx, cy, rx, ry, c) {
+    for (var y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
+      for (var x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+        var dx = (x - cx) / rx, dy = (y - cy) / ry;
+        if (dx * dx + dy * dy <= 1) this.p(x, y, c);
+      }
+    }
+  };
+  Pix.prototype.disco = function (cx, cy, r, c) { this.elipse(cx, cy, r, r, c); };
+  /** Un trozo de anillo: radio `r`, de `a0` a `a1` (radianes), `grosor` px. */
+  Pix.prototype.arco = function (cx, cy, r, a0, a1, grosor, c) {
+    var R = r + grosor;
+    for (var y = Math.floor(cy - R); y <= Math.ceil(cy + R); y++) {
+      for (var x = Math.floor(cx - R); x <= Math.ceil(cx + R); x++) {
+        var dx = x - cx, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy);
+        if (Math.abs(d - r) > grosor / 2) continue;
+        var a = Math.atan2(dy, dx);
+        if (a >= a0 && a <= a1) this.p(x, y, c);
+      }
+    }
+  };
+  Pix.prototype.linea = function (x0, y0, x1, y1, grosor, c) {
+    var n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2));
+    for (var i = 0; i <= n; i++) {
+      var t = i / n;
+      this.disco(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, grosor / 2, c);
+    }
+  };
+  /** Una curva de tres puntos (cuadrática), como un zarpazo. */
+  Pix.prototype.curva = function (x0, y0, xc, yc, x1, y1, grosor, c) {
+    for (var i = 0; i <= 40; i++) {
+      var t = i / 40, u = 1 - t;
+      this.disco(u * u * x0 + 2 * u * t * xc + t * t * x1, u * u * y0 + 2 * u * t * yc + t * t * y1, grosor / 2, c);
+    }
+  };
+  /** El contorno: todo píxel vacío que toque uno pintado (4 vecinos). */
+  Pix.prototype.contorno = function (c) {
+    var w = this.w, h = this.h, d = this.d, nuevos = [];
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (d[y * w + x]) continue;
+        if ((x > 0 && d[y * w + x - 1]) || (x < w - 1 && d[y * w + x + 1]) ||
+            (y > 0 && d[(y - 1) * w + x]) || (y < h - 1 && d[(y + 1) * w + x])) nuevos.push(y * w + x);
+      }
+    }
+    for (var i = 0; i < nuevos.length; i++) d[nuevos[i]] = c;
+  };
+  Pix.prototype.pintar = function (ctx) {
+    for (var y = 0; y < this.h; y++) {
+      for (var x = 0; x < this.w; x++) {
+        var c = this.d[y * this.w + x];
+        if (!c) continue;
+        ctx.fillStyle = c;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  };
+
+  /** Ondas que se abren hacia la derecha (el ladrido y el aullido). */
+  function ondas(w, h, radios, medio, grosor, colores) {
+    var px = new Pix(w, h), cy = h / 2 - 0.5;
+    for (var i = 0; i < radios.length; i++) px.arco(4, cy, radios[i], -medio[i], medio[i], grosor, colores[i]);
+    px.contorno(TINTA);
+    return px;
+  }
+
+  /** Unas fauces que se cierran hacia la derecha. */
+  function fauces(w, h, r, grosor) {
+    var px = new Pix(w, h), cy = h / 2 - 0.5, cx = 5;
+    px.arco(cx, cy - 1, r, -1.2, -0.12, grosor, '#ffffff');
+    px.arco(cx, cy + 1, r, 0.12, 1.2, grosor, '#ffffff');
+    // Los dientes: tres por mandíbula, hacia dentro.
+    for (var i = 0; i < 3; i++) {
+      var a = 0.32 + i * 0.3;
+      var x = cx + Math.cos(a) * (r - grosor / 2 - 1), y1 = cy - 1 - Math.sin(a) * (r - grosor / 2 - 1), y2 = cy + 1 + Math.sin(a) * (r - grosor / 2 - 1);
+      px.p(x, y1 + 1, '#ffe9c0'); px.p(x, y1 + 2, '#ffe9c0'); px.p(x + 1, y1 + 1, '#ffe9c0');
+      px.p(x, y2 - 1, '#ffe9c0'); px.p(x, y2 - 2, '#ffe9c0'); px.p(x + 1, y2 - 1, '#ffe9c0');
+    }
+    px.contorno(TINTA);
+    return px;
+  }
+
+  var ARENA_PIX = {
+    // Ladrido: tres ondas de sonido, de azul a blanco.
+    x_onda: [28, 32, function () { return ondas(28, 32, [8, 13, 18], [0.95, 0.85, 0.72], 2.4, ['#7fcfff', '#c9eeff', '#ffffff']); }],
+    // Aullido (la súper del perro): la misma idea, grande y dorada.
+    x_aullido: [46, 60, function () { return ondas(46, 60, [14, 23, 32], [0.95, 0.86, 0.76], 3.6, ['#f0a030', '#ffd24a', '#fff4bd']); }],
+    // Embestida: la polvareda que levanta.
+    x_embestida: [46, 56, function () {
+      var px = ondas(46, 56, [18, 29], [1.0, 0.9], 4.4, ['#b0875a', '#ecd6ad']);
+      return px;
+    }],
+    // Zarpazo: tres arañazos curvos, naranja con el filo claro.
+    x_zarpa: [28, 28, function () {
+      var px = new Pix(28, 28);
+      for (var i = 0; i < 3; i++) {
+        var y = 6 + i * 7;
+        px.curva(4, y + 4, 14, y - 3, 24, y + 1, 2.8, '#ff9c3a');
+        px.curva(6, y + 3, 14, y - 2, 22, y + 1, 1.0, '#fff1cf');
+      }
+      px.contorno(TINTA);
+      return px;
+    }],
+    x_mordisco: [24, 26, function () { return fauces(24, 26, 10, 2.6); }],
+    x_diente: [30, 34, function () { return fauces(30, 34, 14, 3.4); }],
+    // Escupitajo: una gota verde con su brillo y su estela.
+    x_veneno: [20, 14, function () {
+      var px = new Pix(20, 14);
+      px.disco(3, 7.5, 1.2, '#3f9c3a');
+      px.disco(7, 7, 2.2, '#4fb845');
+      px.disco(13, 6.5, 4.6, '#63cf52');
+      px.disco(12, 8.5, 2.6, '#4fb845');
+      px.p(14, 4, '#d6ffb0'); px.p(15, 4, '#d6ffb0'); px.p(15, 5, '#d6ffb0');
+      px.contorno('#17401d');
+      return px;
+    }],
+    // El golpe: una estrella de ocho puntas, en blanco para teñirla.
+    x_golpe: [33, 33, function () {
+      var px = new Pix(33, 33);
+      for (var i = 0; i < 8; i++) {
+        var a = i * Math.PI / 4, largo = i % 2 ? 10 : 15;
+        px.linea(16 + Math.cos(a) * 4, 16 + Math.sin(a) * 4, 16 + Math.cos(a) * largo, 16 + Math.sin(a) * largo, i % 2 ? 2 : 3, '#ffffff');
+      }
+      px.disco(16, 16, 5.5, '#ffffff');
+      return px;
+    }],
+    // Una bocanada de humo o de polvo (blanca, se tiñe).
+    x_humo: [28, 26, function () {
+      var px = new Pix(28, 26);
+      px.disco(9, 15, 7, '#ffffff'); px.disco(17, 10, 7.5, '#ffffff'); px.disco(20, 17, 6, '#ffffff'); px.disco(12, 19, 5, '#ffffff');
+      return px;
+    }],
+    x_chispa: [5, 5, function () {
+      var px = new Pix(5, 5);
+      px.p(2, 0, '#ffffff'); px.p(2, 1, '#ffffff'); px.p(2, 2, '#ffffff'); px.p(2, 3, '#ffffff'); px.p(2, 4, '#ffffff');
+      px.p(0, 2, '#ffffff'); px.p(1, 2, '#ffffff'); px.p(3, 2, '#ffffff'); px.p(4, 2, '#ffffff');
+      return px;
+    }],
+    x_anillo: [49, 49, function () {
+      var px = new Pix(49, 49);
+      px.arco(24, 24, 21, -Math.PI, Math.PI, 2.4, '#ffffff');
+      return px;
+    }],
+    // La sombra a los pies de cada luchador y de cada caja.
+    x_sombra: [36, 14, function () {
+      var px = new Pix(36, 14);
+      px.elipse(17.5, 6.5, 17, 6, '#000000');
+      return px;
+    }],
+    // El aro que dice quién eres tú (verde) y quién no (rojo): blanco, se tiñe.
+    x_aro: [38, 16, function () {
+      var px = new Pix(38, 16);
+      px.elipse(18.5, 7.5, 18, 7, '#ffffff');
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 38; x++) {
+        var dx = (x - 18.5) / 15.4, dy = (y - 7.5) / 4.9;
+        if (dx * dx + dy * dy <= 1) px.d[y * 38 + x] = undefined;
+      }
+      return px;
+    }],
+    /* El gas: una loseta de 64 que se repite. Pocas nubes GRANDES y lisas en
+       tres verdes; nada de burbujas. La transparencia la pone quien la usa. */
+    x_gas: [64, 64, function () {
+      var px = new Pix(64, 64);
+      var nubes = [[14, 16, 15, 10], [46, 12, 16, 9], [30, 34, 18, 11], [58, 40, 14, 9], [8, 46, 15, 10], [38, 56, 17, 9]];
+      var tonos = [['#3f8f3a', 0, 3], ['#58a94a', 0, 0], ['#7fc864', -2, -3]];
+      for (var t = 0; t < tonos.length; t++) {
+        for (var i = 0; i < nubes.length; i++) {
+          var n = nubes[i], encoge = t * 3.2;
+          for (var ox = -64; ox <= 64; ox += 64) for (var oy = -64; oy <= 64; oy += 64) {
+            if (n[2] - encoge > 2 && n[3] - encoge * 0.7 > 2) px.elipse(n[0] + ox + tonos[t][1], n[1] + oy + tonos[t][2], n[2] - encoge, n[3] - encoge * 0.7, tonos[t][0]);
+          }
+        }
+      }
+      return px;
+    }]
+  };
+
+  /** Crea las piezas de pixel art de la arena. Devuelve cuántas. */
+  function arenaPixel(scene) {
+    var n = 0;
+    for (var id in ARENA_PIX) {
+      if (!Object.prototype.hasOwnProperty.call(ARENA_PIX, id)) continue;
+      (function (e) {
+        var clave = adquirir(scene, 'efectos', PREFIJO + id, e[0], e[1], function (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          e[2]().pintar(ctx);
+        });
+        if (clave) {
+          n++;
+          // Pixel art: sin filtro, aunque el juego cambiara el de por defecto.
+          try { if (window.Phaser) scene.textures.get(clave).setFilter(Phaser.Textures.FilterMode.NEAREST); } catch (x) {}
+        }
+      })(ARENA_PIX[id]);
+    }
+    return n;
+  }
+
   /** Crea las piezas de la arena (proyectiles, círculo, brillo). */
   function proyectiles(scene) {
     var n = 0;
@@ -1092,6 +1316,7 @@
   window.GFBatallaArte = {
     efectos: efectos,
     proyectiles: proyectiles,
+    arenaPixel: arenaPixel,
     arena: arena,
     olvidarArenas: olvidarArenas,
     olvidarEfectos: olvidarEfectos,
@@ -1104,7 +1329,7 @@
     _interno: {
       lienzo: lienzo, dado: dado, pintarArena: pintarArena,
       cordillera: cordillera, colinas: colinas, EFECTOS: EFECTOS,
-      rgba: rgba, mezcla: mezcla, PROYECTILES: PROYECTILES,
+      rgba: rgba, mezcla: mezcla, PROYECTILES: PROYECTILES, ARENA_PIX: ARENA_PIX, Pix: Pix,
       arenasVivas: function (scene) { return clavesEscena(scene, 'arenas', false).slice(); },
       MAX_ARENAS: MAX_ARENAS
     }

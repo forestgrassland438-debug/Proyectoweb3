@@ -420,6 +420,12 @@
                sourceInvoices: [], rewards: [{ itemId: 'balde_leche', invoiceId: estado.factura, manualId: 'cf:' + estado.factura, quantity: 1, newTotal: 1 }], stats: estado.stats };
     }
     if (ruta === '/api/tiempo') return { ok: true, ahora: Date.now() };
+    // La mascota (gf-mascota.js), como la manda estadoVivo() en server2.js:
+    // 62 de vida, curándose un punto cada 30 s.
+    if (ruta === '/api/pet/state') {
+      return { ok: true, pet: { health: 62, maxHealth: 100, regenEveryMs: 30000, mode: 'passive', alive: true },
+               player: { ghost: false, deaths: 0, reviveCost: 30, windowEndsAt: null } };
+    }
     if (/^\/api\/economia\/(precios|precio\/|servicio|quema\/)/.test(ruta)) {
       if (/[?&]precios=0/.test(location.search)) return { __status: 404, error: 'not_found' };
       var PRECIOS_HOY = {
@@ -1380,9 +1386,12 @@
      práctica contra tres. */
   var RED_MS = 40;
   var brawl = null;
-  var diario = { done: 1, max: 5, remaining: 4, nextRound: 2, wins: 1 };
+  // Como estadoDeDiaria() en server2.js: la ventana de 24 h empieza con la primera.
+  var diarioFin = Date.now() + 19 * 3600 * 1000 + 25 * 60 * 1000;
+  var diario = { done: 1, max: 5, remaining: 4, nextRound: 2, wins: 1, resetsInMs: diarioFin - Date.now() };
   function combateFalso(s, evento, datos) {
     if (evento === 'battle:dailyStatus') {
+      diario.resetsInMs = Math.max(0, diarioFin - Date.now());
       setTimeout(function () { s._fire('battle:daily', diario); }, 20);
       return;
     }
@@ -1490,7 +1499,8 @@
         var fila = r.puestos.filter(function (f) { return f.clave === 'yo'; })[0];
         var gano = !!fila && fila.puesto === 1;
         if (modo === 'bot') {
-          diario = { done: diario.done + 1, max: 5, remaining: Math.max(0, 4 - diario.done), nextRound: Math.min(5, diario.done + 2), wins: diario.wins + (gano ? 1 : 0) };
+          diario = { done: diario.done + 1, max: 5, remaining: Math.max(0, 4 - diario.done), nextRound: Math.min(5, diario.done + 2), wins: diario.wins + (gano ? 1 : 0),
+                     resetsInMs: Math.max(0, diarioFin - Date.now()) };
         }
         var fin = {
           matchId: Pf.id, modo: modo, ronda: Pf.ronda, resultado: gano ? 'win' : 'lose',

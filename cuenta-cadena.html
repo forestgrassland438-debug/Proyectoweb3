@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" data-admin-suite data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="same-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.grasslandforest.com http://127.0.0.1:8080; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Chain backup · Grassland Forest</title>
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="admin-suite.css?v=20261020">
+<link rel="stylesheet" href="operations-panels.css?v=20261029.a9736400c4e5">
+<style>
+  .cc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .cc-dato{border:1px solid var(--op-line);border-radius:11px;padding:12px 14px;background:#0f1d22;min-width:0}
+  .cc-dato span{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--op-muted)}
+  .cc-dato strong{display:block;margin-top:4px;overflow-wrap:anywhere;font-weight:650}
+  .cc-dato small{display:block;color:var(--op-muted);overflow-wrap:anywhere}
+  .cc-ok{color:#a9dfbf}.cc-mal{color:#f0a187}.cc-gris{color:var(--op-muted)}
+  .cc-tabla{width:100%;border-collapse:collapse;font-size:13px}
+  .cc-tabla th,.cc-tabla td{border-top:1px solid var(--op-line);padding:8px 6px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+  .cc-tabla th{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--op-muted)}
+  .cc-mono{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}
+  .cc-fila{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .cc-fila label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--op-muted);min-width:150px}
+  .cc-fila input[type=number],.cc-fila input[type=text]{width:100%}
+  .cc-aviso{border:1px solid #78633f;background:#3d3020;color:#f1dcad;border-radius:12px;padding:14px 16px;margin:12px 0}
+  .cc-aviso strong{color:#ffe7b0}
+  .cc-barra{height:8px;border-radius:6px;background:#1b2e33;overflow:hidden;margin-top:8px}
+  .cc-barra i{display:block;height:100%;background:#7cc6a0;width:0}
+  .cc-lista{margin:0;padding-left:18px}
+  .cc-lista li{margin:4px 0;overflow-wrap:anywhere}
+</style>
+<script src="admin-session.js?v=20261020"></script>
+<script src="admin-suite-i18n.js?v=22.8.bf8e97e936dd"></script>
+<script defer src="admin-suite.js?v=20261025"></script>
+<script defer src="operations-panels.js?v=20261029.da7169814a86"></script>
+<script defer src="cuenta-cadena.js?v=22.8.2dd24c20c1f0"></script>
+</head>
+<body>
+<main class="op-shell">
+  <section id="op-gate" class="op-card">
+    <span class="op-eyebrow">Grassland Forest · Administration</span>
+    <h1>Chain backup</h1>
+    <p>This section requires an administrator session verified by the server.</p>
+    <button type="button" id="op-connect" class="op-primary">Connect administrator</button>
+    <p id="op-login-message" role="status">Checking your session…</p>
+  </section>
+
+  <section id="op-app" hidden>
+    <header class="op-top">
+      <div>
+        <span class="op-eyebrow">Grassland Forest · Control center</span>
+        <h1>Chain backup</h1>
+        <p>Each player's account kept on the same contract, so a backend wipe loses nothing: tutorial, skills, missions, ranking, friends, invites, what they built on their Lands, and (encrypted) private messages, the Google sign-in wallet and the account profile.</p>
+      </div>
+      <div class="op-actions"><a href="control-center.html">Control center</a><button id="op-refresh" type="button">Refresh</button></div>
+    </header>
+    <p id="op-notice" class="op-notice" role="status" aria-live="polite" hidden></p>
+    <div id="cc-sin-servidor" class="cc-aviso" hidden><strong>The game server does not have this module yet.</strong> <span>Upload the new server2.js and cuenta-en-cadena.js to the backend and restart it.</span></div>
+
+    <section class="op-card" aria-labelledby="cc-estado-titulo">
+      <h2 id="cc-estado-titulo">Status</h2>
+      <div class="cc-grid" id="cc-estado" data-no-translate></div>
+      <div id="cc-clave-aviso" class="cc-aviso" hidden></div>
+    </section>
+
+    <section class="op-card" aria-labelledby="cc-tablas-titulo">
+      <h2 id="cc-tablas-titulo">Tables on the contract</h2>
+      <p class="op-muted">Created automatically the first time they are needed, like exp. Only the server can write them: the relay refuses any cta_ table coming from a browser.</p>
+      <table class="cc-tabla"><thead><tr><th>Data</th><th>Table</th><th>On the contract</th><th>Invoices</th></tr></thead><tbody id="cc-tablas" data-no-translate></tbody></table>
+    </section>
+
+    <section class="op-card" aria-labelledby="cc-ajustes-titulo">
+      <h2 id="cc-ajustes-titulo">Saving fees</h2>
+      <p class="op-muted">Nothing is written if nothing changed. What changes often waits a minimum time between transactions; relations (friends, invites, Lands) are one transaction each; large data goes in batches.</p>
+      <form id="cc-ajustes" class="cc-fila" autocomplete="off">
+        <label><span><input type="checkbox" id="cc-activo"> Backup active</span></label>
+        <label><span><input type="checkbox" id="cc-ancla-activa"> Encrypted anchor active</span></label>
+        <label>Skills: minutes between writes<input type="number" id="cc-min-habilidades" min="0" step="1"></label>
+        <label>Missions: minutes between writes<input type="number" id="cc-min-misiones" min="0" step="1"></label>
+        <label>Ranking: minutes between writes<input type="number" id="cc-min-ranking" min="0" step="1"></label>
+        <label>Anchor every (minutes)<input type="number" id="cc-ancla-cada" min="1" step="1"></label>
+        <label>Sweep every (minutes)<input type="number" id="cc-ciclo" min="1" step="1"></label>
+        <label>Max. transactions per minute<input type="number" id="cc-tx-min" min="1" step="1"></label>
+        <label>Players per sweep<input type="number" id="cc-por-ciclo" min="1" step="1"></label>
+        <button id="cc-guardar" type="button" class="op-primary">Save settings</button>
+      </form>
+    </section>
+
+    <section class="op-card" aria-labelledby="cc-jugador-titulo">
+      <h2 id="cc-jugador-titulo">One player</h2>
+      <div class="cc-fila">
+        <label>Account (playerName)<input type="text" id="cc-jugador" maxlength="80" spellcheck="false" autocomplete="off"></label>
+        <button id="cc-ver" type="button">Compare database and chain</button>
+        <button id="cc-sincronizar" type="button">Write to the chain now</button>
+        <button id="cc-restaurar" type="button">Restore from the chain</button>
+      </div>
+      <p class="op-muted">“Restore” never overwrites newer data: counters and experience keep the highest value, states keep the database value, and relations are only restored if the database has none.</p>
+      <div id="cc-jugador-datos" data-no-translate></div>
+    </section>
+
+    <section class="op-card" aria-labelledby="cc-ancla-titulo">
+      <h2 id="cc-ancla-titulo">Encrypted anchor</h2>
+      <p class="op-muted">Private messages, the Google sign-in wallet records and each account profile, compressed and encrypted (AES-256-GCM) inside the data of one transaction per batch. The contract ignores those extra bytes; the chain keeps them forever.</p>
+      <div class="cc-grid" id="cc-ancla" data-no-translate></div>
+      <div class="cc-fila" style="margin-top:12px"><button id="cc-anclar" type="button">Send a batch now</button></div>
+    </section>
+
+    <section class="op-card" aria-labelledby="cc-total-titulo">
+      <h2 id="cc-total-titulo">Disaster recovery</h2>
+      <p class="op-muted">After a database wipe: reads every invoice of the contract (200 per call) and every anchored batch, and rebuilds the accounts. It only fills what is missing. It can take several minutes and uses RPC quota.</p>
+      <div class="cc-fila">
+        <label>Type RESTAURAR to confirm<input type="text" id="cc-confirmar" maxlength="12" autocomplete="off" spellcheck="false"></label>
+        <button id="cc-restaurar-todo" type="button" class="op-primary">Restore everything from the chain</button>
+      </div>
+      <div id="cc-tarea" data-no-translate></div>
+    </section>
+  </section>
+</main>
+<dialog id="op-copy-dialog" class="op-dialog"><h2>Select and copy the text</h2><textarea id="op-copy-text" readonly></textarea><button id="op-copy-close" type="button">Close</button></dialog>
+</body>
+</html>

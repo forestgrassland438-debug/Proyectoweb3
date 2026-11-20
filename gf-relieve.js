@@ -52,7 +52,9 @@
        prefijo (gfp_huella, gfp_polvo, gfp_anillo) y gf-pesca el corcho, la onda y
        la gota: el relieve los dejaba EN BLANCO. Por eso no se veía ni una
        pisada del jugador ni de la mascota en ninguna escena. Esos, fuera. */
-    [/^player(_|$)/, 0.55, 0, true], [/^sb_[^_].*_player_/, 0.55, 0, true], [/^gfp_(?!(huella|polvo|anillo|corcho|onda|gota)$)/, 0.55, 0, true],
+    /* (2026-11-19) Y gf-poderes la ráfaga del viento (gfp_rafaga): el poder X empujaba sin
+       que se viera nada. Además, ningún lienzo vacío se toca (ver lienzoVacio). */
+    [/^player(_|$)/, 0.55, 0, true], [/^sb_[^_].*_player_/, 0.55, 0, true], [/^gfp_(?!(huella|polvo|anillo|corcho|onda|gota|rafaga)$)/, 0.55, 0, true],
     [/^perro_/, 0.4, 0, true], [/^NPC/, 0.55, 0, true], [/^bz_esp_perro_/, 0.4, 0, true],
     // Árboles, arbustos, tocones y troncos del pueblo, del mapa salvaje y los
     // dos pinos del menú (`arbolxd`).
@@ -371,6 +373,22 @@
     return lienzo;
   }
 
+  /* (2026-11-19) ¿Es un lienzo todavía en blanco? `textures.createCanvas` avisa
+     'addtexture' ANTES de que su dueño dibuje en él. Cambiarlo entonces por una copia
+     "en relieve" dejaba la textura vacía para siempre: su dueño sigue dibujando en el
+     lienzo de antes y la GPU pinta la copia. Así se quedaron en blanco las pisadas
+     (2026-10-19) y la ráfaga del poder X (2026-11-19). Sin píxeles no hay relieve. */
+  function lienzoVacio(img) {
+    if (!img || typeof img.getContext !== 'function') return false;   // una imagen cargada ya trae su dibujo
+    try {
+      var w = img.width, h = img.height;
+      if (!w || !h) return true;
+      var d = img.getContext('2d').getImageData(0, 0, w, h).data;
+      for (var i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
+      return true;
+    } catch (e) { return false; }
+  }
+
   /** Pone el relieve a una textura ya creada (si es de las que llevan). */
   function procesarTextura(textura) {
     var op = api.activo && textura ? opcionesDe(textura.key) : null;
@@ -380,6 +398,7 @@
     var img = fuente.image;
     if (!img || (hechos && hechos.has(img))) return false;
     if (img.complete === false) return false;
+    if (lienzoVacio(img)) return false;
     var lienzo = procesarImagen(img, op);
     if (!lienzo) return false;
     try {

@@ -96,6 +96,27 @@
     return { x: o.x + (0.5 - o.originX) * o.displayWidth, y: o.y + (1 - o.originY) * o.displayHeight };
   }
 
+  /* (2026-11-19) EL VIEJO NO SE VE MIENTRAS LLEGA EL NUEVO. "A veces regresan los NPC
+     anteriores": con el arte tardando (móvil, el mapa cargando mil cosas a la vez) el
+     original quedaba a la vista hasta que llegara… o para siempre si tardaba más de
+     15 s. Ahora se oculta en cuanto se le encuentra (alfa 0,01: sigue recibiendo los
+     clics, el tutorial lo sigue señalando y su nombre sigue encima). */
+  function ocultar(st, original) {
+    if (!original || !original.scene || original.__gfVestido || original.__gfOculto || st.fallido) return;
+    original.__gfAlfa = original.alpha;
+    original.__gfOculto = true;
+    original.setAlpha(0.01);
+    st.ocultos.push(original);
+  }
+  /** El arte nuevo no llegó nunca: vuelve el original, para no perder al NPC. */
+  function mostrarOriginales(st) {
+    st.fallido = true;
+    st.ocultos.forEach(function (o) {
+      try { if (o.scene && !o.__gfVestido) { o.setAlpha(o.__gfAlfa == null ? 1 : o.__gfAlfa); o.__gfOculto = false; } } catch (e) {}
+    });
+    st.ocultos = [];
+  }
+
   function vestir(st, original, cfg) {
     var scene = st.scene, tex = 'gfn_' + cfg.arte;
     if (!original || !original.scene || !scene.textures.exists(tex) || original.__gfVestido) return;
@@ -106,7 +127,8 @@
               miraHasta: 0, saludoEn: 0, bocadillo: null, fase: Math.random() * 6 };
     st.npcs.push(n);
     original.__gfVestido = true;
-    original.__gfAlfa = original.alpha;
+    // Si ya estaba oculto esperando el arte, su alfa de verdad se guardó entonces.
+    if (!original.__gfOculto) original.__gfAlfa = original.alpha;
     original.setAlpha(0.01);                       // sigue recibiendo clics
     // El resaltado de siempre (pointerover tiñe el original) pasa al nuevo.
     var sobre = function () { try { spr.setTint(0x88bbff); } catch (e) {} };
@@ -140,6 +162,16 @@
 
   function tic(st, t) {
     var scene = st.scene, p = scene.player;
+    // (2026-11-19) Cada poco: un NPC original que se haya vuelto a crear (o que no
+    // estuviera al montar) se oculta y, si su arte ya está, se viste.
+    if (st.buscar && (!st.revisado || t - st.revisado >= 1500 || t < st.revisado)) {
+      st.revisado = t;
+      st.buscar().forEach(function (x) {
+        if (!x.o || x.o.__gfVestido) return;
+        if (scene.textures.exists('gfn_' + x.c.arte)) { try { vestir(st, x.o, x.c); } catch (e) {} }
+        else ocultar(st, x.o);
+      });
+    }
     var px = p ? p.x : -1e9, py = p ? p.y + 45 : -1e9;
     for (var i = 0; i < st.npcs.length; i++) {
       var n = st.npcs[i];
@@ -183,9 +215,16 @@
     try { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); } catch (e) {}
     if (st.cancelarCarga) st.cancelarCarga();
     if (st.reintento) { st.reintento.remove(false); st.reintento = null; }
+    if (st.otraCarga) { clearTimeout(st.otraCarga); st.otraCarga = null; }
+    // Los que estaban ocultos esperando el arte vuelven a su alfa.
+    (st.ocultos || []).forEach(function (o) {
+      try { if (o && o.scene && !o.__gfVestido) { o.setAlpha(o.__gfAlfa == null ? 1 : o.__gfAlfa); } if (o) o.__gfOculto = false; } catch (e) {}
+    });
+    st.ocultos = [];
     st.npcs.forEach(function (n) {
       if (n.reloj) { n.reloj.remove(false); n.reloj = null; }
       try { if (n.original && n.original.scene) { n.original.setAlpha(n.original.__gfAlfa == null ? 1 : n.original.__gfAlfa); n.original.__gfVestido = false;
+                                                  n.original.__gfOculto = false;
                                                   n.original.off('pointerover', n.sobre); n.original.off('pointerout', n.fuera); } } catch (e) {}
       [n.spr, n.sombra, n.bocadillo].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     });
@@ -199,7 +238,7 @@
   function montar(scene) {
     if (!scene || !scene.add || !scene.events) return;
     desmontar(scene);
-    var st = { scene: scene, vivo: true, npcs: [], objetos: [] };
+    var st = { scene: scene, vivo: true, npcs: [], objetos: [], ocultos: [], fallido: false, intentosArte: 0 };
     scene.__gfNpcsPueblo = st;
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar); scene.events.once('destroy', st.onApagar);
@@ -217,16 +256,34 @@
       }
       return lista;
     };
+    st.buscar = buscar;
     var intentos = 0;
-    var probar = function () {
+    /* (2026-11-19) EL ARTE SE REINTENTA. Antes, si no llegaba en 15 s, no se volvía a
+       pedir: el NPC viejo se quedaba toda la sesión. Ahora hasta 5 intentos con espera
+       creciente (3, 6, 12, 24 s, con el reloj del navegador: el de la escena se para
+       con la pestaña oculta) y, solo si no llega nunca, se enseña el original. */
+    var ESPERAS = [3000, 6000, 12000, 24000];
+    var traerArte = function (lista) {
       if (!st.vivo || scene.__gfNpcsPueblo !== st) return;
-      var lista = buscar();
-      if (!lista.length && intentos++ < 20) { st.reintento = scene.time.delayedCall(500, function () { st.reintento = null; probar(); }); return; }
       var artes = lista.map(function (x) { return x.c.arte; }).filter(function (a, i, l) { return l.indexOf(a) === i; });
       cargar(st, artes, function () {
         if (!st.vivo || scene.__gfNpcsPueblo !== st) return;
         lista.forEach(function (x) { if (!st.vivo) return; try { vestir(st, x.o, x.c); } catch (e) { desmontar(scene); console.warn('[npcs-pueblo]', e); } });
+        if (!st.vivo) return;
+        var faltan = artes.filter(function (a) { return !scene.textures.exists('gfn_' + a); });
+        if (!faltan.length) return;
+        if (st.intentosArte >= ESPERAS.length) { mostrarOriginales(st); console.warn('[npcs-pueblo] el arte nuevo no llegó (' + faltan.join(', ') + '): se enseña el original'); return; }
+        var espera = ESPERAS[st.intentosArte++];
+        st.otraCarga = setTimeout(function () { st.otraCarga = null; traerArte(buscar()); }, espera);
       });
+    };
+    var probar = function () {
+      if (!st.vivo || scene.__gfNpcsPueblo !== st) return;
+      var lista = buscar();
+      if (!lista.length && intentos++ < 20) { st.reintento = scene.time.delayedCall(500, function () { st.reintento = null; probar(); }); return; }
+      // El viejo se oculta YA; el nuevo se pone en cuanto llegue su arte.
+      lista.forEach(function (x) { if (!scene.textures.exists('gfn_' + x.c.arte)) ocultar(st, x.o); });
+      traerArte(lista);
     };
     try { probar(); } catch (e) { desmontar(scene); console.warn('[npcs-pueblo]', e); return; }
     if (!st.vivo) return;

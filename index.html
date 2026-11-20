@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="styless.css?v=20261102.ampl3" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
   <link rel="stylesheet" href="gf-hud.css?v=20261102.ampl3" />
+  <link rel="stylesheet" href="./gf-arena.css?v=22.7.0242fcf0e3df" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -56,6 +57,9 @@
 
   <!-- Phaser (pinned) -->
   <script src="./vendor/phaser.min.js?v=e92ddef111ba" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+  <!-- (2026-11-19) Un sprite con la textura borrada se salta en vez de cortar el
+       dibujo del fotograma (los monstruos "desaparecían todos de golpe"). -->
+  <script src="./gf-dibujo-seguro.js?v=22.8.61860b6dffbd" defer></script>
 
   <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
   <script src="./vendor/socket.io.min.js?v=870d83168a0e" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
@@ -87,7 +91,7 @@
   <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04" defer></script>
   <!-- Relieve 2.5D de personajes, NPC y mascota (2026-10-12): se aplica al
        cargar cada textura; los PNG no se tocan. -->
-  <script src="./gf-relieve.js?v=22.5.770a46e6b095" defer></script>
+  <script src="./gf-relieve.js?v=22.8.ef09126513d3" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
   <script src="./gf-nft.js?v=22.5.67f2c6bd03ca" defer></script>
   <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39" defer></script>
@@ -137,7 +141,7 @@
   <script src="./gf-cola-cadena.js?v=22.5.ae046151620c" defer></script>
   <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
   <script src="./gf-npcs.js?v=20261102.ampl3" defer></script>
-  <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6" defer></script>
+  <script src="./gf-npcs-pueblo.js?v=22.8.ed6afad1c405" defer></script>
   <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac" defer></script>
   <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e" defer></script>
   <script src="./gf-mina-espectros.js?v=20261102.ampl3" defer></script>
@@ -161,7 +165,7 @@
   <script src="./gf-tirones.js?v=22.5.ccdc78818f1b" defer></script>
   <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
   <script src="./gf-animales.js?v=20261102.ampl3" defer></script>
-  <script src="./gf-mascota.js?v=20261028.3c64a47a028a" defer></script>
+  <script src="./gf-mascota.js?v=22.7.ebab3264437b" defer></script>
   <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
   <script src="./gf-servicios.js?v=20261028.e4c0ddfd4491" defer></script>
   <script src="./gf-muerte.js?v=20261029.auditoria2" defer></script>
@@ -203,11 +207,11 @@
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=audit20261016.d1934b134ee5" defer></script>
+  <script src="./gf-batalla-arte.js?v=22.7.f2b169b4d3fc" defer></script>
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=audit20261016.8cb3bac3c4b0" defer></script>
+  <script src="./gf-brawl-motor.js?v=22.7.805a18e38ae0" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
@@ -226,9 +230,9 @@
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.6.f1b276a71927" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=20261029.auditoria2" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.6.f768f0bd12c0" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.8.9a9f5112afa3" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.8.8836324809c5" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.8.0fb2cd939f94" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -241,7 +245,7 @@
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
   <script src="./Scenes/SalvajeScene.js?v=20261102.ampl3" defer></script>
   <script src="./Scenes/ZonasScenes.js?v=20261102.ampl3" defer></script>
-  <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.7.367d3e15274f" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -269,7 +273,7 @@
   <script src="./CraftingHub.js?v=20261102.ampl3" defer></script>
   <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
   <script src="./gf-precio-panel.js?v=20261028.e2410b6218cd" defer></script>
-  <script src="./tienda_sistema.js?v=22.6.9314ab5758a1" defer></script>
+  <script src="./tienda_sistema.js?v=22.8.dd718f3b4bdd" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=20261029.auditoria2" defer></script>
@@ -825,51 +829,49 @@
   </div>
 </div>
 
-<!-- HUB DE BATALLAS -->
-<div id="battleHubOverlay" class="battle-hub-overlay hidden">
-  <div class="battle-hub-card" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
-    
-    <button class="battle-hub-close" id="battleHubCloseBtn" aria-label="Cerrar menú">✕</button>
+<!-- ===== LA ARENA DE MASCOTAS: el panel de entrada ===== (2026-11-17)
+     Lo abre GameScene.openBattleHub al pisar la entrada de la arena. Solo lo
+     que se usa: tu mascota tal y como va a entrar (su vida de verdad), los
+     tres modos y la clasificación. Estilos en gf-arena.css; los iconos son
+     los de Game/Source/arena (tools/generar-iconos-arena.py). -->
+<div id="battleHubOverlay" class="battle-hub-overlay ga-hub hidden">
+  <div class="ga-hub-caja" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
+    <header class="ga-cab">
+      <img class="ga-cab-icono" src="./Game/Source/arena/arena.png" alt="" width="36" height="36">
+      <h2 id="battleHubTitle" class="ga-titulo">Pet Arena</h2>
+      <button type="button" class="ga-cerrar" id="battleHubCloseBtn" aria-label="Close">✕</button>
+    </header>
 
-    <div class="battle-hub-header">
-      <div class="battle-hub-icon" aria-hidden="true">
-        🐾
+    <div class="ga-hub-cuerpo">
+      <section class="ga-mascota" aria-label="Your pet">
+        <div class="ga-retrato"><img src="./Game/Sprites/mascota/derecha/run_1.png" alt="" width="48" height="48"></div>
+        <div class="ga-mascota-datos">
+          <div class="ga-mascota-nombre"><span id="battleHubPetName">Your pet</span><b class="ga-nivel" id="battleHubPetLvl"></b></div>
+          <div class="ga-vida" title="Your pet enters the arena with this health"><i id="battleHubPetHp"></i><b id="battleHubPetHpTxt">—</b></div>
+          <small id="battleHubPetNote">Your pet enters the arena with this health.</small>
+        </div>
+      </section>
+
+      <div class="ga-modos">
+        <button type="button" id="battleHubAdventureBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/diarias.png" alt=""></span>
+          <span class="btn-text"><strong>Daily battles</strong><small id="battleHubDailyTxt">5 wild animals a day</small></span>
+          <span class="ga-chip" id="battleHubDailyChip">–/5</span>
+        </button>
+        <button type="button" id="battleHubPvpBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/pvp.png" alt=""></span>
+          <span class="btn-text"><strong>Arena PvP</strong><small>2–6 players · last pet standing wins</small></span>
+          <i class="ga-modo-flecha" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="battleHubPracticeBtn" class="ga-modo">
+          <span class="ga-modo-icono"><img src="./Game/Source/arena/practica.png" alt=""></span>
+          <span class="btn-text"><strong>Practice</strong><small>You vs 3 bots · no points</small></span>
+          <i class="ga-modo-flecha" aria-hidden="true"></i>
+        </button>
       </div>
-      <h2 id="battleHubTitle">Pet Arena</h2>
-      <p>Move, bark and be the last dog standing</p>
-    </div>
 
-    <div class="battle-hub-actions">
-      <button id="battleHubAdventureBtn" class="battle-btn battle-btn-adventure">
-        <span class="btn-icon">🌲</span>
-        <span class="btn-text">
-          <strong>5 Daily Battles</strong>
-          <small>Complete the daily challenge</small>
-        </span>
-      </button>
-
-      <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
-        <span class="btn-icon">⚔</span>
-        <span class="btn-text">
-          <strong>Arena PvP</strong>
-          <small>Up to 6 players · last one standing wins</small>
-        </span>
-      </button>
-
-      <button id="battleHubPracticeBtn" class="battle-btn battle-btn-practice">
-        <span class="btn-icon">🎯</span>
-        <span class="btn-text">
-          <strong>Practice</strong>
-          <small>Train against 3 bots · no points</small>
-        </span>
-      </button>
-
-      <button id="battleHubRankingBtn" class="battle-btn battle-btn-ranking">
-        <span class="btn-icon">🏆</span>
-        <span class="btn-text">
-          <strong>Ranking</strong>
-          <small>Season points table</small>
-        </span>
+      <button type="button" id="battleHubRankingBtn" class="ga-enlace">
+        <img src="./Game/Source/arena/ranking.png" alt=""><span>Season ranking</span>
       </button>
     </div>
   </div>
@@ -877,119 +879,131 @@
 
   
 
-<!-- ===== Interfaz de la ARENA (HTML/CSS, adaptable) =====
-     La dibuja y la mueve Scenes/BattleScene.js. Phaser pinta la arena y los
-     luchadores; esto es lo que va encima: tu tarjeta, el reloj, los que
-     quedan, los avisos, los mandos táctiles y las pantallas de búsqueda,
-     de caído y de resultados. -->
-<div id="battleUI" class="battle-ui bz hidden">
+<!-- ===== LA ARENA: el HUD de combate ===== (2026-11-17)
+     Lo mueve Scenes/BattleScene.js (los ids bz*: no cambiarlos, las pruebas
+     de tools/ los usan); estilos en gf-arena.css. Phaser pinta la arena y
+     los luchadores; esto va encima. Todos los textos que vienen de jugadores
+     se escriben con textContent. -->
+<div id="battleUI" class="ga-ui hidden">
 
-  <!-- Arriba: tú · el reloj y los que quedan · rendirse -->
-  <div class="bz-top">
-    <div class="bz-yo" id="bzYo">
-      <div class="bz-retrato" id="bzRetrato" aria-hidden="true"></div>
-      <div class="bz-yo-datos">
-        <div class="bz-yo-nombre"><span id="bzYoNombre">—</span> <span class="bz-nivel" id="bzYoNivel"></span></div>
-        <div class="bz-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
-        <div class="bz-yo-extra">
-          <span id="bzYoHuesos" title="Power bones: +10% damage and health each">🦴 0</span>
-          <span id="bzYoBajas" title="Knockouts">💥 0</span>
+  <!-- Arriba: tú · el reloj, los que quedan y el gas · rendirse -->
+  <div class="ga-arriba">
+    <div class="ga-yo" id="bzYo">
+      <div class="ga-retrato ga-retrato-hud" id="bzRetrato" aria-hidden="true"></div>
+      <div class="ga-yo-datos">
+        <div class="ga-mascota-nombre"><span id="bzYoNombre">Your pet</span><b class="ga-nivel" id="bzYoNivel"></b></div>
+        <div class="ga-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
+        <div class="ga-yo-extra">
+          <span class="ga-dato" title="Power bones: +10% damage and health each"><img src="./Game/Source/arena/hueso.png" alt="Power bones"><b id="bzYoHuesos">0</b></span>
+          <span class="ga-dato" title="Knockouts"><img src="./Game/Source/arena/ko.png" alt="Knockouts"><b id="bzYoBajas">0</b></span>
+          <span class="ga-poder hidden" id="bzYoEscudo" title="Shield"><img src="./Game/Source/arena/escudo.png" alt="Shield"><b></b></span>
+          <span class="ga-poder ga-poder-rapidez hidden" id="bzYoRapidez" title="Speed"><img src="./Game/Source/arena/rapidez.png" alt="Speed"><b></b></span>
         </div>
       </div>
     </div>
-    <div class="bz-centro">
-      <div class="bz-modo" id="bzModo">ARENA</div>
-      <div class="bz-reloj" id="bzReloj">--:--</div>
-      <div class="bz-niebla-estado hidden" id="bzNieblaEstado" title="The fog closes in phases: stay inside the white circle"></div>
-      <div class="bz-quedan" title="Fighters still standing"><span aria-hidden="true">🐾</span><b id="bzQuedan">-</b><small>left</small></div>
+    <div class="ga-centro">
+      <div class="ga-modo-txt" id="bzModo">Arena</div>
+      <div class="ga-marcador">
+        <span class="ga-marca" title="Time left"><img src="./Game/Source/arena/reloj.png" alt=""><b id="bzReloj">--:--</b></span>
+        <span class="ga-marca" title="Fighters still standing"><img src="./Game/Source/arena/vivos.png" alt=""><b id="bzQuedan">-</b></span>
+      </div>
+      <div class="ga-gas hidden" id="bzGasEstado" title="The gas closes in from the edges: stay in the middle"><img src="./Game/Source/arena/gas.png" alt=""><span id="bzGasTxt"></span></div>
     </div>
-    <div class="bz-acciones">
-      <button type="button" id="bzSalir" class="bz-btn bz-btn-salir">Surrender</button>
+    <div class="ga-acciones">
+      <button type="button" id="bzSalir" class="ga-redondo"><img src="./Game/Source/arena/rendirse.png" alt=""><span class="ga-redondo-txt">Surrender</span></button>
     </div>
   </div>
 
   <!-- Quién ha tumbado a quién -->
-  <ol class="bz-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
+  <ol class="ga-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
 
-  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, la niebla… -->
-  <div class="bz-aviso hidden" id="bzAviso" aria-live="assertive"></div>
+  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, el gas… -->
+  <div class="ga-aviso hidden" id="bzAviso" aria-live="assertive"></div>
 
   <!-- El borde rojo al recibir un golpe -->
-  <div class="bz-dolor" id="bzDolor"></div>
+  <div class="ga-dolor" id="bzDolor" aria-hidden="true"></div>
 
-  <!-- Estás en la niebla (o va a llegar): hacia dónde correr -->
-  <div class="bz-fuera hidden" id="bzFuera" role="status" aria-live="polite">
-    <i class="bz-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
+  <!-- Estás en el gas (o va a llegar): hacia dónde correr -->
+  <div class="ga-fuera hidden" id="bzFuera" role="status" aria-live="polite">
+    <i class="ga-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
   </div>
 
-  <!-- Se ha ido la conexión: el servidor te guarda el perro unos segundos -->
-  <div class="bz-red hidden" id="bzRed" role="status" aria-live="polite">
-    <i aria-hidden="true"></i><span>Connection lost — reconnecting…</span>
+  <!-- Se ha ido la conexión: el servidor te guarda la mascota un minuto -->
+  <div class="ga-red hidden" id="bzRed" role="status" aria-live="polite">
+    <i aria-hidden="true"></i><span>Connection lost · reconnecting…</span>
   </div>
 
-  <!-- Buscando partida -->
-  <div class="bz-busqueda" id="bzBusqueda">
-    <div class="bz-busqueda-tarjeta" role="dialog" aria-labelledby="bzBusquedaTitulo">
-      <div class="bz-huellas" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <h2 id="bzBusquedaTitulo">Searching for players…</h2>
-      <p id="bzBusquedaTexto">Be the last dog standing.</p>
-      <div class="bz-sala" id="bzSala" aria-live="polite"></div>
-      <div class="bz-busqueda-tiempo" id="bzBusquedaTiempo">0:00</div>
-      <!-- La sala de espera: quién ha entrado y quién está listo (2026-10-10). -->
-      <ul class="bz-lobby hidden" id="bzLobby" aria-live="polite"></ul>
-      <ul class="bz-consejos" id="bzConsejos">
-        <li><b>Move</b> WASD / left stick</li>
-        <li><b>Bark</b> click / right stick · 3 charges that reload</li>
-        <li><b>Super</b> E or right-click · charges as you hit</li>
-        <li><b>Hide</b> in tall grass · <b>bones</b> make you stronger</li>
+  <!-- Buscando partida (y la sala de espera del PvP) -->
+  <div class="ga-busqueda" id="bzBusqueda">
+    <div class="ga-tarjeta ga-busq" role="dialog" aria-labelledby="bzBusquedaTitulo">
+      <div class="ga-busq-icono" aria-hidden="true"><img src="./Game/Source/arena/buscar.png" alt=""></div>
+      <h2 class="ga-titulo" id="bzBusquedaTitulo">Searching for players…</h2>
+      <p class="ga-texto" id="bzBusquedaTexto">Be the last pet standing.</p>
+      <div class="ga-busq-datos">
+        <span class="ga-pastilla" id="bzSala" aria-live="polite"></span>
+        <span class="ga-pastilla"><img src="./Game/Source/arena/reloj.png" alt=""><b id="bzBusquedaTiempo">0:00</b></span>
+      </div>
+      <ul class="ga-lobby hidden" id="bzLobby" aria-live="polite"></ul>
+      <ul class="ga-consejos" id="bzConsejos">
+        <li><img src="./Game/Source/arena/rapidez.png" alt=""><span><b>Move</b> <em class="solo-pc">WASD or arrows</em><em class="solo-tactil">left side of the screen</em></span></li>
+        <li><img src="./Game/Source/arena/ladrido.png" alt=""><span><b>Bark</b> <em class="solo-pc">click to aim · Space aims for you</em><em class="solo-tactil">tap the right side · drag to aim</em></span></li>
+        <li><img src="./Game/Source/arena/super.png" alt=""><span><b>Super</b> <em class="solo-pc">E or right-click</em><em class="solo-tactil">the gold button</em> · fills as you hit</span></li>
+        <li><img src="./Game/Source/arena/hueso.png" alt=""><span><b>Bones</b> break boxes · +10% damage and health each</span></li>
+        <li><img src="./Game/Source/arena/gas.png" alt=""><span><b>Gas</b> closes in after 30 s · tall grass hides you</span></li>
       </ul>
-      <div class="bz-busqueda-botones">
-        <button type="button" id="bzListo" class="bz-btn bz-btn-listo hidden" aria-pressed="false">Ready</button>
-        <button type="button" id="bzPracticar" class="bz-btn bz-btn-sec">Practice vs bots</button>
-        <button type="button" id="bzCancelar" class="bz-btn bz-btn-ghost">Cancel</button>
+      <div class="ga-botones">
+        <button type="button" id="bzListo" class="ga-boton ga-boton-verde hidden" aria-pressed="false"><img src="./Game/Source/arena/listo.png" alt=""><span>Ready</span></button>
+        <button type="button" id="bzPracticar" class="ga-boton"><img src="./Game/Source/arena/practica.png" alt=""><span>Practice vs bots</span></button>
+        <button type="button" id="bzCancelar" class="ga-boton ga-boton-sec"><span>Cancel</span></button>
       </div>
     </div>
   </div>
 
-  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y dispara con la derecha -->
-  <div class="bz-tactil" id="bzTactil">
-    <div class="bz-zona-mover" id="bzZonaMover"><div class="bz-stick" id="bzStickMover"><i></i></div></div>
-    <div class="bz-zona-disparo" id="bzZonaDisparo"><div class="bz-stick bz-stick-fuego" id="bzStickDisparo"><i></i></div></div>
-    <button type="button" class="bz-super" id="bzSuper" aria-label="Super attack" disabled>
-      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bz-super-fondo" cx="32" cy="32" r="28"/><circle class="bz-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
-      <span>SUPER</span>
+  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y ladra con la derecha -->
+  <div class="ga-tactil" id="bzTactil">
+    <div class="ga-zona ga-zona-mover" id="bzZonaMover"><div class="ga-stick" id="bzStickMover"><i></i></div></div>
+    <div class="ga-zona ga-zona-disparo" id="bzZonaDisparo"><div class="ga-stick ga-stick-fuego" id="bzStickDisparo"><i></i></div></div>
+    <button type="button" class="ga-super" id="bzSuper" aria-label="Super attack" disabled>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="ga-super-fondo" cx="32" cy="32" r="28"/><circle class="ga-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
+      <img src="./Game/Source/arena/super.png" alt="">
     </button>
   </div>
 
-  <!-- Abajo (PC): la barra del súper y las teclas -->
-  <div class="bz-pie" id="bzPie">
-    <div class="bz-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
-    <div class="bz-teclas"><kbd>WASD</kbd> move · <kbd>Click</kbd> bark · <kbd>Space</kbd> auto-aim · <kbd>E</kbd> / <kbd>Right-click</kbd> super</div>
+  <!-- Abajo: las cargas del ladrido, la barra del súper y las teclas -->
+  <div class="ga-pie" id="bzPie">
+    <div class="ga-cargas" id="bzMunicion" title="Bark charges: they reload by themselves"><i></i><i></i><i></i></div>
+    <div class="ga-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
+    <div class="ga-teclas" id="bzTeclas"><kbd>WASD</kbd> move <kbd>Click</kbd> bark <kbd>Space</kbd> auto-aim <kbd>E</kbd> super</div>
   </div>
 
   <!-- Te han tumbado: mirar cómo acaba o volver al mapa -->
-  <div class="bz-caido hidden" id="bzCaido">
-    <div class="bz-caido-tarjeta" role="dialog" aria-labelledby="bzCaidoTitulo">
-      <h3 id="bzCaidoTitulo">Knocked out!</h3>
-      <p id="bzCaidoTexto"></p>
-      <div class="bz-caido-botones">
-        <button type="button" id="bzMirar" class="bz-btn bz-btn-ghost">Keep watching</button>
-        <button type="button" id="bzVolverCaido" class="bz-btn">Back to map</button>
+  <div class="ga-caido hidden" id="bzCaido">
+    <div class="ga-tarjeta ga-tarjeta-peque" role="dialog" aria-labelledby="bzCaidoTitulo">
+      <img class="ga-tarjeta-icono" src="./Game/Source/arena/ko.png" alt="">
+      <h3 class="ga-titulo" id="bzCaidoTitulo">Knocked out!</h3>
+      <p class="ga-texto" id="bzCaidoTexto"></p>
+      <div class="ga-botones">
+        <button type="button" id="bzMirar" class="ga-boton ga-boton-sec"><span>Keep watching</span></button>
+        <button type="button" id="bzVolverCaido" class="ga-boton"><span>Back to map</span></button>
       </div>
     </div>
   </div>
 
   <!-- Resultados -->
-  <div class="bz-resultado hidden" id="bzResultado">
-    <div class="bz-resultado-tarjeta" role="dialog" aria-labelledby="bzResTitulo">
-      <div class="bz-medalla" id="bzResPuesto">#1</div>
-      <h2 id="bzResTitulo">Victory!</h2>
-      <p id="bzResSub"></p>
-      <ul class="bz-premios" id="bzResPremios"></ul>
-      <ol class="bz-tabla" id="bzResTabla"></ol>
-      <div class="bz-resultado-botones">
-        <button type="button" id="bzOtraVez" class="bz-btn bz-btn-sec">Play again</button>
-        <button type="button" id="bzVolver" class="bz-btn">Back to map</button>
+  <div class="ga-resultado hidden" id="bzResultado">
+    <div class="ga-tarjeta ga-res" role="dialog" aria-labelledby="bzResTitulo">
+      <div class="ga-res-cab">
+        <div class="ga-medalla" id="bzResPuesto">#1</div>
+        <div class="ga-res-textos">
+          <h2 class="ga-res-titulo" id="bzResTitulo">Victory!</h2>
+          <p class="ga-texto" id="bzResSub"></p>
+        </div>
+      </div>
+      <ul class="ga-premios" id="bzResPremios"></ul>
+      <ol class="ga-tabla" id="bzResTabla"></ol>
+      <div class="ga-botones">
+        <button type="button" id="bzOtraVez" class="ga-boton ga-boton-sec">Play again</button>
+        <button type="button" id="bzVolver" class="ga-boton">Back to map</button>
       </div>
     </div>
   </div>
@@ -999,8 +1013,8 @@
 <div id="battleRankOverlay" class="battle-rank-overlay hidden">
   <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
     <div class="battle-rank-head">
-      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
-      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
+      <h2 id="battleRankTitle"><img src="./Game/Source/arena/ranking.png" alt="" width="34" height="34">Pet Battle Ranking</h2>
+      <button type="button" class="battle-rank-close ga-cerrar" id="battleRankCloseBtn" aria-label="Close">✕</button>
     </div>
     <p id="battleRankSeason" class="battle-rank-season"></p>
     <div class="battle-rank-scroll">
@@ -1017,7 +1031,7 @@
     </div>
     <div class="battle-rank-foot">
       <span id="battleRankMe" class="battle-rank-me"></span>
-      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
+      <button type="button" id="battleRankRefreshBtn" class="battle-rank-refresh ga-boton ga-boton-sec"><span>Refresh</span></button>
     </div>
   </div>
 </div>
@@ -1025,11 +1039,11 @@
 <!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
 <div id="battleRotateNotice" class="battle-rotate-notice hidden">
   <div class="battle-rotate-inner">
-    <div class="battle-rotate-icon">📱↻</div>
+    <img class="battle-rotate-icono" src="./Game/Source/arena/girar.png" alt="" width="96" height="96">
     <p>Rotate your phone to landscape to play the battle comfortably.</p>
     <!-- Con el giro automatico bloqueado, sin este boton no habia salida: el
          aviso tapaba la batalla entera (ni jugar ni rendirse). -->
-    <button type="button" id="battleRotateSeguir" class="battle-rotate-seguir">Play in portrait</button>
+    <button type="button" id="battleRotateSeguir" class="battle-rotate-seguir ga-boton ga-boton-sec">Play in portrait</button>
   </div>
 </div>
 

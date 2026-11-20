@@ -44,6 +44,7 @@
   var estado = {
     health: 100, maxHealth: 100, mode: 'passive', alive: true,
     ghost: false, deaths: 0, reviveCost: 30, windowEndsAt: null,
+    regenEveryMs: 0, regenDesde: 0,
     cargado: false
   };
   var oyentes = [];
@@ -133,6 +134,12 @@
     estado.maxHealth  = Number(d.pet.maxHealth) || 100;
     estado.mode       = d.pet.mode === 'attack' ? 'attack' : 'passive';
     estado.alive      = !!d.pet.alive;
+    /* (2026-11-15) LA MASCOTA SE CURA SOLA, DESPACIO: 1 punto cada
+       `regenEveryMs` (lo calcula el servidor al leerla; ver petSaludAlDia en
+       server2.js). Entre lectura y lectura la barra la va subiendo `curarSola`
+       con la misma cuenta, para que no pegue saltos de dos en dos por minuto. */
+    estado.regenEveryMs = Math.max(0, Number(d.pet.regenEveryMs) || 0);
+    estado.regenDesde   = Date.now();
     // Y se apunta ya, sin esperar a que cambie la visibilidad: si entras a la
     // tienda nada mas cargar, el dato tiene que estar puesto.
     try {
@@ -196,9 +203,20 @@
     // servidor manda la última palabra en la respuesta.
     estado.health = Math.max(0, estado.health - Math.max(1, Math.round(Number(n) || 1)));
     if (estado.health === 0) estado.alive = false;
+    estado.regenDesde = Date.now();          // un mordisco reinicia la cuenta de la cura
     avisar();
     if (timerDano) return;
     timerDano = setTimeout(enviarDano, ENVIO_DANO_MS);
+  }
+
+  /** Lo que se ha curado sola desde la última cuenta (solo pinta: manda el servidor). */
+  function curarSola() {
+    if (!estado.cargado || !estado.alive || !estado.regenEveryMs || estado.health >= estado.maxHealth || danoPendiente > 0) return;
+    var puntos = Math.floor((Date.now() - (estado.regenDesde || 0)) / estado.regenEveryMs);
+    if (puntos <= 0 || !Number.isFinite(puntos)) return;
+    estado.health = Math.min(estado.maxHealth, estado.health + puntos);
+    estado.regenDesde += puntos * estado.regenEveryMs;
+    avisar();
   }
 
   function enviarDano() {
@@ -713,6 +731,7 @@
       if (!st.enganchado) {
         if (engancharPerro(st)) crearBarra(st);
       }
+      curarSola();
       actualizarBarra(st);
       aplicarVisibilidad(st);
     };

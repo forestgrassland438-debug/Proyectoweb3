@@ -712,6 +712,34 @@ body {
   align-items: center;
   gap: 24px;
 }
+/* (2026-11-19) Las pestañas de una entrada que reúne varias páginas (Players & accounts,
+   Economy & treasuries, Items, prices & tables). Cada pestaña es la página de siempre. */
+.cc-tool-tabs {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.cc-tool-tabs[hidden] { display: none; }
+.cc-tool-tab {
+  border: 1px solid var(--s-line);
+  border-radius: 999px;
+  background: var(--s-raised);
+  color: var(--s-text);
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cc-tool-tab:hover { border-color: var(--s-text); }
+.cc-tool-tab.active {
+  background: var(--s-text);
+  color: var(--s-bg);
+  border-color: var(--s-text);
+}
 .cc-icon-button {
   border: 1px solid var(--s-line);
   border-radius: 7px;

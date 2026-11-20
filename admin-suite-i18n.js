@@ -2,6 +2,142 @@
 (function (root) {
   'use strict';
   const pairs = `
+Blockchain|Blockchain
+Players & accounts|Jugadores y cuentas
+Manage players, farming, economy and rankings, and the private directory of wallets, names, verified emails, login methods and activity.|Gestiona jugadores, cultivos, economía y clasificaciones, y el directorio privado de carteras, nombres, correos verificados, métodos de acceso y actividad.
+Supervisor & treasuries|Supervisor y tesoros
+Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups; the circular treasury and the coin drops for free and VIP players.|Dos tesoros, reservas protegidas, el supervisor automático, la revisión de pagos, los límites de precio y las recargas de Oro; el tesoro circular y las monedas que sueltan los monstruos a jugadores free y VIP.
+Items, prices & tables|Objetos, precios y tablas
+Shop and P2P prices with inflation and demand, default prices in Gold, Silver or Bronze; plants, levels and tables; global table capacity and respawn.|Precios de la tienda y del P2P con la inflación y la demanda, precios por defecto en Oro, Plata o Bronce; plantas, niveles y tablas; capacidad global de las tablas y reaparición.
+Shop & P2P prices|Precios de la tienda y del P2P
+Crops & tables|Cultivos y tablas
+Chain backup|Respaldo en la cadena
+Tutorial, skills, missions, ranking, friends, invites and Lands kept on the contract, plus encrypted private messages, Google sign-in wallets and profiles; compare, restore and recover after a wipe.|Tutorial, habilidades, misiones, ranking, amigos, invitados y Lands guardados en el contrato, más los privados, las carteras del inicio con Google y las fichas cifrados; comparar, restaurar y recuperar tras un borrado.
+Sections of this tool|Secciones de esta herramienta
+Blockchain · Accounts|Blockchain · Cuentas
+Tutorial, skills, missions, ranking, friends, invites and Lands are kept on the contract so a backend wipe loses nothing.|El tutorial, las habilidades, las misiones, el ranking, los amigos, los invitados y las Lands se guardan en el contrato para que un borrado del servidor no pierda nada.
+Open chain backup ↗|Abrir respaldo en la cadena ↗
+Open economy & treasuries ↗|Abrir economía y tesoros ↗
+players|jugadores
+transactions|transacciones
+Last error|Último error
+Accounts are kept on the contract; private messages, Google wallets and profiles go in the encrypted anchor.|Las cuentas se guardan en el contrato; los privados, las carteras de Google y las fichas van en el ancla cifrada.
+Accounts are kept on the contract. The encrypted anchor has no key yet (GF_RESPALDO_CLAVE).|Las cuentas se guardan en el contrato. El ancla cifrada aún no tiene clave (GF_RESPALDO_CLAVE).
+The game server does not have this module yet: upload the new server2.js and cuenta-en-cadena.js.|El servidor del juego aún no tiene este módulo: sube el nuevo server2.js y cuenta-en-cadena.js.
+The game server does not have this module yet.|El servidor del juego aún no tiene este módulo.
+Upload the new server2.js and cuenta-en-cadena.js to the backend and restart it.|Sube el nuevo server2.js y cuenta-en-cadena.js al backend y reinícialo.
+Grassland Forest · Administration|Grassland Forest · Administración
+This section requires an administrator session verified by the server.|Este apartado exige una sesión de administrador verificada por el servidor.
+Connect administrator|Conectar administrador
+Grassland Forest · Control center|Grassland Forest · Centro de control
+Each player's account kept on the same contract, so a backend wipe loses nothing: tutorial, skills, missions, ranking, friends, invites, what they built on their Lands, and (encrypted) private messages, the Google sign-in wallet and the account profile.|La cuenta de cada jugador guardada en el mismo contrato, para que un borrado del servidor no pierda nada: tutorial, habilidades, misiones, ranking, amigos, invitados, lo construido en sus Lands y (cifrados) los privados, la cartera del inicio con Google y la ficha de la cuenta.
+Tables on the contract|Tablas en el contrato
+Created automatically the first time they are needed, like exp. Only the server can write them: the relay refuses any cta_ table coming from a browser.|Se crean solas la primera vez que hacen falta, como exp. Solo las escribe el servidor: el relay rechaza cualquier tabla cta_ que venga de un navegador.
+Data|Dato
+On the contract|En el contrato
+Saving fees|Ahorro de comisiones
+Nothing is written if nothing changed. What changes often waits a minimum time between transactions; relations (friends, invites, Lands) are one transaction each; large data goes in batches.|Nada se escribe si nada cambió. Lo que cambia a menudo espera un tiempo mínimo entre transacciones; las relaciones (amigos, invitados, Lands) son una transacción cada una; lo grande va en lotes.
+Backup active|Respaldo activo
+Encrypted anchor active|Ancla cifrada activa
+Skills: minutes between writes|Habilidades: minutos entre escrituras
+Missions: minutes between writes|Misiones: minutos entre escrituras
+Ranking: minutes between writes|Ranking: minutos entre escrituras
+Anchor every (minutes)|Ancla cada (minutos)
+Sweep every (minutes)|Barrido cada (minutos)
+Max. transactions per minute|Máx. de transacciones por minuto
+Players per sweep|Jugadores por barrido
+Save settings|Guardar ajustes
+One player|Un jugador
+Account (playerName)|Cuenta (playerName)
+Compare database and chain|Comparar base de datos y cadena
+Write to the chain now|Escribir en la cadena ahora
+Restore from the chain|Restaurar desde la cadena
+“Restore” never overwrites newer data: counters and experience keep the highest value, states keep the database value, and relations are only restored if the database has none.|“Restaurar” nunca pisa datos más nuevos: los contadores y la experiencia se quedan con el mayor, los estados con el de la base de datos, y las relaciones solo se reponen si la base de datos no tiene ninguna.
+Encrypted anchor|Ancla cifrada
+Private messages, the Google sign-in wallet records and each account profile, compressed and encrypted (AES-256-GCM) inside the data of one transaction per batch. The contract ignores those extra bytes; the chain keeps them forever.|Los privados, los registros de la cartera del inicio con Google y la ficha de cada cuenta, comprimidos y cifrados (AES-256-GCM) dentro de los datos de una transacción por lote. El contrato ignora esos bytes de más; la cadena los guarda para siempre.
+Send a batch now|Enviar un lote ahora
+Disaster recovery|Recuperación tras un desastre
+After a database wipe: reads every invoice of the contract (200 per call) and every anchored batch, and rebuilds the accounts. It only fills what is missing. It can take several minutes and uses RPC quota.|Tras un borrado de la base de datos: lee cada factura del contrato (200 por llamada) y cada lote anclado, y reconstruye las cuentas. Solo rellena lo que falta. Puede tardar varios minutos y gasta cupo del RPC.
+Type RESTAURAR to confirm|Escribe RESTAURAR para confirmar
+Restore everything from the chain|Restaurar todo desde la cadena
+Select and copy the text|Selecciona y copia el texto
+Tutorial|Tutorial
+Skills (experience)|Habilidades (experiencia)
+Missions completed|Misiones cumplidas
+Ranking|Ranking
+Friends|Amigos
+Lands buildings|Construcciones de las Lands
+Encrypted anchor (head)|Ancla cifrada (cabeza)
+Backup|Respaldo
+Contract connected|Contrato conectado
+No contract or relayer|Sin contrato o sin relayer
+Anchor key|Clave del ancla
+Key ready|Lista
+On the chain|En la cadena
+Missing|Falta
+Set GF_RESPALDO_CLAVE to make it independent of the relayer key|Pon GF_RESPALDO_CLAVE para que no dependa de la clave del relayer
+Without a key the anchor stays off|Sin clave, el ancla no funciona
+Queue|Cola
+Working now|Trabajando ahora
+Idle|En espera
+Players backed up|Jugadores respaldados
+waiting their interval|esperando su intervalo
+with errors|con errores
+Transactions (this run)|Transacciones (desde el arranque)
+Gas spent (this run)|Gas gastado (desde el arranque)
+In the network coin (zkLTC on LitVM)|En la moneda de la red (zkLTC en LitVM)
+Restored values|Valores restaurados
+Taken from the chain because the database had less|Tomados de la cadena porque la base de datos tenía menos
+Last sweep|Último barrido
+sweeps|barridos
+The encrypted anchor has no key.|El ancla cifrada no tiene clave.
+Add GF_RESPALDO_CLAVE (any long secret, at least 32 characters) to the backend variables and keep a copy outside the server: without it the anchored batches cannot be read after a wipe.|Añade GF_RESPALDO_CLAVE (un secreto largo, de 32 caracteres o más) a las variables del backend y guarda una copia fuera del servidor: sin ella, tras un borrado no se pueden leer los lotes anclados.
+The encrypted anchor is paused.|El ancla cifrada está en pausa.
+Private messages, Google wallets and profiles are not being backed up.|Los privados, las carteras de Google y las fichas no se están respaldando.
+Unknown (node did not answer)|Desconocido (el nodo no contestó)
+Not yet (created on first use)|Aún no (se crea al usarla)
+Batches anchored|Lotes anclados
+Bytes anchored|Bytes anclados
+Compressed and encrypted|Comprimidos y cifrados
+Last batch|Último lote
+Reading the encrypted batches|Leyendo los lotes cifrados
+Reading every invoice of the contract|Leyendo cada factura del contrato
+Rebuilding the accounts|Reconstruyendo las cuentas
+Finished|Terminado
+invoices|facturas
+Accounts rebuilt|Cuentas reconstruidas
+values restored|valores restaurados
+from the anchor|del ancla
+profiles|fichas
+messages|mensajes
+Google wallets|carteras de Google
+Recovery finished.|Recuperación terminada.
+Recovery stopped with an error.|La recuperación se detuvo con un error.
+No player with that account (or without a wallet address).|No hay ningún jugador con esa cuenta (o no tiene dirección de cartera).
+Could not read this player.|No se pudo leer este jugador.
+Database|Base de datos
+(none)|(ninguno)
+Not on the chain yet|Aún no está en la cadena
+Last write|Última escritura
+next allowed write|próxima escritura permitida
+last error|último error
+Write the account name (playerName).|Escribe el nombre de la cuenta (playerName).
+Write this player's changes to the chain now? It skips the waiting intervals and can send several transactions.|¿Escribir ya en la cadena los cambios de este jugador? Se salta los intervalos de espera y puede mandar varias transacciones.
+Written|Escrito
+Nothing to write: the chain already matches.|Nada que escribir: la cadena ya coincide.
+Not completed|No se completó
+see the last error|mira el último error
+Restore this player from the chain? Only what the database is missing is filled in.|¿Restaurar este jugador desde la cadena? Solo se rellena lo que le falta a la base de datos.
+Restored|Restaurado
+Nothing to restore: the database already had it.|Nada que restaurar: la base de datos ya lo tenía.
+There is no anchor key (GF_RESPALDO_CLAVE).|No hay clave del ancla (GF_RESPALDO_CLAVE).
+Not sent|No se envió
+Batch sent|Lote enviado
+Nothing new to anchor.|Nada nuevo que anclar.
+Settings saved.|Ajustes guardados.
+Type RESTAURAR to confirm.|Escribe RESTAURAR para confirmarlo.
+Rebuild every account from the chain? Only missing data is filled in. It can take several minutes.|¿Reconstruir todas las cuentas desde la cadena? Solo se rellena lo que falta. Puede tardar varios minutos.
+Recovery started.|Recuperación iniciada.
 Resources & capacity|Recursos y capacidad
 Accounts & identity|Cuentas e identidad
 Read global table capacity, simulate gradual respawn and price adjustments, and preserve the owner’s limits.|Consulta la capacidad global de las tablas, simula reapariciones y precios graduales y conserva los límites del propietario.
@@ -1864,6 +2000,32 @@ See the 1.5% fee treasury and tune the coin drops for free and VIP players.|Mira
 Connect the wallet registered as an administrator.|Conecta la cartera registrada como administradora.
 Economy|Economía
 Every purchase and sale in the game shop and the P2P market pays a 1.5% fee into the treasury. The treasury pays it back as coins dropped by defeated monsters.|Cada compra y venta en la tienda del juego y en el mercado P2P paga una comisión del 1,5 % al tesoro. El tesoro la devuelve en monedas que sueltan los monstruos vencidos.
+The circular-economy treasury: of the 5% fee on every purchase and sale in the game shop and the P2P market, 1.5% comes here, plus the coin exchange fees. It pays it back as coins dropped by defeated monsters. The other 3.5% goes to the game treasury (Economy & treasuries).|El tesoro de la economía circular: de la comisión del 5 % de cada compra y venta en la tienda del juego y en el mercado P2P, el 1,5 % llega aquí, más las comisiones de cambio de monedas. Lo devuelve en las monedas que sueltan los monstruos derrotados. El otro 3,5 % va al tesoro del juego (Economía y tesoros).
+Automatic treasury policy|Política automática de los tesoros
+Economy supervisor|Supervisor de la economía
+Refresh supervisor|Actualizar supervisor
+Two active treasuries. The game treasury also holds the protected reserve. Pending service refunds and reserved monster drops cannot be burned.|Dos tesoros activos. El tesoro del juego también guarda la reserva protegida. Los reembolsos de servicios pendientes y las monedas reservadas para los monstruos no se pueden quemar.
+Fund monster rewards from game surplus|Pagar las recompensas de los monstruos con el excedente del juego
+Transfer to circular treasury|Pasar al tesoro circular
+Service payments awaiting confirmation or review|Pagos de servicios pendientes de confirmación o revisión
+Verify the item delivery and chain history before approving a refund. A browser failure report alone is insufficient.|Comprueba la entrega del objeto y el historial en la cadena antes de aprobar un reembolso. Un informe de fallo del navegador no basta por sí solo.
+Read the economy operations guide ↗|Leer la guía de operaciones de la economía ↗
+Reserved for dropped coins|Reservado para las monedas que sueltan los monstruos
+Deposited by admins|Depositado por administradores
+Withdrawn|Retirado
+Death payments|Pagos por muerte
+Gold price in zkLTC|Precio del oro en zkLTC
+Active money = players + circular treasury, including reserved drops. Total supply also includes the game treasury. Monetary inflation measures active-money growth; destroyed items are shown separately and do not remove coins. Shop, death, smelting and crafting prices follow the daily index.|Dinero activo = jugadores + tesoro circular, incluidas las monedas reservadas. La oferta total incluye además el tesoro del juego. La inflación monetaria mide el crecimiento del dinero activo; los objetos destruidos se muestran aparte y no quitan monedas. Los precios de la tienda, de la muerte, de la fundición y del crafteo siguen el índice diario.
+Deaths → game treasury|Muertes → tesoro del juego
+Effect of item destruction on monetary inflation (disabled)|Efecto de la destrucción de objetos en la inflación monetaria (desactivado)
+Item destruction does not destroy coins|Destruir objetos no destruye monedas
+Death (paid to the game treasury)|Muerte (se paga al tesoro del juego)
+Treasury coin burns and the reported value of destroyed items, by source. Unclaimed monster coins return to the circular treasury after five minutes; they are not burned.|Monedas quemadas de los tesoros y valor declarado de los objetos destruidos, por origen. Las monedas de monstruos que nadie recoge vuelven al tesoro circular a los cinco minutos; no se queman.
+Legacy reserve merged exactly once. Original collection retained for audit.|La reserva antigua se fusionó una sola vez. La colección original se conserva para auditoría.
+Current relayer wallet only; prior rotated wallets are included in contract totals but cannot be claimed as sponsored by this current address.|Solo la cartera actual del relayer; las carteras anteriores (rotadas) cuentan en los totales del contrato, pero no se pueden atribuir como patrocinadas por esta dirección.
+name, username, wallet or Discord|nombre, usuario, cartera o Discord
+Previous page|Página anterior
+Next page|Página siguiente
 Treasury balance|Saldo del tesoro
 bronze|bronce
 gold|oro

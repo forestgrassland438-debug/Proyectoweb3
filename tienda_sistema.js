@@ -1277,7 +1277,10 @@ class TiendaSistema {
         });
         
         // Botón de interactuar (PC)
+        // (2026-11-19) Si el panel enseña un objeto, el botón lo compra/vende aunque la
+        // selección interna se haya soltado por el camino (ver _recuperarSeleccionDelPanel).
         document.getElementById('interact-button-pc')?.addEventListener('click', () => {
+            this._recuperarSeleccionDelPanel();
             this.openPcModal();
         });
         // (2026-10-28) "Price history": el historial y las estadísticas de precio del objeto (PC y móvil).
@@ -1626,6 +1629,54 @@ class TiendaSistema {
         });
     }
     
+    /* ═══════════════════════════════════════════════════════════════════════
+       LA SELECCIÓN AL CERRAR Y REABRIR (2026-11-19)
+       ───────────────────────────────────────────────────────────────────────
+       Un jugador: "quieres comprar algo, cierras el panel antes y al volver el
+       botón de comprar no funciona; tienes que ir a otro objeto y volver".
+       close() y open() soltaban selectedItem pero el panel de la derecha seguía
+       pintado con el objeto y su botón ACTIVO: openPcModal() veía null y no
+       hacía nada. Lo que se ve y lo que hace el botón dicen ya lo mismo.
+       ═══════════════════════════════════════════════════════════════════════ */
+    _itemPorId(id) {
+        for (const lista of Object.values(this.itemsTienda || {})) {
+            if (!Array.isArray(lista)) continue;
+            const it = lista.find(x => x && x.id === id);
+            if (it) return it;
+        }
+        return null;
+    }
+
+    /** ¿Se puede elegir ahora este objeto en el modo actual (comprar o vender)? */
+    _itemOfrecido(id) {
+        const it = this._itemPorId(id);
+        if (!it || this._isLockedByLevel(it)) return false;
+        if (this.transactionType === 'compra') return !it.soloVenta && Number(it.buyPrice) > 0;
+        return this.disponibleParaVenta(it.id) > 0;
+    }
+
+    _sincronizarTipoConDesplegable() {
+        const sel = document.getElementById('tienda-tipo');
+        const v = sel && sel.value;
+        if ((v === 'compra' || v === 'venta') && v !== this.transactionType) this.transactionType = v;
+    }
+
+    _restaurarSeleccion() {
+        const id = this._ultimaSeleccionId;
+        this._ultimaSeleccionId = null;
+        if (id && this._itemOfrecido(id)) { this.selectItem(id); return; }
+        this._detalleItemId = null;
+        if (!this.isMobile) this.updatePcSimpleDetail();
+    }
+
+    _recuperarSeleccionDelPanel() {
+        if (this.selectedItem || !this._detalleItemId) return;
+        const id = this._detalleItemId;
+        if (this._itemOfrecido(id)) { this.selectItem(id); return; }
+        this._detalleItemId = null;
+        if (!this.isMobile) this.updatePcSimpleDetail();
+    }
+
     // Abrir modal de PC
     openPcModal() {
         if (this.isMobile || !this.selectedItem) return;
@@ -2074,11 +2125,19 @@ class TiendaSistema {
         document.getElementById('tienda-overlay')?.classList.remove('tienda-overlay-hidden');
         
         this.isOpen = true;
-        
+
+        // (2026-11-19) El modo (comprar/vender) es el que ENSEÑA el desplegable: el
+        // navegador puede devolverle un valor guardado al recargar la página.
+        this._sincronizarTipoConDesplegable();
         this.filterItems?.();
         this.updateMonedaDisplay();
         this.selectedItem = null;
-        
+        // (2026-11-19) "Cierro la tienda antes de comprar y al volver el botón no hace
+        // nada": el panel de la derecha seguía enseñando el objeto con el botón activo y
+        // la selección estaba a null. Ahora vuelve el mismo objeto (si se sigue ofreciendo)
+        // o el panel se vacía; nunca un botón activo que no hace nada.
+        this._restaurarSeleccion();
+
         if (!this.isMobile) {
             setTimeout(() => {
                 document.getElementById('tienda-search')?.focus();
@@ -2155,6 +2214,8 @@ class TiendaSistema {
         } catch (err) { /* no crítico */ }
 
         this.isOpen = false;
+        // Lo que estaba elegido vuelve al reabrir (ver _restaurarSeleccion).
+        this._ultimaSeleccionId = this.selectedItem ? this.selectedItem.id : (this._detalleItemId || null);
         this.selectedItem = null;
 
         console.log('🏪 Tienda cerrada');
@@ -2601,6 +2662,8 @@ class TiendaSistema {
     
     // Actualizar detalles simples en PC (solo imagen, nombre y precio - según tipo de transacción)
     updatePcSimpleDetail() {
+        // Qué objeto ENSEÑA el panel: el botón "Interact" lo usa si la selección se soltó.
+        this._detalleItemId = this.selectedItem ? this.selectedItem.id : null;
         const detailImg = document.getElementById('detail-img-simple');
         const detailName = document.getElementById('detail-name-simple');
         const priceContainer = document.getElementById('detail-price-simple');

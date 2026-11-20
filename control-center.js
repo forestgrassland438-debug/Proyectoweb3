@@ -19,31 +19,50 @@
     // (2026-10-28) Los precios: una etiqueta de precio.
     prices:'<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"/><circle cx="8" cy="8" r="1.6"/>',
     // (2026-11-10) La red: tres nodos unidos.
-    network:'<circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 6h9M6.3 8.2l4.4 7.6m7-7.6-4.4 7.6"/>'
+    network:'<circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 6h9M6.3 8.2l4.4 7.6m7-7.6-4.4 7.6"/>',
+    // (2026-11-19) El respaldo de la cuenta en la cadena: dos eslabones.
+    chain:'<path d="M9.5 14.5 14.5 9.5"/><path d="M8 11 5.5 13.5a3.5 3.5 0 0 0 5 5L13 16"/><path d="M16 13l2.5-2.5a3.5 3.5 0 0 0-5-5L11 8"/>'
   };
   const svg = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';
+  /* (2026-11-19) ORDENADO Y SIN REPETIDOS. "Quita las cosas repetidas, ordena todo y si
+     una era repetida y con más opciones, únelas para no perder esas opciones."
+     Lo que se solapaba va JUNTO en una entrada con pestañas, y cada pestaña es la página
+     de siempre (no se pierde ninguna opción):
+       · Players & accounts      = Players & economy (admin.html) + Accounts & identity (cuentas.html)
+       · Economy & treasuries    = Economy supervisor (economia.html) + Treasury & incentives (tesoro.html)
+       · Items, prices & tables  = Shop & P2P prices (precios.html) + Crops & tables (cultivos.html) + Resources & capacity (recursos.html)
+     Los ids de las pestañas (tesoro, cuentas, cultivos, recursos) siguen valiendo en los
+     enlaces (#tesoro) y en los botones data-open-tool. La primera pestaña es la página que
+     ya abría esa entrada (las pruebas del navegador cuentan con ello). */
   const tools = [
     { id:'misiones', file:'misiones.html', name:'Missions', icon:'missions', group:'Game control', text:'Build daily quests and balance their rewards.' },
-    { id:'admin', file:'admin.html', name:'Players & economy', icon:'players', group:'Game control', text:'Manage players, farming, economy and rankings.' },
     { id:'climas', file:'climas.html', name:'World & weather', icon:'weather', group:'Game control', text:'Control weather, seasons and the world clock.' },
-    { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives', icon:'treasury', group:'Game control', text:'The circular-economy treasury (1.5% of every market fee and the exchange fees) and the coin drops for free and VIP players.' },
-    // (2026-10-26) Los dos tesoros, el precio del oro, la inflación y las compras con zkLTC.
-    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups.' },
-    // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
-    { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
-    { id:'cultivos', file:'cultivos.html', name:'Cultivos y tablas', icon:'prices', group:'Game control', text:'Plantas, niveles, tablas, porcentajes, precios, compras, ventas y quemas de objetos.' },
-    { id:'recursos', file:'recursos.html', name:'Resources & capacity', icon:'prices', group:'Game control', text:'Read global table capacity, simulate gradual respawn and price adjustments, and preserve the owner’s limits.' },
-    { id:'cuentas', file:'cuentas.html', name:'Accounts & identity', icon:'players', group:'Moderation', text:'Private administrator directory: wallets, character names, available verified emails, login methods and recorded activity.' },
-    { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
-    { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Moderation', text:'Review player reports and moderation cases.' },
+    { id:'admin', file:'admin.html', name:'Players & accounts', icon:'players', group:'Players', text:'Manage players, farming, economy and rankings, and the private directory of wallets, names, verified emails, login methods and activity.',
+      tabs:[ { file:'admin.html', name:'Players & economy' }, { id:'cuentas', file:'cuentas.html', name:'Accounts & identity' } ] },
+    { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Players', text:'Review player reports and moderation cases.' },
+    { id:'puerta-login', file:'puerta_login.html', name:'Access & permissions', icon:'access', group:'Players', text:'Manage the whitelist and game entry rules.' },
+    // (2026-10-26) Los dos tesoros, el precio del oro, la inflación y las compras con zkLTC; (2026-10-22) el tesoro circular y sus monedas.
+    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Economy', text:'Two treasuries, protected reserves, the automatic supervisor, payment review, price limits and Gold top-ups; the circular treasury and the coin drops for free and VIP players.',
+      tabs:[ { file:'economia.html', name:'Supervisor & treasuries' }, { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives' } ] },
+    // (2026-10-28) Precios de la tienda y del P2P; las plantas y sus tablas; la capacidad de las tablas.
+    { id:'precios', file:'precios.html', name:'Items, prices & tables', icon:'prices', group:'Economy', text:'Shop and P2P prices with inflation and demand, default prices in Gold, Silver or Bronze; plants, levels and tables; global table capacity and respawn.',
+      tabs:[ { file:'precios.html', name:'Shop & P2P prices' }, { id:'cultivos', file:'cultivos.html', name:'Crops & tables' }, { id:'recursos', file:'recursos.html', name:'Resources & capacity' } ] },
     // (2026-10-27) Quién compró y vendió y si pagó, los fallos de la tienda y del P2P, el explorador del suelo y los intentos.
-    { id:'auditoria', file:'auditoria.html', name:'Shop & drop audit', icon:'audit', group:'Moderation', text:'Who bought and sold, what it cost and if it was paid; shop and P2P errors; who picked up each drop and from whom; drop bans and level attempts.' },
-    { id:'puerta-login', file:'puerta_login.html', name:'Access & permissions', icon:'access', group:'Moderation', text:'Manage the whitelist and game entry rules.' },
-    { id:'contrato-stats', file:'contrato-stats.html', name:'Contract analytics', icon:'contract', group:'System', text:'Read invoices, contract activity and gas usage.' },
+    { id:'auditoria', file:'auditoria.html', name:'Shop & drop audit', icon:'audit', group:'Economy', text:'Who bought and sold, what it cost and if it was paid; shop and P2P errors; who picked up each drop and from whom; drop bans and level attempts.' },
+    { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Blockchain', text:'Create collections and manage NFT distribution.' },
+    // (2026-11-19) La cuenta de cada jugador respaldada en el contrato (cuenta-en-cadena.js del servidor).
+    { id:'cuenta-cadena', file:'cuenta-cadena.html', name:'Chain backup', icon:'chain', group:'Blockchain', text:'Tutorial, skills, missions, ranking, friends, invites and Lands kept on the contract, plus encrypted private messages, Google sign-in wallets and profiles; compare, restore and recover after a wipe.' },
+    { id:'contrato-stats', file:'contrato-stats.html', name:'Contract analytics', icon:'contract', group:'Blockchain', text:'Read invoices, contract activity and gas usage.' },
     // (2026-11-10) La red de la cadena: RPC, explorador, contratos y la migración a mainnet.
-    { id:'red', file:'red.html', name:'Network & RPC', icon:'network', group:'System', text:'Change the RPC, explorer and contracts used by the server, the game, the shop, the login and the wallets; test them first, and migrate from testnet to mainnet.' },
+    { id:'red', file:'red.html', name:'Network & RPC', icon:'network', group:'Blockchain', text:'Change the RPC, explorer and contracts used by the server, the game, the shop, the login and the wallets; test them first, and migrate from testnet to mainnet.' },
     { id:'reporter', file:'reporter.html', name:'Error monitoring', icon:'errors', group:'System', text:'Investigate client errors and relay failures.' }
   ];
+  // Cada entrada con su lista de pestañas (las sencillas, una) y los alias de las pestañas.
+  tools.forEach(tool => { if (!tool.tabs) tool.tabs = [{ file:tool.file, name:tool.name }]; tool.tabs.forEach((tab,i) => { tab.id = tab.id || (i ? tool.id+'-'+i : tool.id); }); });
+  const aliases = new Map();
+  tools.forEach(tool => tool.tabs.forEach((tab,i) => aliases.set(tab.id,{ tool:tool.id, tab:i })));
+  const resolve = id => aliases.get(id) || { tool:id, tab:0 };
+  let activeTab = 0;
   let verified = false, active = 'overview', frame = null, loading = false, dataLoading = false, snapshot = null;
   let renewalTimer = null, frameTimer = null, retryTimer = null, presenceTimer = null, requestRevision = 0;
   let destroyed = false, wallet = null, account = '';
@@ -95,7 +114,7 @@
       $('cc-account').textContent = short(account); $('cc-account').title = account;
       watchWallet(provider); armRenewal(); armPresence();
       const target = location.hash.slice(1);
-      activate(tools.some(tool => tool.id === target) ? target : 'overview',false);
+      activate(aliases.has(target) ? target : 'overview',false);
       refreshData();
     } catch (e) {
       gate();
@@ -144,7 +163,9 @@
     const query = $('cc-search').value.trim().toLocaleLowerCase(); let count = 0;
     document.querySelectorAll('[data-tool]').forEach(button => {
       const tool = tools.find(x => x.id === button.dataset.tool);
-      button.hidden = !!query && !(button.textContent+' '+(tool?.text || '')+' '+t(tool?.text || '')).toLocaleLowerCase().includes(query);
+      // Las pestañas también se encuentran por su nombre (p. ej. "tesoro" o "cuentas").
+      const tabs = (tool?.tabs || []).map(x => x.name+' '+t(x.name)+' '+x.id).join(' ');
+      button.hidden = !!query && !(button.textContent+' '+(tool?.text || '')+' '+t(tool?.text || '')+' '+tabs).toLocaleLowerCase().includes(query);
       if (!button.hidden) count++;
     });
     document.querySelectorAll('.cc-nav-group').forEach(label => {
@@ -159,23 +180,41 @@
     try { return frame.contentWindow.GFAdminUI?.canLeave() ?? root.confirm(t('The tool is still loading.')+' '+t('Go back')+'?'); }
     catch (_) { return root.confirm(t('Leave this tool and discard unsaved changes?')); }
   }
+  /** La barra de pestañas de la entrada abierta (solo si tiene más de una). */
+  function renderTabs(tool) {
+    const bar = $('cc-tool-tabs'); if (!bar) return;
+    bar.replaceChildren();
+    bar.hidden = !tool || tool.tabs.length < 2;
+    if (bar.hidden) return;
+    tool.tabs.forEach((tab,i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'cc-tool-tab'; b.setAttribute('role','tab');
+      b.textContent = t(tab.name); b.setAttribute('aria-selected',String(i === activeTab)); b.classList.toggle('active',i === activeTab);
+      b.addEventListener('click',() => activate(tab.id)); bar.append(b);
+    });
+  }
+  function breadcrumb(tool) {
+    const tab = tool && tool.tabs[activeTab];
+    return t(tool?.name || 'Overview') + (tool && tool.tabs.length > 1 && tab ? ' · '+t(tab.name) : '');
+  }
   function activate(id, ask = true) {
-    if (!verified || (active === id && frame)) return;
+    const destino = resolve(id);
+    if (!verified || (active === destino.tool && activeTab === destino.tab && frame)) return;
     if (ask && !canLeave()) return;
     clearTimeout(frameTimer); if (frame) { frame.remove(); frame = null; }
-    active = id; loading = false;
-    const tool = tools.find(x => x.id === id);
+    active = destino.tool; activeTab = destino.tab; loading = false;
+    const tool = tools.find(x => x.id === active);
+    const tab = tool ? (tool.tabs[activeTab] || tool.tabs[0]) : null;
     $('cc-overview').hidden = !!tool; $('cc-tool-area').hidden = !tool; $('cc-tool-dirty').hidden = true;
-    text($('cc-breadcrumb'),t(tool?.name || 'Overview'));
-    const url = new URL(location.href); url.hash = id; history.replaceState(null,'',url.href);
-    renderNavigation(); closeNav();
+    text($('cc-breadcrumb'),breadcrumb(tool));
+    const url = new URL(location.href); url.hash = tab ? tab.id : 'overview'; history.replaceState(null,'',url.href);
+    renderNavigation(); renderTabs(tool); closeNav();
     if (!tool) { armPresence(); return; }
     clearTimeout(presenceTimer);
     text($('cc-tool-name'),t(tool.name));
-    const source = new URL(tool.file,location.href); source.searchParams.set('lang',ui.language); source.searchParams.set('theme',ui.theme);
+    const source = new URL(tab.file,location.href); source.searchParams.set('lang',ui.language); source.searchParams.set('theme',ui.theme);
     $('cc-original').href = source.href;
     $('cc-frame-status').hidden = false; text($('cc-frame-status'),t('Loading tool…')); loading = true;
-    frame = document.createElement('iframe'); frame.title = t(tool.name); frame.referrerPolicy = 'same-origin';
+    frame = document.createElement('iframe'); frame.title = t(tab.name); frame.referrerPolicy = 'same-origin';
     // The allowlist above is the only source of iframe URLs. No arbitrary page or API URL is accepted.
     frame.src = source.href; const current = frame;
     frame.addEventListener('load',() => {
@@ -245,6 +284,25 @@
       renderMetrics(); text($('cc-updated'),t('Last updated')+' · '+new Date().toLocaleTimeString(ui.language,{hour:'2-digit',minute:'2-digit'}));
     } finally { dataLoading = false; $('cc-refresh').disabled = false; }
     loadRpc();
+    loadCuenta();
+  }
+  /* (2026-11-19) EL RESPALDO DE LAS CUENTAS EN LA CADENA, de un vistazo. Va aparte de
+     las métricas, como la lectura de la cadena: un servidor sin la ruta (404) no es
+     "Refresh failed" sino "falta subir el servidor nuevo". */
+  async function loadCuenta() {
+    if (!verified) return;
+    const revision = requestRevision;
+    try {
+      const s = await session.request('/api/admin/cuenta-cadena/estado');
+      if (destroyed || !verified || revision !== requestRevision) return;
+      const j = s.jugadores || {}, m = s.metricas || {};
+      text($('cc-cuenta-state'),t(s.config && s.config.activo ? 'Active' : 'Paused')+' · '+(j.sincronizados == null ? '—' : j.sincronizados)+' '+t('players')+' · '+(m.tx || 0)+' '+t('transactions'));
+      text($('cc-cuenta-note'),m.ultimoError ? t('Last error')+': '+m.ultimoError : t(s.claveAncla ? 'Accounts are kept on the contract; private messages, Google wallets and profiles go in the encrypted anchor.' : 'Accounts are kept on the contract. The encrypted anchor has no key yet (GF_RESPALDO_CLAVE).'));
+    } catch (e) {
+      if (e?.name === 'AbortError' || destroyed || !verified) return;
+      text($('cc-cuenta-state'),'—');
+      text($('cc-cuenta-note'),t(e.status === 404 ? 'The game server does not have this module yet: upload the new server2.js and cuenta-en-cadena.js.' : 'The state could not be read.'));
+    }
   }
   /* (2026-10-26) PAUSAR / REANUDAR LA LECTURA DE LA CADENA. El escaneo
      histórico gasta el mismo cupo de RPC que el juego. Va aparte de las
@@ -293,9 +351,10 @@
     $('cc-lang').value = ui.language; $('cc-lang-gate').value = ui.language;
     document.querySelectorAll('[data-cc-theme]').forEach(button => { button.textContent = ui.theme === 'dark' ? '☼':'☾'; });
     $('cc-today').textContent = new Intl.DateTimeFormat(ui.language === 'es' ? 'es-EC':'en-US',{dateStyle:'medium',timeZone:'UTC'}).format(new Date())+' · UTC';
-    renderNavigation(); renderTools(); renderMetrics(); text($('cc-breadcrumb'),t(tools.find(x=>x.id===active)?.name || 'Overview'));
+    const actual = tools.find(x=>x.id===active);
+    renderNavigation(); renderTools(); renderMetrics(); renderTabs(actual); text($('cc-breadcrumb'),breadcrumb(actual));
     if (frame) {
-      const tool = tools.find(x=>x.id===active); text($('cc-tool-name'),t(tool.name)); frame.title = t(tool.name);
+      const tool = actual; text($('cc-tool-name'),t(tool.name)); frame.title = t((tool.tabs[activeTab] || tool.tabs[0]).name);
       try { frame.contentWindow.GFAdminUI?.preferences({language:ui.language,theme:ui.theme}); } catch (_) {}
       const url = new URL($('cc-original').href); url.searchParams.set('lang',ui.language); url.searchParams.set('theme',ui.theme); $('cc-original').href = url.href;
     }
