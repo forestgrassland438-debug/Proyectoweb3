@@ -80,7 +80,8 @@ class ZonaScene extends GameScene {
       this.load.image('perro_derecha_' + i, './Game/Sprites/mascota/derecha/run_' + i + '.png');
       this.load.image('perro_izquierda_' + i, './Game/Sprites/mascota/izquierda/run_' + i + '.png');
     }
-    const v = '?v=' + ZONAS_V;
+    // (2026-11-21) Cada mapa puede llevar su versión (los siete del este, REINOS_V).
+    const v = '?v=' + (c.version || ZONAS_V);
     const ruta = './Game/MAPAS/' + c.zona + '/';
     // Claves PROPIAS de cada mapa (la caché de Phaser es de todo el juego):
     // al salir se liberan sin tocar las de las demás escenas.
@@ -267,9 +268,11 @@ class ZonaScene extends GameScene {
     if (window.GFViento)      window.GFViento.montar(this);
     // El cementerio, con el clima de todos (lluvia, tormenta, nieve); el
     // desierto y la tundra llevan el suyo (gf-zonas: arena y nevada).
+    // (2026-11-21) `sinNieve` (las ruinas, la selva, la hondonada): cuando en
+    // el pueblo nieva, allí llueve, y no cuaja la nieve en el suelo.
     if (c.clima) {
-      if (window.GFClima) window.GFClima.montar(this);
-      if (window.GFNieve) window.GFNieve.montar(this);
+      if (window.GFClima) window.GFClima.montar(this, { sinNieve: !!c.sinNieve });
+      if (window.GFNieve && !c.sinNieve) window.GFNieve.montar(this);
     }
     if (window.GFPisadas)     window.GFPisadas.montar(this, { suelo: c.pisadas || null });
     if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo', zona: c.audio || c.zona, texturaSuelo: c.tileset });
@@ -288,7 +291,7 @@ class ZonaScene extends GameScene {
     // nieve ni el desierto": el revelado de la cámara del pueblo
     // (gf-postproceso.js). El desierto y la tundra, sin el tiempo del pueblo
     // (llevan el suyo): solo la noche.
-    try { if (window.GFPost) window.GFPost.montar(this, { sinClima: !c.clima }); } catch (e) { console.warn('🧭 post-procesado:', e); }
+    try { if (window.GFPost) window.GFPost.montar(this, { sinClima: !c.clima, sinNieve: !!c.sinNieve }); } catch (e) { console.warn('🧭 post-procesado:', e); }
     // Monstruos, espada entre jugadores, lo que se suelta y los carteles.
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🧭 monstruos:', e); }
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🧭 antorchas:', e); }
@@ -299,6 +302,8 @@ class ZonaScene extends GameScene {
     try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🧭 NPC:', e); }
     // Lo propio de cada mapa: niebla, tormenta y remolinos, nevada, luces.
     try { if (window.GFZonas) window.GFZonas.montar(this, c.zona); } catch (e) { console.warn('🧭 zona:', e); }
+    // (2026-11-21) Lo propio de los siete mapas del este (gf-reinos.js).
+    try { if (c.reino && window.GFReinos) window.GFReinos.montar(this, c.zona); } catch (e) { console.warn('🧭 reino:', e); }
     try { if (c.zona === 'desierto' && window.GFCamellos) window.GFCamellos.montar(this); } catch (e) { console.warn('🧭 camellos:', e); }
     try { if (window.GFFaunaZonas) window.GFFaunaZonas.montar(this); } catch (e) { console.warn('🧭 fauna:', e); }
 
@@ -586,6 +591,7 @@ class ZonaScene extends GameScene {
     this.events.off('shutdown', this._alApagar, this);
     this.events.off('destroy', this._alApagar, this);
     try { if (window.GFZonas) window.GFZonas.desmontar(this); } catch (e) {}
+    try { if (window.GFReinos) window.GFReinos.desmontar(this); } catch (e) {}
     try { if (window.GFSalvaje) window.GFSalvaje.desmontar(this); } catch (e) {}
     try { this.cleanupScene(); } catch (e) { console.warn('limpieza de ' + c.zona + ':', e); }
     console.log('🧭 apagando ' + c.zona);

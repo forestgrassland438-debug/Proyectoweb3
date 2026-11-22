@@ -2382,7 +2382,16 @@ class LoadingScenegame extends Phaser.Scene {
             // (2026-10-25) Los de nivel 8, 9 y 10: el glaciar, la caverna y la pradera.
             10: 'GlaciarScene',
             11: 'CavernaScene',
-            12: 'PraderaScene'
+            12: 'PraderaScene',
+            // (2026-11-21) Los siete del este (Scenes/ReinosScenes.js): el puerto,
+            // la ciénaga, las ruinas, las colinas, la selva, la caldera y la hondonada.
+            13: 'PuertoScene',
+            14: 'PantanoScene',
+            15: 'AldorScene',
+            16: 'ColinasScene',
+            17: 'SelvaScene',
+            18: 'VolcanScene',
+            19: 'HongosScene'
         };
 
         let nextScene = ESCENA_DE_MUNDO[this.mundo];
@@ -2457,7 +2466,10 @@ class LoadingScenegame extends Phaser.Scene {
         if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene' ||
             nextScene === 'SalvajeScene' || nextScene === 'CementerioScene' || nextScene === 'DesiertoScene' ||
             nextScene === 'TundraScene' || nextScene === 'GlaciarScene' || nextScene === 'CavernaScene' ||
-            nextScene === 'PraderaScene') {
+            nextScene === 'PraderaScene' ||
+            nextScene === 'PuertoScene' || nextScene === 'PantanoScene' || nextScene === 'AldorScene' ||
+            nextScene === 'ColinasScene' || nextScene === 'SelvaScene' || nextScene === 'VolcanScene' ||
+            nextScene === 'HongosScene') {
             this.scene.start(nextScene, {
                 sesion: {
                     playerName:      this.playerName,

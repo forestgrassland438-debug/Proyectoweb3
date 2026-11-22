@@ -23684,7 +23684,10 @@ async loadPlayerData(opciones) {
       const _clave = this.sys && this.sys.settings ? this.sys.settings.key : '';
       const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5, SalvajeScene: 6,
                                CementerioScene: 7, DesiertoScene: 8, TundraScene: 9,
-                               GlaciarScene: 10, CavernaScene: 11, PraderaScene: 12 }[_clave];
+                               GlaciarScene: 10, CavernaScene: 11, PraderaScene: 12,
+                               // (2026-11-21) Los siete del este (Scenes/ReinosScenes.js).
+                               PuertoScene: 13, PantanoScene: 14, AldorScene: 15, ColinasScene: 16,
+                               SelvaScene: 17, VolcanScene: 18, HongosScene: 19 }[_clave];
       const _mundoGuardado = Number(data.mundo);
       if (_mundoDeEscena) this.mundo = _mundoDeEscena;
       // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
