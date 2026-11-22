@@ -1,7 +1,7 @@
 {
- "version": "20261026a",
+ "version": "20261121a",
  "tam": [
-  2240,
+  3584,
   1888
  ],
  "celda": 448,
@@ -175,6 +175,125 @@
     255
    ],
    "recuadro": "arena"
+  },
+  {
+   "id": "volcan",
+   "sala": "volcan",
+   "mundo": 18,
+   "nombre": "The Emberfall Caldera",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2464,
+    48,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "hongos",
+   "sala": "hongos",
+   "mundo": 19,
+   "nombre": "Glowcap Hollow",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2912,
+    48,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "colinas",
+   "sala": "colinas",
+   "mundo": 16,
+   "nombre": "The Amberleaf Highlands",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2464,
+    496,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "selva",
+   "sala": "selva",
+   "mundo": 17,
+   "nombre": "The Emerald Jungle",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2912,
+    496,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "puerto",
+   "sala": "puerto",
+   "mundo": 13,
+   "nombre": "Saltwind Harbor",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2464,
+    944,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "pantano",
+   "sala": "pantano",
+   "mundo": 14,
+   "nombre": "Mirefen Bog",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2912,
+    944,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "aldor",
+   "sala": "aldor",
+   "mundo": 15,
+   "nombre": "The Sunken Ruins of Aldor",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    2464,
+    1392,
+    448,
+    448
+   ],
+   "recuadro": null
   }
  ],
  "destinos": [
@@ -304,6 +423,118 @@
    "px": [
     1141,
     1611
+   ]
+  },
+  {
+   "id": "puerto",
+   "tipo": "mapa",
+   "nombre": "Saltwind Harbor",
+   "region": "puerto",
+   "mundo": 13,
+   "sala": "puerto",
+   "destino": [
+    2504,
+    2640
+   ],
+   "px": [
+    2688,
+    1180
+   ]
+  },
+  {
+   "id": "pantano",
+   "tipo": "mapa",
+   "nombre": "Mirefen Bog",
+   "region": "pantano",
+   "mundo": 14,
+   "sala": "pantano",
+   "destino": [
+    2752,
+    2664
+   ],
+   "px": [
+    3158,
+    1182
+   ]
+  },
+  {
+   "id": "aldor",
+   "tipo": "mapa",
+   "nombre": "The Sunken Ruins of Aldor",
+   "region": "aldor",
+   "mundo": 15,
+   "sala": "aldor",
+   "destino": [
+    2504,
+    1200
+   ],
+   "px": [
+    2688,
+    1499
+   ]
+  },
+  {
+   "id": "colinas",
+   "tipo": "mapa",
+   "nombre": "The Amberleaf Highlands",
+   "region": "colinas",
+   "mundo": 16,
+   "sala": "colinas",
+   "destino": [
+    2560,
+    2640
+   ],
+   "px": [
+    2693,
+    732
+   ]
+  },
+  {
+   "id": "selva",
+   "tipo": "mapa",
+   "nombre": "The Emerald Jungle",
+   "region": "selva",
+   "mundo": 17,
+   "sala": "selva",
+   "destino": [
+    2000,
+    2620
+   ],
+   "px": [
+    3091,
+    730
+   ]
+  },
+  {
+   "id": "volcan",
+   "tipo": "mapa",
+   "nombre": "The Emberfall Caldera",
+   "region": "volcan",
+   "mundo": 18,
+   "sala": "volcan",
+   "destino": [
+    2600,
+    2700
+   ],
+   "px": [
+    2697,
+    290
+   ]
+  },
+  {
+   "id": "hongos",
+   "tipo": "mapa",
+   "nombre": "Glowcap Hollow",
+   "region": "hongos",
+   "mundo": 19,
+   "sala": "hongos",
+   "destino": [
+    2700,
+    2644
+   ],
+   "px": [
+    3154,
+    285
    ]
   },
   {
@@ -493,6 +724,22 @@
    ]
   },
   {
+   "id": "puerto_tienda",
+   "tipo": "lugar",
+   "nombre": "Harbor Store",
+   "region": "puerto",
+   "mundo": 13,
+   "sala": "puerto",
+   "destino": [
+    2270,
+    2160
+   ],
+   "px": [
+    2667,
+    1132
+   ]
+  },
+  {
    "id": "cementerio_bruja",
    "tipo": "lugar",
    "nombre": "The Witch's Hut",
@@ -666,6 +913,166 @@
    "px": [
     1460,
     1657
+   ]
+  },
+  {
+   "id": "puerto_faro",
+   "tipo": "lugar",
+   "nombre": "Saltwind Lighthouse",
+   "region": "puerto",
+   "mundo": 13,
+   "sala": "puerto",
+   "destino": [
+    1070,
+    1630
+   ],
+   "px": [
+    2560,
+    1087
+   ]
+  },
+  {
+   "id": "puerto_lonja",
+   "tipo": "lugar",
+   "nombre": "Fish Market",
+   "region": "puerto",
+   "mundo": 13,
+   "sala": "puerto",
+   "destino": [
+    910,
+    2690
+   ],
+   "px": [
+    2545,
+    1182
+   ]
+  },
+  {
+   "id": "puerto_parque",
+   "tipo": "lugar",
+   "nombre": "Gull Pond Park",
+   "region": "puerto",
+   "mundo": 13,
+   "sala": "puerto",
+   "destino": [
+    3110,
+    1230
+   ],
+   "px": [
+    2742,
+    1051
+   ]
+  },
+  {
+   "id": "pantano_santuario",
+   "tipo": "lugar",
+   "nombre": "Shrine of the Drowned Bell",
+   "region": "pantano",
+   "mundo": 14,
+   "sala": "pantano",
+   "destino": [
+    2140,
+    1820
+   ],
+   "px": [
+    3103,
+    1104
+   ]
+  },
+  {
+   "id": "aldor_plaza",
+   "tipo": "lugar",
+   "nombre": "Plaza of the Sun King",
+   "region": "aldor",
+   "mundo": 15,
+   "sala": "aldor",
+   "destino": [
+    2330,
+    1720
+   ],
+   "px": [
+    2672,
+    1543
+   ]
+  },
+  {
+   "id": "aldor_laguna",
+   "tipo": "lugar",
+   "nombre": "The Drowned Quarter",
+   "region": "aldor",
+   "mundo": 15,
+   "sala": "aldor",
+   "destino": [
+    3330,
+    3270
+   ],
+   "px": [
+    2762,
+    1682
+   ]
+  },
+  {
+   "id": "colinas_granja",
+   "tipo": "lugar",
+   "nombre": "Ashby Pumpkin Farm",
+   "region": "colinas",
+   "mundo": 16,
+   "sala": "colinas",
+   "destino": [
+    2980,
+    3232
+   ],
+   "px": [
+    2731,
+    782
+   ]
+  },
+  {
+   "id": "selva_aldea",
+   "tipo": "lugar",
+   "nombre": "Tupa's Village",
+   "region": "selva",
+   "mundo": 17,
+   "sala": "selva",
+   "destino": [
+    1700,
+    2650
+   ],
+   "px": [
+    3064,
+    730
+   ]
+  },
+  {
+   "id": "volcan_termas",
+   "tipo": "lugar",
+   "nombre": "Ember Springs",
+   "region": "volcan",
+   "mundo": 18,
+   "sala": "volcan",
+   "destino": [
+    3060,
+    3470
+   ],
+   "px": [
+    2738,
+    356
+   ]
+  },
+  {
+   "id": "hongos_runas",
+   "tipo": "lugar",
+   "nombre": "The Whispering Stones",
+   "region": "hongos",
+   "mundo": 19,
+   "sala": "hongos",
+   "destino": [
+    1600,
+    2230
+   ],
+   "px": [
+    3055,
+    245
    ]
   },
   {

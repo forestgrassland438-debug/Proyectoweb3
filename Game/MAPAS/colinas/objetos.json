@@ -1,0 +1,230 @@
+{
+ "frames": {
+  "cabana_cazador": {
+   "frame": {
+    "h": 74,
+    "w": 71,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7541
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 74,
+    "w": 71
+   },
+   "spriteSourceSize": {
+    "h": 74,
+    "w": 71,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "calabazas": {
+   "frame": {
+    "h": 15,
+    "w": 27,
+    "x": 206,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4815,
+    "y": 0.7333
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 15,
+    "w": 27
+   },
+   "spriteSourceSize": {
+    "h": 15,
+    "w": 27,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "carro_lena": {
+   "frame": {
+    "h": 21,
+    "w": 36,
+    "x": 73,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.6389,
+    "y": 0.7143
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 36
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 36,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cerca_rustica": {
+   "frame": {
+    "h": 13,
+    "w": 30,
+    "x": 260,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8462
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 13,
+    "w": 30
+   },
+   "spriteSourceSize": {
+    "h": 13,
+    "w": 30,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "gavilla": {
+   "frame": {
+    "h": 20,
+    "w": 12,
+    "x": 111,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 12
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 12,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "pila_hojas": {
+   "frame": {
+    "h": 14,
+    "w": 23,
+    "x": 235,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4783,
+    "y": 0.5714
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 23
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 23,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "pila_lena": {
+   "frame": {
+    "h": 16,
+    "w": 34,
+    "x": 150,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 34
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 34,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_liquen": {
+   "frame": {
+    "h": 18,
+    "w": 23,
+    "x": 125,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5652,
+    "y": 0.7222
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 18,
+    "w": 23
+   },
+   "spriteSourceSize": {
+    "h": 18,
+    "w": 23,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tocon_hacha": {
+   "frame": {
+    "h": 16,
+    "w": 18,
+    "x": 186,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4444,
+    "y": 0.6875
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 18
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 18,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 74,
+   "w": 1024
+  }
+ }
+}

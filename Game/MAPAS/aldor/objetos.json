@@ -1,0 +1,278 @@
+{
+ "frames": {
+  "altar_solar": {
+   "frame": {
+    "h": 24,
+    "w": 24,
+    "x": 131,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 24,
+    "w": 24
+   },
+   "spriteSourceSize": {
+    "h": 24,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "anfora": {
+   "frame": {
+    "h": 21,
+    "w": 17,
+    "x": 193,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3529,
+    "y": 0.8095
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 17
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 17,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "brasero_dorado": {
+   "frame": {
+    "h": 22,
+    "w": 14,
+    "x": 157,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8636
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 22,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 22,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cabeza_estatua": {
+   "frame": {
+    "h": 28,
+    "w": 31,
+    "x": 98,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4032,
+    "y": 0.7821
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 28,
+    "w": 31
+   },
+   "spriteSourceSize": {
+    "h": 28,
+    "w": 31,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "columna_caida": {
+   "frame": {
+    "h": 16,
+    "w": 35,
+    "x": 276,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4571,
+    "y": 0.5625
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 35
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 35,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "columna_hiedra": {
+   "frame": {
+    "h": 37,
+    "w": 14,
+    "x": 64,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8919
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 37,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 37,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "escalinata_rota": {
+   "frame": {
+    "h": 18,
+    "w": 27,
+    "x": 247,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4444,
+    "y": 0.6667
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 18,
+    "w": 27
+   },
+   "spriteSourceSize": {
+    "h": 18,
+    "w": 27,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "fuste_roto": {
+   "frame": {
+    "h": 22,
+    "w": 18,
+    "x": 173,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3889,
+    "y": 0.7727
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 22,
+    "w": 18
+   },
+   "spriteSourceSize": {
+    "h": 22,
+    "w": 18,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "muro_roto": {
+   "frame": {
+    "h": 21,
+    "w": 33,
+    "x": 212,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4848,
+    "y": 0.7143
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 33
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 33,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "obelisco_sol": {
+   "frame": {
+    "h": 32,
+    "w": 16,
+    "x": 80,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8438
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 32,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 32,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "portico_ruinas": {
+   "frame": {
+    "h": 53,
+    "w": 62,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4355,
+    "y": 0.8453
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 53,
+    "w": 62
+   },
+   "spriteSourceSize": {
+    "h": 53,
+    "w": 62,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 53,
+   "w": 1024
+  }
+ }
+}

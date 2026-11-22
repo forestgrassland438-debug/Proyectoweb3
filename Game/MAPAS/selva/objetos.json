@@ -1,0 +1,158 @@
+{
+ "frames": {
+  "bambu": {
+   "frame": {
+    "h": 49,
+    "w": 27,
+    "x": 126,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4815,
+    "y": 0.898
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 49,
+    "w": 27
+   },
+   "spriteSourceSize": {
+    "h": 49,
+    "w": 27,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cabana_selva": {
+   "frame": {
+    "h": 58,
+    "w": 48,
+    "x": 76,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7328
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 58,
+    "w": 48
+   },
+   "spriteSourceSize": {
+    "h": 58,
+    "w": 48,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "flor_tropical": {
+   "frame": {
+    "h": 20,
+    "w": 22,
+    "x": 177,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "helecho": {
+   "frame": {
+    "h": 17,
+    "w": 28,
+    "x": 201,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6471
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 28
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 28,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "templo_selva": {
+   "frame": {
+    "h": 59,
+    "w": 74,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.722
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 59,
+    "w": 74
+   },
+   "spriteSourceSize": {
+    "h": 59,
+    "w": 74,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "totem_selva": {
+   "frame": {
+    "h": 29,
+    "w": 20,
+    "x": 155,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7931
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 29,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 29,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 59,
+   "w": 1024
+  }
+ }
+}

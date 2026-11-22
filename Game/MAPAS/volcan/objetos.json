@@ -1,0 +1,182 @@
+{
+ "frames": {
+  "brasero_volcan": {
+   "frame": {
+    "h": 23,
+    "w": 14,
+    "x": 107,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8261
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 23,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 23,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "craneo_dragon": {
+   "frame": {
+    "h": 31,
+    "w": 40,
+    "x": 65,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.575,
+    "y": 0.8032
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 31,
+    "w": 40
+   },
+   "spriteSourceSize": {
+    "h": 31,
+    "w": 40,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "forja": {
+   "frame": {
+    "h": 59,
+    "w": 47,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4043,
+    "y": 0.8712
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 59,
+    "w": 47
+   },
+   "spriteSourceSize": {
+    "h": 59,
+    "w": 47,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "obelisco_obsidiana": {
+   "frame": {
+    "h": 34,
+    "w": 14,
+    "x": 49,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8529
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 34,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 34,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_lava": {
+   "frame": {
+    "h": 16,
+    "w": 22,
+    "x": 150,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4545,
+    "y": 0.6875
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_volcanica": {
+   "frame": {
+    "h": 20,
+    "w": 25,
+    "x": 123,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.44,
+    "y": 0.75
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 25
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 25,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "yunque": {
+   "frame": {
+    "h": 16,
+    "w": 20,
+    "x": 174,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.45,
+    "y": 0.6875
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 59,
+   "w": 1024
+  }
+ }
+}

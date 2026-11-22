@@ -1,0 +1,566 @@
+{
+ "frames": {
+  "ancla": {
+   "frame": {
+    "h": 31,
+    "w": 24,
+    "x": 96,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8387
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 31,
+    "w": 24
+   },
+   "spriteSourceSize": {
+    "h": 31,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "banco_puerto": {
+   "frame": {
+    "h": 16,
+    "w": 24,
+    "x": 238,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8125
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 16,
+    "w": 24
+   },
+   "spriteSourceSize": {
+    "h": 16,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "barril": {
+   "frame": {
+    "h": 21,
+    "w": 16,
+    "x": 143,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7619
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "bote_varado": {
+   "frame": {
+    "h": 20,
+    "w": 43,
+    "x": 193,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.69
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 43
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 43,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "boya": {
+   "frame": {
+    "h": 21,
+    "w": 12,
+    "x": 161,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8095
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 12
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 12,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cajas": {
+   "frame": {
+    "h": 26,
+    "w": 19,
+    "x": 122,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.4737,
+    "y": 0.8077
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 26,
+    "w": 19
+   },
+   "spriteSourceSize": {
+    "h": 26,
+    "w": 19,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_azul": {
+   "frame": {
+    "h": 90,
+    "w": 92,
+    "x": 725,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7956
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 90,
+    "w": 92
+   },
+   "spriteSourceSize": {
+    "h": 90,
+    "w": 92,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_coral": {
+   "frame": {
+    "h": 95,
+    "w": 90,
+    "x": 633,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8063
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 95,
+    "w": 90
+   },
+   "spriteSourceSize": {
+    "h": 95,
+    "w": 90,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_lila": {
+   "frame": {
+    "h": 90,
+    "w": 92,
+    "x": 819,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7956
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 90,
+    "w": 92
+   },
+   "spriteSourceSize": {
+    "h": 90,
+    "w": 92,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_marfil": {
+   "frame": {
+    "h": 114,
+    "w": 96,
+    "x": 36,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8386
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 114,
+    "w": 96
+   },
+   "spriteSourceSize": {
+    "h": 114,
+    "w": 96,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_menta": {
+   "frame": {
+    "h": 96,
+    "w": 94,
+    "x": 537,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8083
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 96,
+    "w": 94
+   },
+   "spriteSourceSize": {
+    "h": 96,
+    "w": 94,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_ocre": {
+   "frame": {
+    "h": 107,
+    "w": 92,
+    "x": 331,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.828
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 107,
+    "w": 92
+   },
+   "spriteSourceSize": {
+    "h": 107,
+    "w": 92,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_pizarra": {
+   "frame": {
+    "h": 90,
+    "w": 92,
+    "x": 913,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7956
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 90,
+    "w": 92
+   },
+   "spriteSourceSize": {
+    "h": 90,
+    "w": 92,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "casa_terracota": {
+   "frame": {
+    "h": 111,
+    "w": 90,
+    "x": 134,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8342
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 111,
+    "w": 90
+   },
+   "spriteSourceSize": {
+    "h": 111,
+    "w": 90,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "faro": {
+   "frame": {
+    "h": 116,
+    "w": 34,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9138
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 116,
+    "w": 34
+   },
+   "spriteSourceSize": {
+    "h": 116,
+    "w": 34,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "farol_puerto": {
+   "frame": {
+    "h": 41,
+    "w": 12,
+    "x": 52,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9024
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 41,
+    "w": 12
+   },
+   "spriteSourceSize": {
+    "h": 41,
+    "w": 12,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "fuente_ancla": {
+   "frame": {
+    "h": 48,
+    "w": 50,
+    "x": 0,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7083
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 48,
+    "w": 50
+   },
+   "spriteSourceSize": {
+    "h": 48,
+    "w": 50,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "macetero": {
+   "frame": {
+    "h": 21,
+    "w": 16,
+    "x": 175,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8095
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "noray": {
+   "frame": {
+    "h": 14,
+    "w": 10,
+    "x": 264,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7143
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 10
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 10,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "puesto_pescado": {
+   "frame": {
+    "h": 34,
+    "w": 28,
+    "x": 66,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7647
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 34,
+    "w": 28
+   },
+   "spriteSourceSize": {
+    "h": 34,
+    "w": 28,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "rollo_cuerda": {
+   "frame": {
+    "h": 14,
+    "w": 14,
+    "x": 276,
+    "y": 118
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6429
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "taberna_puerto": {
+   "frame": {
+    "h": 111,
+    "w": 103,
+    "x": 226,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8162
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 111,
+    "w": 103
+   },
+   "spriteSourceSize": {
+    "h": 111,
+    "w": 103,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tienda_puerto": {
+   "frame": {
+    "h": 97,
+    "w": 110,
+    "x": 425,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.767
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 97,
+    "w": 110
+   },
+   "spriteSourceSize": {
+    "h": 97,
+    "w": 110,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 166,
+   "w": 1024
+  }
+ }
+}

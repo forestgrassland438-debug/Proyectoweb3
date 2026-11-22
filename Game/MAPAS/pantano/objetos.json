@@ -1,0 +1,182 @@
+{
+ "frames": {
+  "caldero_pantano": {
+   "frame": {
+    "h": 27,
+    "w": 20,
+    "x": 110,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.45,
+    "y": 0.7778
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "choza_zancos": {
+   "frame": {
+    "h": 55,
+    "w": 46,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7455
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 55,
+    "w": 46
+   },
+   "spriteSourceSize": {
+    "h": 55,
+    "w": 46,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "farol_fatuo": {
+   "frame": {
+    "h": 30,
+    "w": 18,
+    "x": 48,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.1667,
+    "y": 0.9
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 18
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 18,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "juncos": {
+   "frame": {
+    "h": 29,
+    "w": 16,
+    "x": 68,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8621
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 29,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 29,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_pantano": {
+   "frame": {
+    "h": 20,
+    "w": 25,
+    "x": 132,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.44,
+    "y": 0.7
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 25
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 25,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "seta_pantano": {
+   "frame": {
+    "h": 14,
+    "w": 19,
+    "x": 159,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4737,
+    "y": 0.7143
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 19
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 19,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "totem_pantano": {
+   "frame": {
+    "h": 28,
+    "w": 22,
+    "x": 86,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8571
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 28,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 28,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-reinos.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 55,
+   "w": 1024
+  }
+ }
+}
