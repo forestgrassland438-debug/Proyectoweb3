@@ -32,7 +32,10 @@
                 // (2026-10-18) Los mapas nuevos: el servidor tiene la misma lista.
                 CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra',
                 // (2026-10-25) Los de nivel 8, 9 y 10 (el servidor: ANTORCHA_ZONAS).
-                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera' };
+                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera',
+                // (2026-11-21) Los siete del este (el servidor: ANTORCHA_ZONAS).
+                PuertoScene: 'puerto', PantanoScene: 'pantano', AldorScene: 'aldor', ColinasScene: 'colinas',
+                SelvaScene: 'selva', VolcanScene: 'volcan', HongosScene: 'hongos' };
   var TEX = 'gfa_antorcha';
   var ANIM = 'gfa_antorcha_fuego';
   var BRILLO = 'gfa_antorcha_brillo';

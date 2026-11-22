@@ -493,7 +493,8 @@
     if (e.activo) {
       if (e.lluvia && e.truenos)      { look = LOOKS.tormenta; peso = e.lluviaFuerza; }
       else if (e.lluvia)              { look = LOOKS.lluvia;   peso = e.lluviaFuerza; }
-      else if (e.nieve)               { look = LOOKS.nieve;    peso = e.nieveFuerza; }
+      // (2026-11-21) Donde no nieva (`sinNieve`), la nieve del pueblo llega como lluvia.
+      else if (e.nieve)               { look = st.sinNieve ? LOOKS.lluvia : LOOKS.nieve; peso = e.nieveFuerza; }
       else if (e.soleado)             { look = LOOKS.soleado;  peso = e.soleadoFuerza; }
       else if (e.viento)              { look = LOOKS.viento;   peso = 0.8; }
     }
@@ -655,7 +656,8 @@
       forzado: null, manual: null,
       // Ni noche ni clima: lo piden las escenas bajo techo (ver `oscuridad`).
       interior: opciones.interior === true,
-      sinClima: opciones.sinClima === true
+      sinClima: opciones.sinClima === true,
+      sinNieve: opciones.sinNieve === true
     };
     scene.__gfPost = st;
     montado = st;

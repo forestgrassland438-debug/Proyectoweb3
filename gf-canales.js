@@ -199,7 +199,10 @@
       var clave = (esc.scene && esc.scene.key) || (esc.sys && esc.sys.settings && esc.sys.settings.key);
       var salas = { GameScene: 'game', tiendajuego: 'tienda', MinaScene: 'mina', SalvajeScene: 'salvaje',
                     CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra',
-                    GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera' };
+                    GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera',
+                    // (2026-11-21) Los siete del este.
+                    PuertoScene: 'puerto', PantanoScene: 'pantano', AldorScene: 'aldor', ColinasScene: 'colinas',
+                    SelvaScene: 'selva', VolcanScene: 'volcan', HongosScene: 'hongos' };
       var sala = typeof esc._salaDeEscena === 'function' ? esc._salaDeEscena() : salas[clave] || esc.currentRoom;
       if (!sala) return;
       esc.currentRoom  = null;

@@ -2279,10 +2279,13 @@
 
     // La lluvia y la nieve arrecian y amainan poco a poco: entrar de golpe canta.
     var paso = delta / ENTRA_MS;
+    // (2026-11-21) `sinNieve`: la nieve del servidor cae aquí como lluvia.
+    var nieveEnLluvia = !!(st.sinNieve && estado.activo && estado.nieve && !estado.lluvia);
     st.fuerzaLluvia = hacia(st.fuerzaLluvia,
-                            (estado.activo && estado.lluvia) ? estado.lluviaFuerza : 0, paso);
+                            (estado.activo && estado.lluvia) ? estado.lluviaFuerza
+                              : (nieveEnLluvia ? estado.nieveFuerza : 0), paso);
     st.fuerzaNieve  = hacia(st.fuerzaNieve,
-                            (estado.activo && estado.nieve) ? estado.nieveFuerza : 0, paso);
+                            (estado.activo && estado.nieve && !st.sinNieve) ? estado.nieveFuerza : 0, paso);
 
     /* NUBLADO. Va antes que el sol porque son opuestos y así el sol pinta
        encima: si por lo que sea llegaran los dos encendidos, mandan los rayos.
@@ -3750,7 +3753,11 @@
       rayoHasta: 0, impactoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
       bordeAlfa: 0, bordeHasta: 0,
       filtroColor: ESTACIONES.verano.color, filtroAlfa: 0,
-      inclina: INCLINA_MIN
+      inclina: INCLINA_MIN,
+      /* (2026-11-21) Los mapas donde no nieva nunca (las ruinas, la selva, la
+         hondonada: Scenes/ReinosScenes.js). Si el servidor manda nieve, aquí
+         llueve con esa fuerza; gf-audio suena lluvia porque lee lo pintado. */
+      sinNieve: opciones.sinNieve === true
     };
     scene.__gfClima = st;
     montado = st;

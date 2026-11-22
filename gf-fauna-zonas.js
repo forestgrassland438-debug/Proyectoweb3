@@ -10,6 +10,12 @@
  *               cangrejos en la orilla del lago;
  *   · PRADERA   ciervos, ovejas y conejos.
  *
+ * Y los siete del continente del este (2026-11-21, tools/generar-reinos-
+ * criaturas.py): gaviotas y nutrias en el puerto (la nutria nada y pesca como
+ * el pingüino), ranas y garzas en la ciénaga, tortugas e ibis en las ruinas,
+ * ardillas y alces en las colinas, capibaras y tucanes en la selva, cabras de
+ * ceniza y armadillos en la caldera, caracoles y topos en la hondonada.
+ *
  * Como los camellos del desierto (gf-camellos.js): andan en las cuatro
  * direcciones (de lado, de frente y de espaldas), se paran, comen, no cruzan
  * muros ni agua (las colisiones del mapa, las del jugador) y se apartan si
@@ -25,7 +31,7 @@
   'use strict';
 
   var RUTA = './Game/Sprites/fauna3d/';
-  var V = '?v=20261025a';
+  var V = '?v=20261121a';
   var ESCALA = 2;
   var LEJOS_CAMARA = 260;           // fuera de la vista + esto, ni se mueve
   var POSES = { camina: 4, quieto: 2, come: 2 };
@@ -35,7 +41,15 @@
   var POR_ESCENA = {
     GlaciarScene: [['pinguino', 3, 5, true], ['zorro_artico', 3, 1, false], ['reno', 2, 3, false]],
     CavernaScene: [['salamandra', 4, 2, false], ['escarabajo', 4, 2, false], ['cangrejo', 2, 3, true]],
-    PraderaScene: [['ciervo', 3, 3, false], ['oveja', 3, 4, false], ['conejo', 4, 2, false]]
+    PraderaScene: [['ciervo', 3, 3, false], ['oveja', 3, 4, false], ['conejo', 4, 2, false]],
+    // Los siete del continente del este (2026-11-21, tools/generar-reinos-criaturas.py).
+    PuertoScene:  [['gaviota', 4, 3, true], ['nutria', 3, 2, true]],
+    PantanoScene: [['rana', 5, 2, true], ['garza', 4, 1, true]],
+    AldorScene:   [['tortuga', 4, 2, false], ['ibis', 3, 2, true]],
+    ColinasScene: [['ardilla', 4, 2, false], ['alce', 3, 2, false]],
+    SelvaScene:   [['capibara', 3, 3, true], ['tucan', 4, 2, false]],
+    VolcanScene:  [['cabra_ceniza', 3, 3, false], ['armadillo', 4, 2, false]],
+    HongosScene:  [['caracol', 5, 2, false], ['topo', 4, 2, false]]
   };
   /* Cómo es cada uno: velocidad (px/s), lo lejos que pasea de su sitio, la
      huella de los pies contra las colisiones, a qué distancia se aparta del
@@ -49,7 +63,21 @@
     cangrejo:     { vel: 30, radio: 160, huella: [22, 8], huye: 80, prisa: 2.2, come: 0.3, quieto: 0.35 },
     ciervo:       { vel: 40, radio: 400, huella: [32, 12], huye: 160, prisa: 2.6, come: 0.45, quieto: 0.2 },
     oveja:        { vel: 24, radio: 260, huella: [26, 10], huye: 70, prisa: 1.6, come: 0.5, quieto: 0.25 },
-    conejo:       { vel: 46, radio: 240, huella: [16, 8], huye: 120, prisa: 2.8, come: 0.35, quieto: 0.25 }
+    conejo:       { vel: 46, radio: 240, huella: [16, 8], huye: 120, prisa: 2.8, come: 0.35, quieto: 0.25 },
+    gaviota:      { vel: 40, radio: 300, huella: [18, 8], huye: 140, prisa: 2.6, come: 0.3, quieto: 0.3 },
+    nutria:       { vel: 34, radio: 220, huella: [30, 10], huye: 100, prisa: 2.2, come: 0.3, quieto: 0.35 },
+    rana:         { vel: 22, radio: 160, huella: [14, 8], huye: 90, prisa: 2.6, come: 0.2, quieto: 0.5 },
+    garza:        { vel: 22, radio: 220, huella: [18, 8], huye: 150, prisa: 2.2, come: 0.4, quieto: 0.35 },
+    tortuga:      { vel: 10, radio: 140, huella: [22, 8], huye: 50, prisa: 1.3, come: 0.35, quieto: 0.4 },
+    ibis:         { vel: 30, radio: 260, huella: [16, 8], huye: 140, prisa: 2.4, come: 0.4, quieto: 0.3 },
+    ardilla:      { vel: 52, radio: 260, huella: [14, 8], huye: 130, prisa: 3.0, come: 0.3, quieto: 0.3 },
+    alce:         { vel: 30, radio: 420, huella: [40, 14], huye: 120, prisa: 2.0, come: 0.45, quieto: 0.25 },
+    capibara:     { vel: 20, radio: 220, huella: [28, 10], huye: 60, prisa: 1.6, come: 0.45, quieto: 0.35 },
+    tucan:        { vel: 34, radio: 260, huella: [14, 8], huye: 120, prisa: 2.4, come: 0.3, quieto: 0.35 },
+    cabra_ceniza: { vel: 40, radio: 360, huella: [26, 10], huye: 120, prisa: 2.6, come: 0.4, quieto: 0.25 },
+    armadillo:    { vel: 26, radio: 220, huella: [24, 8], huye: 90, prisa: 2.4, come: 0.35, quieto: 0.3 },
+    caracol:      { vel: 8, radio: 110, huella: [20, 8], huye: 40, prisa: 1.2, come: 0.35, quieto: 0.45 },
+    topo:         { vel: 24, radio: 200, huella: [20, 8], huye: 80, prisa: 2.2, come: 0.35, quieto: 0.35 }
   };
 
   function claveTex(esp) { return 'gff_' + esp; }
@@ -203,6 +231,11 @@
      del río. Con el pez en el pico sale a tierra y, si hay otro pingüino cerca, va hasta él y se lo
      comen juntos; si no, solo. Es ambiente: no va por la red, como el resto de esta fauna. */
   var NADO = { ganas: 0.32, vel: 58, veOlor: 240, aire: 0.36, ondaMs: 460, sale: [10000, 22000] };
+  /* Quién se mete al agua (2026-11-21): el pingüino y, en el puerto, la nutria, que también pesca
+     y comparte el pez con las de su especie. Los demás de la orilla (la gaviota, la rana, la garza,
+     el ibis, el capibara) se quedan en tierra junto al agua. */
+  var NADADORES = { pinguino: true, nutria: true };
+  function nada(esp) { return Object.prototype.hasOwnProperty.call(NADADORES, esp); }
   function agua(scene) { var g = scene.__gfAgua; return g && g.clase && g.W ? g : null; }
   function claseAgua(scene, x, y) {
     try { return window.GFAgua && window.GFAgua.claseEn ? window.GFAgua.claseEn(scene, x, y) : 0; } catch (e) { return 0; }
@@ -358,7 +391,7 @@
           a.pez = false;
           var com = null, dc = 420;
           st.animales.forEach(function (o) {
-            if (o === a || o.esp !== 'pinguino' || o.nado || o.comparte) return;
+            if (o === a || o.esp !== a.esp || o.nado || o.comparte) return;
             var dd = Math.hypot(o.x - aTierra.x, o.y - aTierra.y);
             if (dd < dc) { dc = dd; com = o; }
           });
@@ -370,7 +403,7 @@
   }
   function quiereNadar(st, a, t) {
     var scene = st.scene;
-    if (a.esp !== 'pinguino' || a.nado || a.comparte || !agua(scene) || Math.random() > NADO.ganas) return false;
+    if (!nada(a.esp) || a.nado || a.comparte || !agua(scene) || Math.random() > NADO.ganas) return false;
     var meta = aguaCerca(scene, a.x, a.y, 300);
     var borde = meta && bordeHacia(scene, a.d, { x: a.x, y: a.y }, meta);
     if (!borde) return false;
@@ -419,7 +452,7 @@
         var cerca = !v || (a.x > v.x - LEJOS_CAMARA && a.x < v.right + LEJOS_CAMARA && a.y > v.y - LEJOS_CAMARA && a.y < v.bottom + LEJOS_CAMARA);
         if (cerca !== a.spr.visible) { a.spr.setVisible(cerca); a.sombra.setVisible(cerca); }
         if (!cerca && !a.nado) continue;
-        var ocupado = a.esp === 'pinguino' && tickPinguino(st, a, t, dt);
+        var ocupado = nada(a.esp) && tickPinguino(st, a, t, dt);
         if (!ocupado) {
           if (p && t > a.mirado) {
             a.mirado = t + 300;

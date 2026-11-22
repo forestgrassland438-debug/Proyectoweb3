@@ -28,7 +28,7 @@
 (function () {
   'use strict';
 
-  var V = '20261025a';   // (2026-10-25) los de nivel 8, 9 y 10 (antes 20261020a: los jefes de cada mapa)
+  var V = '20261121a';   // (2026-11-21) los siete reinos (antes 20261025a: los de nivel 8, 9 y 10)
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
@@ -37,7 +37,9 @@
                      // (2026-10-19) El guerrero esqueleto, con su espada.
                      esqueleto_guerrero: 7,
                      // (2026-10-25) El espectro de hielo, el trol de la cueva y la dríade.
-                     espectro_hielo: 6, troll_cueva: 5, driada: 6 };
+                     espectro_hielo: 6, troll_cueva: 5, driada: 6,
+                     // (2026-11-21) Los de los siete reinos (tools/generar-reinos-criaturas.py).
+                     pirata_ahogado: 6, bruja_pantano: 6, espantapajaros: 6, chaman_selva: 7 };
   // Bestias: tipo -> acción -> [fotogramas, por segundo, repetir].
   var BESTIAS = {
     lobo:  { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
@@ -64,7 +66,26 @@
     golem_musgo:    { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
     jefe_yeti:       { camina: [4, 5, -1],  ataque: [3, 6, 0],  quieto: [2, 1.4, -1] },
     jefe_murcielago: { camina: [4, 11, -1], ataque: [3, 11, 0], quieto: [2, 7, -1] },
-    jefe_ent:        { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] }
+    jefe_ent:        { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] },
+    // (2026-11-21) Los de los siete reinos (tools/gf_reinos_bestias.py, 3D a
+    // la escala del jugador) y sus siete jefes.
+    cangrejo_coloso:  { camina: [4, 8, -1],  ataque: [3, 8, 0],  quieto: [2, 1.6, -1] },
+    sapo_toxico:      { camina: [4, 9, -1],  ataque: [3, 10, 0], quieto: [2, 1.4, -1] },
+    golem_ruinas:     { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    escarabajo_sol:   { camina: [4, 12, -1], ataque: [3, 11, 0], quieto: [2, 2, -1] },
+    oso_otono:        { camina: [4, 8, -1],  ataque: [3, 10, 0], quieto: [2, 1.6, -1] },
+    pantera_selva:    { camina: [4, 11, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
+    salamandra_magma: { camina: [4, 11, -1], ataque: [3, 11, 0], quieto: [2, 2, -1] },
+    golem_magma:      { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    hongo_andante:    { camina: [4, 7, -1],  ataque: [3, 8, 0],  quieto: [2, 1.4, -1] },
+    polilla_luz:      { camina: [4, 12, -1], ataque: [3, 12, 0], quieto: [2, 8, -1] },
+    jefe_cangrejo:    { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.4, -1] },
+    jefe_sapo:        { camina: [4, 7, -1],  ataque: [3, 8, 0],  quieto: [2, 1.3, -1] },
+    jefe_coloso:      { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] },
+    jefe_ciervo:      { camina: [4, 8, -1],  ataque: [3, 9, 0],  quieto: [2, 1.6, -1] },
+    jefe_gorila:      { camina: [4, 6, -1],  ataque: [3, 8, 0],  quieto: [2, 1.4, -1] },
+    jefe_dragon:      { camina: [4, 7, -1],  ataque: [3, 8, 0],  quieto: [2, 2.4, -1] },
+    jefe_micelio:     { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] }
   };
   // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
   // mina, su cabeza y sus anillos en 16 direcciones ('cabeza_<i>',
@@ -96,7 +117,23 @@
     gfm_rayo_hielo: 'efectos/rayo_hielo.png',
     gfm_rayo_hoja: 'efectos/rayo_hoja.png',
     gfm_esquirla: 'efectos/esquirla.png',
-    gfm_espino: 'efectos/espino.png'
+    gfm_espino: 'efectos/espino.png',
+    // (2026-11-21) Los de los trece poderes de los siete reinos.
+    gfm_ola: 'efectos/ola.png',
+    gfm_ancla: 'efectos/ancla.png',
+    gfm_nube_toxica: 'efectos/nube_toxica.png',
+    gfm_sello: 'efectos/sello.png',
+    gfm_rayo_sol: 'efectos/rayo_sol.png',
+    gfm_zarpazo: 'efectos/zarpazo.png',
+    gfm_viento: 'efectos/viento.png',
+    gfm_dardo: 'efectos/dardo.png',
+    gfm_geiser: 'efectos/geiser.png',
+    gfm_meteoro: 'efectos/meteoro.png',
+    gfm_nube_esporas: 'efectos/nube_esporas.png',
+    gfm_brote: 'efectos/brote.png',
+    gfm_roca_coral: 'efectos/roca_coral.png',
+    gfm_roca_ruina: 'efectos/roca_ruina.png',
+    gfm_roca_magma: 'efectos/roca_magma.png'
   };
   var DIR_ES = { down: 'abajo', up: 'arriba', right: 'derecha', left: 'izquierda' };
   var FOTOS = 7;

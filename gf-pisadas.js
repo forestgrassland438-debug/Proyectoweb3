@@ -193,7 +193,14 @@
     /* (2026-10-25) La roca de la caverna (la pisada polvorienta, oscura) y la
        hierba de la pradera (la hierba aplastada, verde oscura). */
     roca:   { polvo: 0x8a8296, huella: 0x1e1a24, alfaPolvo: 0.40, alfaHuella: 0.46 },
-    hierba: { polvo: 0xcfe0a0, huella: 0x2f4a22, alfaPolvo: 0.30, alfaHuella: 0.44 }
+    hierba: { polvo: 0xcfe0a0, huella: 0x2f4a22, alfaPolvo: 0.30, alfaHuella: 0.44 },
+    /* (2026-11-21) Los mapas del este (Scenes/ReinosScenes.js): el barro de la
+       ciénaga y de la selva (la pisada hundida, casi negra, que dura), la
+       ceniza de la caldera (gris oscuro sobre gris) y el musgo de la hondonada
+       de las setas (verde azulado, blando). */
+    barro:  { polvo: 0x8a7a5a, huella: 0x2a2014, alfaPolvo: 0.35, alfaHuella: 0.58 },
+    ceniza: { polvo: 0xbab2ac, huella: 0x221e1c, alfaPolvo: 0.45, alfaHuella: 0.52 },
+    musgo:  { polvo: 0xa8c8b4, huella: 0x1c3a30, alfaPolvo: 0.30, alfaHuella: 0.46 }
   };
 
   /* QUÉ TERRENOS SUELTAN NUBECILLA.
@@ -204,7 +211,9 @@
      charco, y quitarla dejaría pisar mojado igual que pisar seco.
 
      Para devolver el polvo, poner `seco: 1` aquí. Nada más. */
-  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0, arena: 0, roca: 0, hierba: 0 };
+  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0, arena: 0, roca: 0, hierba: 0, barro: 0, ceniza: 0, musgo: 0 };
+  /* Donde la pisada se hunde y se queda (como en la nieve). */
+  var HUNDE = { nieve: 1, arena: 1, barro: 1, ceniza: 1 };
 
   // ── LOS DOS ALMACENES ───────────────────────────────────────────────────
 
@@ -262,7 +271,7 @@
       h.orden = ++st.orden;
       // La variación aleatoria borraba huellas recientes antes que antiguas.
       // Mantener la fecha de salida ordenada también al pasar de nieve a seco.
-      h.hasta = Math.max(ahora + (st.terreno === 'nieve' || st.terreno === 'arena' ? HUELLA_NIEVE : HUELLA_MS), st.ultimaHuellaHasta);
+      h.hasta = Math.max(ahora + (HUNDE[st.terreno] ? HUELLA_NIEVE : HUELLA_MS), st.ultimaHuellaHasta);
       h.dura = h.hasta - ahora;
       st.ultimaHuellaHasta = h.hasta;
       h.alfa = T.alfaHuella * fuerza;

@@ -56,7 +56,45 @@
     pradera: { mundo: 12, escena: 'PraderaScene', sala: 'pradera', nombre: 'Blossom Meadow', llegada: { x: 234, y: 2456 } },
     tundra_desde_glaciar:     { mundo: 9, escena: 'TundraScene',     sala: 'tundra',     nombre: 'Frostfang Tundra',       llegada: { x: 3552, y: 234 } },
     cementerio_desde_caverna: { mundo: 7, escena: 'CementerioScene', sala: 'cementerio', nombre: 'Cemetery of Lost Souls', llegada: { x: 250, y: 2250 } },
-    desierto_desde_pradera:   { mundo: 8, escena: 'DesiertoScene',   sala: 'desierto',   nombre: 'Scorching Desert',       llegada: { x: 4790, y: 2456 } }
+    desierto_desde_pradera:   { mundo: 8, escena: 'DesiertoScene',   sala: 'desierto',   nombre: 'Scorching Desert',       llegada: { x: 4790, y: 2456 } },
+
+    // (2026-11-21) LOS SIETE DEL ESTE (Scenes/ReinosScenes.js), niveles 11 a 17.
+    // Se llega a ellos por el mapa del mundo (el ferri al puerto) y entre ellos
+    // a pie. "Sin más" se llega a su aparición; desde un vecino, junto a la
+    // salida por la que se vuelve (a 250 px del borde, como tools/generar-reinos.py).
+    //
+    //                 volcán ─── hongos
+    //                   │          │
+    //                colinas ─── selva
+    //                   │          │
+    //     pueblo ⇠ ferri ⇢ puerto ─── pantano
+    //                   │
+    //                 aldor
+    puerto:  { mundo: 13, escena: 'PuertoScene',  sala: 'puerto',  nombre: 'Saltwind Harbor',            llegada: { x: 2504, y: 2640 } },
+    pantano: { mundo: 14, escena: 'PantanoScene', sala: 'pantano', nombre: 'Mirefen Bog',                llegada: { x: 2752, y: 2664 } },
+    aldor:   { mundo: 15, escena: 'AldorScene',   sala: 'aldor',   nombre: 'The Sunken Ruins of Aldor',  llegada: { x: 2504, y: 1200 } },
+    colinas: { mundo: 16, escena: 'ColinasScene', sala: 'colinas', nombre: 'The Amberleaf Highlands',    llegada: { x: 2560, y: 2640 } },
+    selva:   { mundo: 17, escena: 'SelvaScene',   sala: 'selva',   nombre: 'The Emerald Jungle',         llegada: { x: 2000, y: 2620 } },
+    volcan:  { mundo: 18, escena: 'VolcanScene',  sala: 'volcan',  nombre: 'The Emberfall Caldera',      llegada: { x: 2600, y: 2700 } },
+    hongos:  { mundo: 19, escena: 'HongosScene',  sala: 'hongos',  nombre: 'Glowcap Hollow',             llegada: { x: 2700, y: 2644 } },
+    // El ferri de vuelta: al pueblo, donde deja el mapa del mundo.
+    pueblo_desde_puerto:   { mundo: 1,  escena: 'GameScene',    sala: 'game',    nombre: 'Grassland Village',          llegada: { x: 2097, y: 2359 } },
+    pantano_desde_puerto:  { mundo: 14, escena: 'PantanoScene', sala: 'pantano', nombre: 'Mirefen Bog',                llegada: { x: 250,  y: 2480 } },
+    colinas_desde_puerto:  { mundo: 16, escena: 'ColinasScene', sala: 'colinas', nombre: 'The Amberleaf Highlands',    llegada: { x: 2504, y: 4722 } },
+    aldor_desde_puerto:    { mundo: 15, escena: 'AldorScene',   sala: 'aldor',   nombre: 'The Sunken Ruins of Aldor',  llegada: { x: 2504, y: 230 } },
+    puerto_desde_pantano:  { mundo: 13, escena: 'PuertoScene',  sala: 'puerto',  nombre: 'Saltwind Harbor',            llegada: { x: 4758, y: 2480 } },
+    puerto_desde_colinas:  { mundo: 13, escena: 'PuertoScene',  sala: 'puerto',  nombre: 'Saltwind Harbor',            llegada: { x: 2504, y: 230 } },
+    puerto_desde_aldor:    { mundo: 13, escena: 'PuertoScene',  sala: 'puerto',  nombre: 'Saltwind Harbor',            llegada: { x: 2504, y: 4722 } },
+    selva_desde_pantano:   { mundo: 17, escena: 'SelvaScene',   sala: 'selva',   nombre: 'The Emerald Jungle',         llegada: { x: 2504, y: 4722 } },
+    pantano_desde_selva:   { mundo: 14, escena: 'PantanoScene', sala: 'pantano', nombre: 'Mirefen Bog',                llegada: { x: 2504, y: 230 } },
+    selva_desde_colinas:   { mundo: 17, escena: 'SelvaScene',   sala: 'selva',   nombre: 'The Emerald Jungle',         llegada: { x: 250,  y: 2480 } },
+    colinas_desde_selva:   { mundo: 16, escena: 'ColinasScene', sala: 'colinas', nombre: 'The Amberleaf Highlands',    llegada: { x: 4758, y: 2480 } },
+    volcan_desde_colinas:  { mundo: 18, escena: 'VolcanScene',  sala: 'volcan',  nombre: 'The Emberfall Caldera',      llegada: { x: 2504, y: 4722 } },
+    colinas_desde_volcan:  { mundo: 16, escena: 'ColinasScene', sala: 'colinas', nombre: 'The Amberleaf Highlands',    llegada: { x: 2504, y: 230 } },
+    hongos_desde_selva:    { mundo: 19, escena: 'HongosScene',  sala: 'hongos',  nombre: 'Glowcap Hollow',             llegada: { x: 2504, y: 4722 } },
+    selva_desde_hongos:    { mundo: 17, escena: 'SelvaScene',   sala: 'selva',   nombre: 'The Emerald Jungle',         llegada: { x: 2504, y: 230 } },
+    hongos_desde_volcan:   { mundo: 19, escena: 'HongosScene',  sala: 'hongos',  nombre: 'Glowcap Hollow',             llegada: { x: 250,  y: 2480 } },
+    volcan_desde_hongos:   { mundo: 18, escena: 'VolcanScene',  sala: 'volcan',  nombre: 'The Emberfall Caldera',      llegada: { x: 4758, y: 2480 } }
   };
 
   var ATRAE = 280, DANO = 54;                 // px: arrastra / hace daño
@@ -326,12 +364,16 @@
      dibujo de la hoguera trae una llama quieta; encima va un fuego vivo: tres
      llamas que cambian de forma y se estiran, el resplandor que tiembla en el
      suelo y unas chispas que suben (rayas cortas). */
+  /* Lo que arde con llamas de verdad y a qué altura sobre su apoyo (px):
+     (2026-11-21) también los braseros de las ruinas de Aldor y de la caldera,
+     a la altura de su cuenco (la de su luz en LUCES, menos 10). */
+  var FUEGOS = { hoguera: 0, brasero: 30, brasero_dorado: 30, brasero_volcan: 34 };
   function montarHogueras(st) {
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
     st.hogueras = [];
     (capa ? capa.objects : []).forEach(function (o) {
-      if (o.name !== 'hoguera' && o.name !== 'brasero') return;
-      var alto = o.name === 'brasero' ? 30 : 0;      // el fuego del brasero, en su cuenco
+      if (!Object.prototype.hasOwnProperty.call(FUEGOS, o.name)) return;
+      var alto = FUEGOS[o.name];                       // el fuego del brasero, en su cuenco
       var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
       var brillo = propio(st, scene.add.image(o.x, o.y - 8 - alto * 0.3, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
       var llamas = [-4, 0, 4].map(function (dx, k) {
@@ -695,7 +737,16 @@
     // (allí la noche no se va del todo, gf-ciclo-dia `_oscuridadMinima`).
     poste_runas: [-50, 170, 0.6], farol_jardin: [-64, 220, 0.9], brasero: [-40, 300, 1],
     cristal_cueva: [-26, 150, 0.6], cristal_cueva_t: [-26, 150, 0.6], cristal_grande_cueva: [-50, 260, 0.85],
-    seta_brillante: [-12, 90, 0.5], salida_cueva: [-60, 320, 0.9], casa_bruja: [-70, 260, 0.8]
+    seta_brillante: [-12, 90, 0.5], salida_cueva: [-60, 320, 0.9], casa_bruja: [-70, 260, 0.8],
+    // (2026-11-21) Los siete del este (tools/gf_reinos_arte.py LUCES: la misma tabla).
+    farol_puerto: [-74, 260, 0.9], faro: [-200, 520, 1], taberna_puerto: [-60, 300, 0.8], tienda_puerto: [-50, 220, 0.5],
+    farol_fatuo: [-50, 200, 0.7], caldero_pantano: [-24, 200, 0.7], choza_zancos: [-40, 200, 0.5],
+    brasero_dorado: [-40, 280, 1], altar_solar: [-36, 220, 0.7], obelisco_sol: [-60, 180, 0.6], cabana_cazador: [-40, 240, 0.7],
+    templo_selva: [-70, 220, 0.6], totem_selva: [-24, 140, 0.5],
+    forja: [-40, 320, 1], brasero_volcan: [-44, 280, 1], fumarola: [-16, 180, 0.7], cristal_fuego: [-24, 160, 0.6],
+    obelisco_obsidiana: [-50, 180, 0.6], roca_lava: [-10, 140, 0.5], roca_volcanica: [-14, 120, 0.4],
+    cristal_luz: [-24, 170, 0.7], farol_luciernaga: [-46, 200, 0.8], casa_seta: [-40, 260, 0.8],
+    piedra_runa: [-30, 150, 0.6], seta_pequena: [-10, 100, 0.5], raiz_brillante: [-16, 130, 0.5], tocon_musgo: [-12, 90, 0.4]
   };
   function montarLuces(st) {
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');

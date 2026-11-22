@@ -51,6 +51,29 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function v2() { return window.GFItemsV2; }
+
+  /* (2026-11-21) LAS TIENDAS QUE NO SALEN DE gf-items-v2: la de Bettina, en el
+     puerto de Saltwind (Scenes/ReinosScenes.js, gf-npcs.js). Vende lo que la
+     tienda del juego ya tiene (tienda_sistema.js): mismo precio de HOY, misma
+     comisión y misma cola, porque compra por la misma operación. Sin recetas:
+     la pestaña "Recipes" no sale. */
+  var PROPIAS = {
+    puerto: {
+      nombre: 'Bettina — Saltwind Provisions',
+      saludo: 'Rods, boats, blades and food for the road east.',
+      venta: ['cana_pescar', 'bote', 'antorcha', 'balde_con_agua', 'espada_cobre', 'espada_hierro', 'arco', 'baston_mago',
+              'zanahoria_buena', 'tomate_buena', 'fresa_buena', 'calabaza_buena'],
+      recetas: []
+    }
+  };
+  /** Lo que vende y cocina un NPC: { nombre, saludo, venta: [ids], recetas: [ids] } o null. */
+  function definicion(npc) {
+    if (Object.prototype.hasOwnProperty.call(PROPIAS, npc)) return PROPIAS[npc];
+    var datos = v2() && v2().npcs;
+    return datos && Object.prototype.hasOwnProperty.call(datos, npc) ? datos[npc] : null;
+  }
+  function recetasDe(d) { return (d && Array.isArray(d.recetas)) ? d.recetas : []; }
+  function listaRecetas() { var datos = v2(); return (datos && Array.isArray(datos.recipes)) ? datos.recipes : []; }
   function objeto(id) { return window.GFPlantCatalog && window.GFPlantCatalog.items[id]; }
   function nombre(id) {
     var o = objeto(id);
@@ -147,24 +170,29 @@
 
   function pintar() {
     if (!st) return;
-    var t = tienda(), d = v2().npcs[st.npc];
+    var t = tienda(), d = definicion(st.npc);
     if (!t || !d) return;
-    document.querySelectorAll('#gfnt .gfnt-pes button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.pestana === st.pestana ? 'true' : 'false'); });
+    var conRecetas = recetasDe(d).length > 0;
+    if (!conRecetas && st.pestana === 'recetas') st.pestana = 'comprar';
+    document.querySelectorAll('#gfnt .gfnt-pes button').forEach(function (b) {
+      b.setAttribute('aria-selected', b.dataset.pestana === st.pestana ? 'true' : 'false');
+      if (b.dataset.pestana === 'recetas') b.hidden = !conRecetas;
+    });
     document.getElementById('gfnt-bolsa').innerHTML = saldo(t);
     var lista = document.getElementById('gfnt-lista'), arriba = lista.scrollTop, h = '', yo = nivel();
     if (st.pestana === 'comprar') {
       d.venta.forEach(function (id) {
         var f = fichaHoy(id);
         if (!f || !(f.buyPrice > 0)) return;
-        var nv = Number(f.nivelRequerido) || 1, bloq = yo < nv, gana = v2().food[id];
+        var nv = Number(f.nivelRequerido) || 1, bloq = yo < nv, gana = v2() && v2().food ? v2().food[id] : 0;
         h += '<button type="button" class="gfnt-c' + (bloq ? ' bloq' : '') + '" data-id="' + esc(id) + '" aria-pressed="' + (st.sel === id ? 'true' : 'false') + '">' +
           '<img src="' + esc(f.image) + '" alt="" loading="lazy"><span><b>' + esc(f.name) + '</b>' +
           '<small>' + (bloq ? '🔒 ' : '') + 'Level ' + nv + (gana ? ' · +' + gana + ' food' : '') + '</small>' +
           '<small>' + precioHtml(t, f) + tendencia(f) + '</small></span></button>';
       });
     } else {
-      d.recetas.forEach(function (rid) {
-        var r = v2().recipes.find(function (x) { return x.id === rid; });
+      recetasDe(d).forEach(function (rid) {
+        var r = listaRecetas().find(function (x) { return x.id === rid; });
         if (!r) return;
         var bloq = yo < r.level, listo = r.resources.every(function (m) { return cuantos(m.itemId) >= m.quantity; });
         h += '<button type="button" class="gfnt-c' + (bloq ? ' bloq' : '') + '" data-id="' + esc(rid) + '" aria-pressed="' + (st.sel === rid ? 'true' : 'false') + '">' +
@@ -195,7 +223,7 @@
         '<button type="button" class="gfnt-ok" data-accion="comprar"' + (st.ocupado || yo < nv ? ' disabled' : '') + '>' + (st.ocupado ? 'Working…' : yo < nv ? 'Level ' + nv : 'Buy') + '</button>';
       return;
     }
-    var r = v2().recipes.find(function (x) { return x.id === st.sel; });
+    var r = listaRecetas().find(function (x) { return x.id === st.sel; });
     if (!r) { st.sel = null; pie.innerHTML = ''; return; }
     var chips = r.resources.concat([]).map(function (m) {
       var hace = m.quantity * st.cantidad, hay = cuantos(m.itemId);
@@ -262,7 +290,7 @@
 
   async function cocinar() {
     if (!st || st.ocupado || !st.sel) return;
-    var yo = st, r = v2().recipes.find(function (x) { return x.id === st.sel; });
+    var yo = st, r = listaRecetas().find(function (x) { return x.id === st.sel; });
     if (!r) return;
     yo.ocupado = true;
     pintarPie(tienda());
@@ -321,7 +349,7 @@
   function alEsc(e) { if (e.key === 'Escape') cerrar(); }
 
   function abrir(scene, npc) {
-    var d = v2() && v2().npcs[npc];
+    var d = definicion(npc);
     if (!d || !window.GFMascota) return false;
     if (st && st.npc === npc) return true;
     cerrar();
@@ -344,5 +372,6 @@
     ['gfnt', 'gfnt-fondo'].forEach(function (id) { var el = document.getElementById(id); if (el) el.remove(); });
   }
 
-  window.GFNpcTiendas = { abrir: abrir, cerrar: cerrar, abierta: function () { return !!st; }, _interno: { estado: function () { return st; }, pintar: pintar } };
+  window.GFNpcTiendas = { abrir: abrir, cerrar: cerrar, abierta: function () { return !!st; }, definicion: definicion,
+                          _interno: { estado: function () { return st; }, pintar: pintar, PROPIAS: PROPIAS } };
 })();

@@ -56,7 +56,10 @@
                 // (2026-10-18) Los mapas nuevos (el servidor: MOBS_SALAS).
                 CementerioScene: true, DesiertoScene: true, TundraScene: true,
                 // (2026-10-25) Los de nivel 8, 9 y 10.
-                GlaciarScene: true, CavernaScene: true, PraderaScene: true };
+                GlaciarScene: true, CavernaScene: true, PraderaScene: true,
+                // (2026-11-21) Los siete del este.
+                PuertoScene: true, PantanoScene: true, AldorScene: true, ColinasScene: true,
+                SelvaScene: true, VolcanScene: true, HongosScene: true };
   // Los compartidos vivos, para el aviso de "pestaña oculta" (un solo oyente
   // de document para todos: ninguno se queda atado a una escena muerta).
   var vivos = [];

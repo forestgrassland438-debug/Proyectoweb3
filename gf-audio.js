@@ -85,7 +85,10 @@
                 cementerio: 'gf_cementerio', desierto: 'gf_desierto', tundra: 'gf_tundra',
                 // (2026-10-25) Los de nivel 8, 9 y 10. La pradera en flor se
                 // llama 'prado' aquí: 'pradera' ya es el tema de día del pueblo.
-                glaciar: 'gf_glaciar', caverna: 'gf_caverna', prado: 'gf_prado' };
+                glaciar: 'gf_glaciar', caverna: 'gf_caverna', prado: 'gf_prado',
+                // (2026-11-21) Los siete del continente del este (tools/generar-sonidos-reinos.js).
+                puerto: 'gf_puerto', pantano: 'gf_pantano', aldor: 'gf_aldor', colinas: 'gf_colinas',
+                selva: 'gf_selva', volcan: 'gf_volcan', hongos: 'gf_hongos' };
 
   var AMBIENTES = {
     lluvia:  'amb_lluvia',
@@ -106,13 +109,27 @@
     glaciar:    'amb_glaciar',
     ventisca:   'amb_ventisca',
     caverna:    'amb_caverna',
-    prado:      'amb_prado'
+    prado:      'amb_prado',
+    // (2026-11-21) Los siete del este: las olas y las gaviotas del puerto, las
+    // ranas y las burbujas de la ciénaga, el aire seco entre las ruinas, la
+    // brisa de otoño de las colinas, los insectos y los pájaros de la selva,
+    // el retumbo y la lava de la caldera, y el goteo con su zumbido de luz de
+    // la hondonada.
+    puerto:     'amb_puerto',
+    pantano:    'amb_pantano',
+    aldor:      'amb_aldor',
+    colinas:    'amb_colinas',
+    selva:      'amb_selva',
+    volcan:     'amb_volcan',
+    hongos:     'amb_hongos'
   };
   /* Qué ambientes son de UN mapa: fuera de él ni se piden ni se guardan. El
      desierto, además, tiene la tormenta y el remolino (los mueve gf-zonas.js
      con `scene._tormentaArena` y `scene._remolinoCerca`). */
   var EXCLUSIVOS = { cementerio: ['cementerio'], desierto: ['desierto', 'tormenta', 'remolino'], tundra: ['tundra'],
-                     glaciar: ['glaciar', 'ventisca'], caverna: ['caverna'], prado: ['prado'] };
+                     glaciar: ['glaciar', 'ventisca'], caverna: ['caverna'], prado: ['prado'],
+                     puerto: ['puerto'], pantano: ['pantano'], aldor: ['aldor'], colinas: ['colinas'],
+                     selva: ['selva'], volcan: ['volcan'], hongos: ['hongos'] };
   function esExclusivo(k) {
     for (var z in EXCLUSIVOS) if (EXCLUSIVOS[z].indexOf(k) >= 0) return true;
     return false;
@@ -808,8 +825,11 @@
       if (e && e.activo) {
         c.hayClima = true;
         var m = st.scene.__gfClima;
-        c.lluvia = e.lluvia ? (m && typeof m.fuerzaLluvia === 'number' ? m.fuerzaLluvia : 1) : 0;
-        c.nieve  = e.nieve  ? (m && typeof m.fuerzaNieve  === 'number' ? m.fuerzaNieve  : 1) : 0;
+        /* (2026-11-21) Donde no nieva (`sinNieve`, Scenes/ReinosScenes.js) la
+           nieve del servidor se pinta como lluvia: se oye lluvia, no nieve. */
+        var sinNieve = !!(m && m.sinNieve);
+        c.lluvia = (e.lluvia || (sinNieve && e.nieve)) ? (m && typeof m.fuerzaLluvia === 'number' ? m.fuerzaLluvia : 1) : 0;
+        c.nieve  = (e.nieve && !sinNieve) ? (m && typeof m.fuerzaNieve  === 'number' ? m.fuerzaNieve  : 1) : 0;
         c.sol    = e.soleado ? (m && typeof m.fuerzaSol   === 'number' ? m.fuerzaSol    : 1) : 0;
       }
     } catch (x) {}
@@ -982,6 +1002,7 @@
        lo que allí no pega, más bajo: los pájaros y los grillos del prado. */
     o.cementerio = o.desierto = o.tundra = o.tormenta = o.remolino = 0;
     o.glaciar = o.ventisca = o.caverna = o.prado = 0;
+    o.puerto = o.pantano = o.aldor = o.colinas = o.selva = o.volcan = o.hongos = 0;
     if (st.zona) {
       o[st.zona] = MEZCLA.zona * (1 - 0.5 * tope(c.lluvia, 0, 1));
       if (st.zona === 'desierto') {
@@ -1003,6 +1024,28 @@
         o.noche = Math.min(MEZCLA.noche * 1.2, o.noche * 1.2);
       } else if (st.zona === 'cementerio') {
         o.soleado *= 0.25;
+      } else if (st.zona === 'puerto') {
+        // (2026-11-21) Junto al mar mandan las olas: menos insectos y grillos.
+        o.soleado *= 0.5; o.noche *= 0.6;
+      } else if (st.zona === 'pantano') {
+        // En la ciénaga los grillos y los bichos de noche se oyen más.
+        o.noche = Math.min(MEZCLA.noche * 1.3, o.noche * 1.4); o.soleado *= 0.7;
+      } else if (st.zona === 'aldor') {
+        // Las ruinas: aire seco, pocas hojas.
+        o.arboles *= 0.5; o.soleado *= 0.6;
+      } else if (st.zona === 'colinas') {
+        // Otoño: las hojas secas suenan más con la racha.
+        o.arboles = Math.min(MEZCLA.arboles * 1.25, o.arboles * 1.3);
+      } else if (st.zona === 'selva') {
+        // La selva: más insectos de día y de noche.
+        o.soleado = Math.min(MEZCLA.soleado * 1.3, o.soleado * 1.4);
+        o.noche = Math.min(MEZCLA.noche * 1.2, o.noche * 1.2);
+      } else if (st.zona === 'volcan') {
+        // La caldera no lleva el tiempo del pueblo: ni lluvia, ni nieve, ni grillos, ni pájaros.
+        o.lluvia = o.nieve = o.noche = o.soleado = 0; o.arboles *= 0.2;
+      } else if (st.zona === 'hongos') {
+        // La hondonada: casi sin pájaros; de noche, sus grillos.
+        o.soleado *= 0.35;
       }
     }
 

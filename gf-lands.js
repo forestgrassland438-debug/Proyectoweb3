@@ -400,18 +400,27 @@
   // 6 = el mapa salvaje del oeste (Scenes/SalvajeScene.js, 2026-10-11).
   // 7, 8 y 9 = el cementerio, el desierto y la tundra (Scenes/ZonasScenes.js, 2026-10-18).
   // 10, 11 y 12 = el glaciar, la caverna y la pradera (2026-10-25).
+  // 13 a 19 = los siete del este (Scenes/ReinosScenes.js, 2026-11-21).
   var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA, 6: 'SalvajeScene',
                           7: 'CementerioScene', 8: 'DesiertoScene', 9: 'TundraScene',
-                          10: 'GlaciarScene', 11: 'CavernaScene', 12: 'PraderaScene' };
+                          10: 'GlaciarScene', 11: 'CavernaScene', 12: 'PraderaScene',
+                          13: 'PuertoScene', 14: 'PantanoScene', 15: 'AldorScene', 16: 'ColinasScene',
+                          17: 'SelvaScene', 18: 'VolcanScene', 19: 'HongosScene' };
   var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla', 6: 'salvaje', 7: 'cementerio', 8: 'desierto', 9: 'tundra',
-                          10: 'glaciar', 11: 'caverna', 12: 'pradera' };
+                          10: 'glaciar', 11: 'caverna', 12: 'pradera',
+                          13: 'puerto', 14: 'pantano', 15: 'aldor', 16: 'colinas', 17: 'selva', 18: 'volcan', 19: 'hongos' };
   var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4, wild: 6, cemetery: 7, desert: 8, tundra: 9,
-                          glacier: 10, caverns: 11, meadow: 12 };
+                          glacier: 10, caverns: 11, meadow: 12,
+                          harbor: 13, bog: 14, ruins: 15, highlands: 16, jungle: 17, caldera: 18, hollow: 19 };
   // Sin punto conocido (alguien que acaba de entrar y no se ha movido), la
   // entrada de siempre de cada sitio. La mina y la isla ya tienen la suya.
   var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 }, 6: { x: 4896, y: 2208 },
                            7: { x: 4790, y: 2208 }, 8: { x: 3552, y: 230 }, 9: { x: 3552, y: 4740 },
-                           10: { x: 3552, y: 4740 }, 11: { x: 4040, y: 2230 }, 12: { x: 234, y: 2456 } };
+                           10: { x: 3552, y: 4740 }, 11: { x: 4040, y: 2230 }, 12: { x: 234, y: 2456 },
+                           // Los siete del este: su aparición (gf-zonas.js `llegada`, tools/generar-mapa-mundo.py ENTRADAS).
+                           13: { x: 2504, y: 2640 }, 14: { x: 2752, y: 2664 }, 15: { x: 2504, y: 1200 },
+                           16: { x: 2560, y: 2640 }, 17: { x: 2000, y: 2620 }, 18: { x: 2600, y: 2700 },
+                           19: { x: 2700, y: 2644 } };
   var CADUCIDAD_VIAJE = 90 * 1000;
 
   function numero(v) {

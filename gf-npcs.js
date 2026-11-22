@@ -100,6 +100,101 @@
         frases: ['The fish under the ice are fat and slow this season.',
                  'Never walk on the blue ice. It cracks.',
                  'Bjorn tells the same stories every night. I love them anyway.'] }
+    ],
+    // (2026-11-21) LOS SIETE MAPAS DEL ESTE (Scenes/ReinosScenes.js). Su arte:
+    // tools/generar-reinos-criaturas.py; su sitio, el que les guarda el mapa
+    // (tools/generar-reinos.py, reservar_npc). El puerto es un pueblo: siete
+    // vecinos y la tendera, que abre su tienda (gf-npc-tiendas.js, 'puerto').
+    PuertoScene: [
+      { id: 'marisol', arte: 'capitana_puerto', nombre: 'Captain Marisol', x: 700, y: 2360, accion: 'quieto', mira: 'izquierda',
+        frases: ['The ferry west takes you home to Grassland Village. The tide is always right.',
+                 'Saltwind is the last harbor before the wild east. Stock up before you leave.',
+                 'Pirates drowned in the cove still walk the sand at night. Bring steel.'] },
+      { id: 'bettina', arte: 'tendera_puerto', nombre: 'Bettina the Harbor Merchant', x: 2270, y: 2222, accion: 'quieto', mira: 'abajo',
+        tienda: 'puerto',
+        frases: ['Welcome to Saltwind Provisions! Rods, boats, blades and food for the road.',
+                 'Same prices as the village shop. The economy decides, not me.',
+                 'If you are heading to the bog, buy a torch. Trust me.'] },
+      { id: 'nell', arte: 'tabernera_puerto', nombre: 'Nell the Innkeeper', x: 2740, y: 2222, accion: 'pasear', radio: 90,
+        frases: ['The Salty Anchor never closes. Sailors never sleep.',
+                 'A giant crab guards the smugglers\' cove. Its shell turns swords.',
+                 'They say the lighthouse beam keeps the drowned ones away.'] },
+      { id: 'pike', arte: 'pescadero', nombre: 'Pike the Fishmonger', x: 690, y: 2920, accion: 'quieto', mira: 'derecha',
+        frases: ['Fresh fish! Well... fresh this morning.',
+                 'The harbor water is deep. Bring a boat and fish far from the pier.',
+                 'Sell your catch at the shop. I only buy what I can smell.'] },
+      { id: 'bartholomew', arte: 'marinero', nombre: 'Old Sailor Bartholomew', x: 2960, y: 2400, accion: 'pasear', radio: 160,
+        frases: ['North lie the Amberleaf Highlands. Autumn never ends up there.',
+                 'East is Mirefen Bog. Hold your breath near the green fumes.',
+                 'South are the Sunken Ruins of Aldor. The sun stones still burn.'] },
+      { id: 'wexley', arte: 'carpintero_ribera', nombre: 'Wexley the Shipwright', x: 2380, y: 1600, accion: 'pasear', radio: 120,
+        frases: ['A good boat floats on any water in the east. Even the bog.',
+                 'Oak for the hull, pine for the mast. Never the other way around.',
+                 'If your boat sinks, you swim. That is the whole warranty.'] },
+      { id: 'silas', arte: 'farero', nombre: 'Silas the Lighthouse Keeper', x: 1000, y: 1664, accion: 'pasear', radio: 110,
+        frases: ['Every night I light the lamp. Every night the sea answers.',
+                 'Watch the beam sweep the water after dusk. It never misses a turn.',
+                 'Forty years on this rock, and the gulls still steal my lunch.'] }
+    ],
+    PantanoScene: [
+      { id: 'fenwick', arte: 'guia_cienaga', nombre: 'Fenwick the Bog Guide', x: 2016, y: 1728, accion: 'pasear', radio: 140,
+        frases: ['Step where the reeds grow. Where they do not, the mud does.',
+                 'East of the dead trees the law sinks. Swords out there.',
+                 'The great toad sleeps in the eastern pools. Do not wake it.'] },
+      { id: 'wila', arte: 'herbolaria_cienaga', nombre: 'Wila the Marsh Herbalist', x: 2966, y: 2564, accion: 'pasear', radio: 120,
+        frases: ['The green fumes burn the throat. Do not stand in them.',
+                 'At night the marsh lights wander. Follow them and you drown.',
+                 'The bog witches curse the slow. Keep moving.'] }
+    ],
+    AldorScene: [
+      { id: 'tamsin', arte: 'arqueologa', nombre: 'Tamsin the Archaeologist', x: 2290, y: 1180, accion: 'pasear', radio: 130,
+        frases: ['Aldor sank in a single night. The sea still has not given it back.',
+                 'The golems were built to guard the temple. They still do.',
+                 'South of the great steps, swords are drawn. Dig there at your own risk.'] },
+      { id: 'idris', arte: 'guardian_ruinas', nombre: 'Idris the Ruin Warden', x: 2250, y: 2610, accion: 'accion', mira: 'derecha',
+        frases: ['The Colossus wakes when the sun is high. Strike the glowing core.',
+                 'Sun beetles fire beams of light. Never fight them in the open.',
+                 'I keep my blade sharp. The ruins keep their secrets sharper.'] }
+    ],
+    ColinasScene: [
+      { id: 'hazel', arte: 'pastora_colinas', nombre: 'Hazel the Shepherdess', x: 2236, y: 2340, accion: 'pasear', radio: 160,
+        frases: ['When the wind howls through the hills, hold on to your hat.',
+                 'The autumn bears are fat and grumpy this time of year.',
+                 'West of the old oaks, hunters fight hunters. Mind yourself.'] },
+      { id: 'rowan', arte: 'lenador', nombre: 'Rowan the Woodcutter', x: 3300, y: 3120, accion: 'pasear', radio: 140,
+        frases: ['Red maple, gold ginkgo, copper beech. Every tree here is on fire, but cold.',
+                 'The great stag rules the western glade. Its antlers are older than me.',
+                 'Scarecrows walk at night up here. Nobody planted them.'] }
+    ],
+    SelvaScene: [
+      { id: 'tupa', arte: 'curandero_selva', nombre: 'Tupa the Jungle Healer', x: 2000, y: 2392, accion: 'pasear', radio: 120,
+        frases: ['The jungle heals and the jungle bites. Learn which leaf is which.',
+                 'Panthers wait in the shade. Look up before you rest.',
+                 'The silverback guards the south-eastern thickets. He hates visitors.'] },
+      { id: 'kaia', arte: 'exploradora_selva', nombre: 'Kaia the Explorer', x: 3090, y: 2806, accion: 'pasear', radio: 150,
+        frases: ['North lies Glowcap Hollow. The mushrooms there light the night.',
+                 'Further east the jungle is lawless. PvP, they call it.',
+                 'The shamans throw darts that sting for days. Keep your distance.'] }
+    ],
+    VolcanScene: [
+      { id: 'brakka', arte: 'forjadora', nombre: 'Brakka the Forgemistress', x: 2400, y: 2604, accion: 'pasear', radio: 110,
+        frases: ['The caldera rumbles every few minutes. Do not panic, just keep walking.',
+                 'Lava does not forgive. Stay on the black rock.',
+                 'The best steel in the east is born here, in the heat.'] },
+      { id: 'sorrel', arte: 'geologo', nombre: 'Sorrel the Geologist', x: 3060, y: 2140, accion: 'pasear', radio: 130,
+        frases: ['The ash dragon nests north of here, where the ground is lawless.',
+                 'Magma golems are slow, but their fists are not.',
+                 'Steam from the vents is harmless. The lava under it is not.'] }
+    ],
+    HongosScene: [
+      { id: 'fennel', arte: 'micologa', nombre: 'Fennel the Mycologist', x: 2470, y: 2474, accion: 'pasear', radio: 120,
+        frases: ['Every cap here glows a little. Some of them glow back.',
+                 'The walking mushrooms spread spores. Breathe through your sleeve.',
+                 'The great mycelium lives under the whole hollow. It is listening.'] },
+      { id: 'grub', arte: 'farolero', nombre: 'Grub the Lamplighter', x: 2880, y: 2604, accion: 'pasear', radio: 130,
+        frases: ['It is never fully day down here. My lanterns help a little.',
+                 'Light moths are drawn to your torch. And then to you.',
+                 'Up in the north-east, players hunt players. Be careful.'] }
     ]
   };
 
@@ -189,6 +284,13 @@
     return true;
   }
 
+  /** ¿Vende con el panel de gf-npc-tiendas? (Rosalind, la del VIP, tiene el suyo.) */
+  function tieneTienda(d) {
+    var T = window.GFNpcTiendas;
+    if (!d || !d.tienda || d.tienda === 'vip' || !T) return false;
+    return typeof T.definicion === 'function' ? !!T.definicion(d.tienda) : (d.tienda === 'martha' || d.tienda === 'tobias');
+  }
+
   // ─────────────────────────────────────────────────────── UN NPC
   function propio(st, o) { st.objetos.push(o); if (o.once) o.once('destroy', function () { var i = st.objetos.indexOf(o); if (i >= 0) st.objetos.splice(i, 1); }); return o; }
   function crear(st, d) {
@@ -220,7 +322,8 @@
         n.tiendaDist = pj ? Math.hypot(pj.x - n.x, pj.y + 45 - n.y) : 0;
         window.GFVip.abrirTienda(scene);
       }
-      if ((d.tienda === 'martha' || d.tienda === 'tobias') && window.GFNpcTiendas) {
+      // (2026-11-21) Y los demás que venden con el panel de gf-npc-tiendas (la tendera del puerto).
+      if (tieneTienda(d)) {
         var pj2 = scene.player;
         n.tiendaDist = pj2 ? Math.hypot(pj2.x - n.x, pj2.y + 45 - n.y) : 0;
         window.GFNpcTiendas.abrir(scene, d.tienda);
@@ -317,8 +420,8 @@
           return;
         }
       }
-      // Igual con el panel de Martha o de Tobias abierto.
-      if ((n.d.tienda === 'martha' || n.d.tienda === 'tobias') && window.GFNpcTiendas && window.GFNpcTiendas.abierta()) {
+      // Igual con el panel de Martha, de Tobias o de la tendera del puerto abierto.
+      if (tieneTienda(n.d) && window.GFNpcTiendas.abierta()) {
         var lejos2 = pie ? Math.hypot(pie.x - n.x, pie.y - n.y) : 0;
         if (lejos2 > Math.max(LEJOS_TIENDA, (n.tiendaDist || 0) + 160)) {
           window.GFNpcTiendas.cerrar();

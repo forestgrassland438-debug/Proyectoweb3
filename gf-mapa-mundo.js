@@ -62,7 +62,12 @@
     salvaje_cabana: '🏕️', cementerio_bruja: '🧙', cementerio_cripta: '⚰️',
     desierto_ruinas: '🏛️', tundra_santuario: '⛩️', tundra_lago: '🌊',
     glaciar_ruinas: '🏰', glaciar_lago: '🌊', caverna_mina: '⛏️',
-    caverna_lago: '🌊', pradera_circulo: '🗿', pradera_granja: '🌾'
+    caverna_lago: '🌊', pradera_circulo: '🗿', pradera_granja: '🌾',
+    // (2026-11-21) El continente del este.
+    puerto: '⚓', pantano: '🐸', aldor: '🏺', colinas: '🍂', selva: '🌴', volcan: '🌋', hongos: '🍄',
+    puerto_tienda: '🛒', puerto_faro: '🔦', puerto_lonja: '🐟', puerto_parque: '🦆',
+    pantano_santuario: '🔔', aldor_plaza: '☀️', aldor_laguna: '🌊', colinas_granja: '🎃',
+    selva_aldea: '⛺', volcan_termas: '♨️', hongos_runas: '🔮'
   };
   // Lo que se toca en un mapa (y no en una chincheta): su destino principal.
   var PRINCIPAL = { mina: 'pueblo_mina', isla: 'isla' };
@@ -483,6 +488,9 @@
   function construir() {
     if (!datos || ui.construido) return;
     ui.construido = true;
+    // (2026-11-21) La capa mide lo que el dibujo (creció al este con los siete reinos).
+    ui.capa.style.width = tam()[0] + 'px';
+    ui.capa.style.height = tam()[1] + 'px';
     ui.img.src = RUTA + 'mapa_mundo.webp?v=' + encodeURIComponent(datos.version);
     var frag = document.createDocumentFragment();
     datos.regiones.forEach(function (r) {

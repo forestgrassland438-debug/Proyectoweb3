@@ -46,6 +46,11 @@
  * ('golem', 'lobo', 'arana' o 'brujo': los cuatro de siempre), sus
  * proyectiles (`tex`) y si flota o anda. El arte se pide según los que haya.
  *
+ * LOS SIETE REINOS (2026-11-21): el puerto, la ciénaga, las ruinas, las
+ * colinas, la selva, la caldera y la hondonada (Scenes/ReinosScenes.js,
+ * niveles 11 a 17) usan esto mismo: catorce especies, siete jefes y trece
+ * poderes nuevos (LOS PODERES DE LOS SIETE REINOS, más abajo).
+ *
  * CÓMO SE ENGANCHA:  SalvajeScene.create():  GFSalvaje.montar(this)
  * ======================================================================== */
 (function () {
@@ -289,6 +294,167 @@
       freno: 'Tangled in roots — you are slowed!',
       golpe: { alcance: 120, cada: 1800 }, poder: [2400, 3800], ancho: 90, alto: 28, cabeza: 320,
       vuelveMs: 30 * 60 * 1000, color: 0x8fd45a
+    },
+
+    // ── LOS SIETE REINOS (2026-11-21, niveles 11 a 17; Scenes/ReinosScenes.js) ──
+    // Más duros que los de la pradera. Sus poderes propios están más abajo
+    // (LOS PODERES DE LOS SIETE REINOS) y su arte lo escribe
+    // tools/generar-reinos-criaturas.py. `frenoIco` es el icono del aviso.
+    // EL PUERTO DE SALTWIND (11)
+    cangrejo_coloso: {
+      arte: 'cangrejo_coloso', molde: 'golem', nombre: 'Colossal Crab', vida: 300, escala: 2, sombra: 2.4,
+      vel: 36, velCaza: 64, vista: 420, olvida: 800, correa: 760,
+      tex: { roca: 'gfm_roca_coral' }, poderes: ['marea'], freno: 'Swept by the tide — you are slowed!', frenoIco: '🌊',
+      golpe: { alcance: 80, cada: 1800 }, poder: [4400, 6800], ancho: 64, alto: 20, cabeza: 84,
+      vuelveMs: 7 * 60 * 1000, color: 0x5fc8e8
+    },
+    pirata_ahogado: {
+      arte: 'pirata_ahogado', molde: 'lobo', humanoide: true, nombre: 'Drowned Pirate', vida: 240, escala: 2, sombra: 1.2,
+      vel: 34, velCaza: 84, vista: 440, olvida: 820, correa: 780, grito: 'gemido',
+      poderes: ['ancla'], freno: 'Hooked by the anchor — you are slowed!', frenoIco: '⚓',
+      golpe: { alcance: 62, cada: 1300 }, poder: [3800, 5600], ancho: 30, alto: 14, cabeza: 116,
+      vuelveMs: 6 * 60 * 1000, color: 0x7ad8c8
+    },
+    // LA CIÉNAGA DE MIREFEN (12)
+    sapo_toxico: {
+      arte: 'sapo_toxico', molde: 'lobo', nombre: 'Toxic Toad', vida: 250, escala: 2, sombra: 1.5,
+      vel: 40, velCaza: 112, vista: 430, olvida: 820, correa: 800, grito: 'croar',
+      poderes: ['nube_toxica'], freno: 'Toxic fumes — you are slowed!', frenoIco: '☠',
+      golpe: { alcance: 58, cada: 1300 }, poder: [3600, 5400], ancho: 44, alto: 14, cabeza: 72,
+      vuelveMs: 5 * 60 * 1000, color: 0x9acd3a
+    },
+    bruja_pantano: {
+      arte: 'bruja_pantano', molde: 'brujo', humanoide: true, flota: true, nombre: 'Bog Witch', vida: 270, escala: 2, sombra: 1.2,
+      vel: 44, velCaza: 82, vista: 500, olvida: 860, correa: 780, distancia: 240,
+      tex: { rayo: 'gfm_rayo_hoja' }, poderes: ['maldicion'], freno: 'Bog curse — you are slowed!', frenoIco: '☠',
+      golpe: null, poder: [3200, 5000], ancho: 30, alto: 14, cabeza: 130,
+      vuelveMs: 9 * 60 * 1000, color: 0x9aff5a
+    },
+    // LAS RUINAS HUNDIDAS DE ALDOR (13)
+    golem_ruinas: {
+      arte: 'golem_ruinas', molde: 'golem', nombre: 'Temple Golem', vida: 360, escala: 2, sombra: 1.9,
+      vel: 34, velCaza: 60, vista: 400, olvida: 780, correa: 740,
+      tex: { roca: 'gfm_roca_ruina' }, poderes: ['rayo_solar'], freno: 'Blinded by sunlight — you are slowed!', frenoIco: '☀',
+      golpe: { alcance: 78, cada: 1900 }, poder: [4400, 6800], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 9 * 60 * 1000, color: 0xffc24a
+    },
+    escarabajo_sol: {
+      arte: 'escarabajo_sol', molde: 'lobo', nombre: 'Sun Beetle', vida: 260, escala: 2, sombra: 1.7,
+      vel: 58, velCaza: 150, vista: 440, olvida: 820, correa: 820, grito: 'zumbido',
+      poderes: ['rayo_solar'], freno: 'Blinded by sunlight — you are slowed!', frenoIco: '☀',
+      golpe: { alcance: 60, cada: 1200 }, poder: [3600, 5400], ancho: 48, alto: 14, cabeza: 74,
+      vuelveMs: 5 * 60 * 1000, color: 0xffd76a
+    },
+    // LAS TIERRAS ALTAS DE AMBERLEAF (14)
+    oso_otono: {
+      arte: 'oso_otono', molde: 'lobo', nombre: 'Autumn Bear', vida: 320, escala: 2, sombra: 1.8,
+      vel: 46, velCaza: 124, vista: 420, olvida: 820, correa: 800, grito: 'rugido',
+      poderes: ['zarpazo'],
+      golpe: { alcance: 70, cada: 1400 }, poder: [3800, 5800], ancho: 52, alto: 16, cabeza: 88,
+      vuelveMs: 6 * 60 * 1000, color: 0xe8913a
+    },
+    espantapajaros: {
+      arte: 'espantapajaros', molde: 'brujo', humanoide: true, nombre: 'Walking Scarecrow', vida: 280, escala: 2, sombra: 1.2,
+      vel: 40, velCaza: 80, vista: 500, olvida: 860, correa: 780, distancia: 230,
+      tex: { rayo: 'gfm_rayo_hoja' }, poderes: ['vendaval'], freno: 'Caught in the gale — you are slowed!', frenoIco: '🍂',
+      golpe: null, poder: [3200, 5000], ancho: 30, alto: 14, cabeza: 116,
+      vuelveMs: 8 * 60 * 1000, color: 0xe8b04a
+    },
+    // LA SELVA ESMERALDA (15)
+    pantera_selva: {
+      arte: 'pantera_selva', molde: 'lobo', nombre: 'Jungle Panther', vida: 300, escala: 2, sombra: 1.9,
+      vel: 62, velCaza: 160, vista: 460, olvida: 840, correa: 840, grito: 'rugido',
+      poderes: ['emboscada', 'zarpazo'],
+      golpe: { alcance: 64, cada: 1100 }, poder: [3400, 5200], ancho: 48, alto: 14, cabeza: 92,
+      vuelveMs: 6 * 60 * 1000, color: 0x4ac86a
+    },
+    chaman_selva: {
+      arte: 'chaman_selva', molde: 'arana', humanoide: true, nombre: 'Jungle Shaman', vida: 300, escala: 2, sombra: 1.2,
+      vel: 42, velCaza: 86, vista: 480, olvida: 840, correa: 780, distancia: 230,
+      tex: { espina: 'gfm_dardo', savia: 'gfm_veneno' }, poderes: ['dardos'], freno: 'Jungle venom — you are slowed!', frenoIco: '☠',
+      golpe: { alcance: 54, cada: 1400 }, poder: [3000, 4600], ancho: 30, alto: 14, cabeza: 116,
+      vuelveMs: 8 * 60 * 1000, color: 0x6ac84a
+    },
+    // LA CALDERA DE EMBERFALL (16)
+    salamandra_magma: {
+      arte: 'salamandra_magma', molde: 'lobo', nombre: 'Magma Salamander', vida: 320, escala: 2, sombra: 1.8,
+      vel: 56, velCaza: 140, vista: 440, olvida: 820, correa: 820, grito: 'lava',
+      poderes: ['erupcion'], freno: 'Scorched by lava — you are slowed!', frenoIco: '🔥',
+      golpe: { alcance: 62, cada: 1200 }, poder: [3600, 5400], ancho: 50, alto: 14, cabeza: 72,
+      vuelveMs: 6 * 60 * 1000, color: 0xff7a1a
+    },
+    golem_magma: {
+      arte: 'golem_magma', molde: 'golem', nombre: 'Magma Golem', vida: 420, escala: 2, sombra: 1.9,
+      vel: 34, velCaza: 60, vista: 420, olvida: 800, correa: 760,
+      tex: { roca: 'gfm_roca_magma' }, poderes: ['meteoro', 'erupcion'], freno: 'Scorched by lava — you are slowed!', frenoIco: '🔥',
+      golpe: { alcance: 78, cada: 1900 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 124,
+      vuelveMs: 9 * 60 * 1000, color: 0xff5a1a
+    },
+    // LA HONDONADA DE GLOWCAP (17)
+    hongo_andante: {
+      arte: 'hongo_andante', molde: 'lobo', nombre: 'Walking Mushroom', vida: 340, escala: 2, sombra: 1.5,
+      vel: 34, velCaza: 78, vista: 420, olvida: 800, correa: 780, grito: 'esporas',
+      poderes: ['esporas', 'brote'], freno: 'Choking spores — you are slowed!', frenoIco: '🍄',
+      golpe: { alcance: 58, cada: 1400 }, poder: [3400, 5200], ancho: 40, alto: 14, cabeza: 112,
+      vuelveMs: 7 * 60 * 1000, color: 0xa87aff
+    },
+    polilla_luz: {
+      arte: 'polilla_luz', molde: 'lobo', flota: true, nombre: 'Light Moth', vida: 300, escala: 2, sombra: 1.3,
+      vel: 60, velCaza: 140, vista: 460, olvida: 840, correa: 820, grito: 'zumbido',
+      poderes: ['vendaval'], freno: 'Caught in the gale — you are slowed!', frenoIco: '✨',
+      golpe: { alcance: 60, cada: 1200 }, poder: [3400, 5200], ancho: 40, alto: 14, cabeza: 128,
+      vuelveMs: 6 * 60 * 1000, color: 0x9ad8ff
+    },
+
+    // Sus jefes (gf-jefes.js: PuertoScene … HongosScene).
+    jefe_cangrejo: {
+      arte: 'jefe_cangrejo', molde: 'golem', jefe: true, nombre: 'Krakenclaw, the Tide Tyrant', vida: 3400, escala: 2, sombra: 3.6,
+      vel: 30, velCaza: 56, vista: 540, olvida: 1000, correa: 1100,
+      tex: { roca: 'gfm_roca_coral' }, poderes: ['marea'], freno: 'Swept by the tide — you are slowed!', frenoIco: '🌊',
+      golpe: { alcance: 120, cada: 1700 }, poder: [2400, 3800], ancho: 96, alto: 28, cabeza: 170,
+      vuelveMs: 30 * 60 * 1000, color: 0x5fc8e8
+    },
+    jefe_sapo: {
+      arte: 'jefe_sapo', molde: 'lobo', jefe: true, nombre: 'Grogmaw, the Bog Sovereign', vida: 3600, escala: 2, sombra: 3.0,
+      vel: 36, velCaza: 110, vista: 540, olvida: 1000, correa: 1100, grito: 'croar',
+      poderes: ['nube_toxica'], freno: 'Toxic fumes — you are slowed!', frenoIco: '☠',
+      golpe: { alcance: 100, cada: 1400 }, poder: [2400, 3800], ancho: 84, alto: 24, cabeza: 160,
+      vuelveMs: 30 * 60 * 1000, color: 0x9acd3a
+    },
+    jefe_coloso: {
+      arte: 'jefe_coloso', molde: 'golem', jefe: true, nombre: 'Solarion, the Sun Colossus', vida: 3800, escala: 2, sombra: 3.4,
+      vel: 28, velCaza: 52, vista: 540, olvida: 1000, correa: 1100,
+      tex: { roca: 'gfm_roca_ruina' }, poderes: ['rayo_solar'], freno: 'Blinded by sunlight — you are slowed!', frenoIco: '☀',
+      golpe: { alcance: 120, cada: 1800 }, poder: [2400, 3800], ancho: 90, alto: 28, cabeza: 280,
+      vuelveMs: 30 * 60 * 1000, color: 0xffc24a
+    },
+    jefe_ciervo: {
+      arte: 'jefe_ciervo', molde: 'lobo', jefe: true, nombre: 'Emberhorn, the Autumn Stag', vida: 4000, escala: 2, sombra: 3.0,
+      vel: 54, velCaza: 150, vista: 560, olvida: 1050, correa: 1150, grito: 'rugido',
+      poderes: ['vendaval'], freno: 'Caught in the gale — you are slowed!', frenoIco: '🍂',
+      golpe: { alcance: 100, cada: 1300 }, poder: [2400, 3800], ancho: 76, alto: 22, cabeza: 230,
+      vuelveMs: 30 * 60 * 1000, color: 0xe8913a
+    },
+    jefe_gorila: {
+      arte: 'jefe_gorila', molde: 'golem', jefe: true, nombre: 'Ironpalm, the Canopy King', vida: 4200, escala: 2, sombra: 3.2,
+      vel: 36, velCaza: 70, vista: 540, olvida: 1000, correa: 1100,
+      tex: { roca: 'gfm_roca_musgo' }, poderes: ['zarpazo'],
+      golpe: { alcance: 116, cada: 1500 }, poder: [2400, 3800], ancho: 84, alto: 26, cabeza: 220,
+      vuelveMs: 30 * 60 * 1000, color: 0x4ac86a
+    },
+    jefe_dragon: {
+      arte: 'jefe_dragon', molde: 'lobo', jefe: true, nombre: 'Cindermaw, the Ash Dragon', vida: 4500, escala: 2, sombra: 3.8,
+      vel: 46, velCaza: 120, vista: 560, olvida: 1050, correa: 1150, grito: 'rugido',
+      tex: { roca: 'gfm_roca_magma' }, poderes: ['meteoro', 'erupcion'], freno: 'Scorched by lava — you are slowed!', frenoIco: '🔥',
+      golpe: { alcance: 110, cada: 1300 }, poder: [2400, 3800], ancho: 96, alto: 26, cabeza: 210,
+      vuelveMs: 30 * 60 * 1000, color: 0xff7a1a
+    },
+    jefe_micelio: {
+      arte: 'jefe_micelio', molde: 'golem', jefe: true, nombre: 'The Mycelium Queen', vida: 4800, escala: 2, sombra: 3.2,
+      vel: 26, velCaza: 50, vista: 540, olvida: 1000, correa: 1100,
+      tex: { roca: 'gfm_roca_musgo' }, poderes: ['esporas', 'brote'], freno: 'Choking spores — you are slowed!', frenoIco: '🍄',
+      golpe: { alcance: 116, cada: 1800 }, poder: [2400, 3800], ancho: 84, alto: 26, cabeza: 260,
+      vuelveMs: 30 * 60 * 1000, color: 0xa87aff
     }
   };
   /* (2026-10-20) Lo que gf-jefes.js necesita de aquí para sus poderes. */
@@ -396,6 +562,40 @@
         dur = 1.1; o.type = 'triangle';
         o.frequency.setValueAtTime(880, t0); o.frequency.exponentialRampToValueAtTime(220, t0 + dur);
         g.gain.exponentialRampToValueAtTime(0.12 * vol, t0 + 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'croar') {
+        // (2026-11-21) Los de los siete reinos. El sapo: dos croacs graves.
+        dur = 0.5; o.type = 'square';
+        o.frequency.setValueAtTime(170, t0); o.frequency.linearRampToValueAtTime(120, t0 + 0.18);
+        o.frequency.setValueAtTime(160, t0 + 0.24); o.frequency.linearRampToValueAtTime(110, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.06 * vol, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.003 * vol, t0 + 0.2);
+        g.gain.exponentialRampToValueAtTime(0.06 * vol, t0 + 0.26); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'rugido') {
+        // Oso, pantera, ciervo, dragón: un gruñido grave que baja.
+        dur = 1.0; o.type = 'sawtooth';
+        o.frequency.setValueAtTime(120, t0); o.frequency.linearRampToValueAtTime(96, t0 + 0.4); o.frequency.linearRampToValueAtTime(64, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.11 * vol, t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'zumbido') {
+        // Escarabajo y polilla: un zumbido que va y viene.
+        dur = 0.8; o.type = 'sawtooth';
+        o.frequency.setValueAtTime(200, t0);
+        for (var z = 1; z <= 6; z++) o.frequency.linearRampToValueAtTime(z % 2 ? 236 : 198, t0 + z * dur / 6);
+        g.gain.exponentialRampToValueAtTime(0.045 * vol, t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'ola') {
+        dur = 1.1; o.type = 'triangle';
+        o.frequency.setValueAtTime(260, t0); o.frequency.exponentialRampToValueAtTime(70, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.1 * vol, t0 + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'cadena') {
+        dur = 0.35; o.type = 'square';
+        o.frequency.setValueAtTime(980, t0); o.frequency.exponentialRampToValueAtTime(520, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.04 * vol, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'sol') {
+        dur = 0.7; o.type = 'sine';
+        o.frequency.setValueAtTime(600, t0); o.frequency.exponentialRampToValueAtTime(1300, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.07 * vol, t0 + 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'viento') {
+        dur = 1.2; o.type = 'sine';
+        o.frequency.setValueAtTime(180, t0); o.frequency.linearRampToValueAtTime(420, t0 + 0.5); o.frequency.linearRampToValueAtTime(160, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.07 * vol, t0 + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       } else {                                             // rugido de piedra
         dur = 1.2; o.type = 'square';
         o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(48, t0 + dur);
@@ -770,9 +970,22 @@
     }, fin: function () { m.spr.setScale(m.def.escala); } };
   }
 
+  /* (2026-11-21) Los gritos de los "lobos" de los siete reinos (los que se
+     lanzan): su sonido, su icono y lo que se avisa. Un jefe va sin "A". */
+  var GRITOS = {
+    croar:   { son: 'croar',   ico: '🐸', txt: 'croaks — the bog stirs!' },
+    rugido:  { son: 'rugido',  ico: '🐾', txt: 'roars — it is coming for you!' },
+    zumbido: { son: 'zumbido', ico: '✨', txt: 'hums — the swarm wakes!' },
+    lava:    { son: 'siseo',   ico: '🔥', txt: 'hisses — the lava stirs!' },
+    esporas: { son: 'siseo',   ico: '🍄', txt: 'puffs — the hollow wakes!' }
+  };
   function loboAullido(st, m) {
     var scene = st.scene;
-    if (cercaDeMi(st, m.x, m.y, 1100)) {
+    var gr = m.def.grito && Object.prototype.hasOwnProperty.call(GRITOS, m.def.grito) ? GRITOS[m.def.grito] : null;
+    if (gr && cercaDeMi(st, m.x, m.y, 1100)) {
+      sonar(scene, gr.son);
+      aviso(scene, gr.ico + ' ' + (m.def.jefe ? '' : 'A ') + m.def.nombre + ' ' + gr.txt, 'warning');
+    } else if (cercaDeMi(st, m.x, m.y, 1100)) {
       if (m.def.grito === 'gemido') {
         sonar(scene, 'gemido');
         aviso(scene, '🧟 A ' + m.def.nombre + ' groans — the dead are waking!', 'warning');
@@ -825,9 +1038,8 @@
     }, onComplete: function () {
       soltarEfimero(st, gota);
       if (!st.vivo) return;
-      if (st.charcos.length >= 6) { var viejo = st.charcos.shift(); soltarEfimero(st, viejo.img); }
       var img = efimero(st, scene.add.image(tx, ty, tex(m, 'savia')).setScale(1.2).setDepth(2.6).setAlpha(0.95));
-      st.charcos.push({ x: tx, y: ty, hasta: scene.time.now + 6000, img: img, picado: false, aviso: m.def.freno || null });
+      ponerCharco(st, { x: tx, y: ty, hasta: scene.time.now + 6000, img: img, aviso: m.def.freno || null, ico: m.def.frenoIco });
     } });
   }
 
@@ -883,12 +1095,22 @@
        petalos        un torbellino de pétalos que gira y corta (la dríade)
        espinos        una ráfaga de espinas (el jabalí) */
   var PODER_TEX = { bola_nieve: ['roca'], derrumbe: ['roca'], espinos: ['espina'] };
+  // (2026-11-21) Los dibujos propios de los poderes de los siete reinos
+  // (claves de GFMonstruosArte SUELTAS): se cargan solo en el mapa que los usa.
+  var PODER_SUELTAS = {
+    marea: ['gfm_ola'], ancla: ['gfm_ancla'], nube_toxica: ['gfm_nube_toxica'], maldicion: ['gfm_sello'],
+    rayo_solar: ['gfm_rayo_sol'], zarpazo: ['gfm_zarpazo'], vendaval: ['gfm_viento'], emboscada: ['gfm_zarpazo'],
+    dardos: ['gfm_dardo'], erupcion: ['gfm_geiser'], meteoro: ['gfm_meteoro'], esporas: ['gfm_nube_esporas'],
+    brote: ['gfm_brote']
+  };
 
-  function frenar(st, ms, texto) {
+  /** Frena a MI jugador `ms`. (2026-11-21) Con su icono, y nunca a un fantasma. */
+  function frenar(st, ms, texto, icono) {
     var scene = st.scene;
+    if (fantasma()) return;
     scene._frenoHasta = Math.max(scene._frenoHasta || 0, scene.time.now + ms);
     var ahora = Date.now();
-    if (texto && ahora - (st.avisoFrenoEn || 0) > 2500) { st.avisoFrenoEn = ahora; aviso(scene, '❄ ' + texto, 'warning'); }
+    if (texto && ahora - (st.avisoFrenoEn || 0) > 2500) { st.avisoFrenoEn = ahora; aviso(scene, (icono || '❄') + ' ' + texto, 'warning'); }
   }
 
   function texturasPoderes(scene) {
@@ -927,6 +1149,22 @@
       g.addColorStop(0, 'rgba(255,170,210,0)'); g.addColorStop(0.6, 'rgba(255,190,230,0.9)'); g.addColorStop(1, 'rgba(255,240,250,0.95)');
       x.strokeStyle = g; x.lineWidth = 4;
       x.beginPath(); x.ellipse(4, h / 2, w - 8, h / 2 - 4, 0, -Math.PI / 2, Math.PI / 2); x.stroke();
+    });
+    // (2026-11-21) Los de los siete reinos: dos rayas que suben (verde y de
+    // lava; rayas, nunca puntos) y un brillo redondo que se tiñe.
+    var raya = function (clave, c0, c1) {
+      lienzo(clave, 4, 22, function (x, w, h) {
+        var g = x.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, c0); g.addColorStop(0.7, c1); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+      });
+    };
+    raya('gfsv_raya_verde', '#e8ffb0', 'rgba(154,255,90,0.8)');
+    raya('gfsv_raya_lava', '#fff2b8', 'rgba(255,122,26,0.85)');
+    lienzo('gfsv_brillo', 64, 64, function (x, w, h) {
+      var g = x.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.45, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, h);
     });
   }
 
@@ -1118,6 +1356,422 @@
     }, onComplete: function () { petalos.forEach(function (p) { soltarEfimero(st, p.spr); }); } });
   }
 
+  // ── LOS PODERES DE LOS SIETE REINOS (2026-11-21) ─────────────────────────
+  /* "Nuevos poderes los enemigos." Trece, con sus dibujos
+     (Game/Sprites/monstruos/efectos/, tools/generar-reinos-criaturas.py) y,
+     como los demás, sin motas: olas, columnas, nubes lisas, tajos, espirales.
+     El anfitrión decide y anuncia; todos lo dibujan y cada uno mira si le
+     alcanza a SU jugador (el daño lo pone el servidor: 'monstruo_poder').
+       marea        una ola que avanza y te arrastra (el cangrejo, Krakenclaw)
+       ancla        el ancla con su cadena: si te engancha, te acerca (el pirata)
+       nube_toxica  una nube que se queda en el suelo, quema y frena (el sapo, Grogmaw)
+       maldicion    un sello bajo tus pies que se cierra (la bruja del pantano)
+       rayo_solar   tres columnas de luz en fila hacia ti (gólem del templo, escarabajo, Solarion)
+       zarpazo      se lanza un paso y da tres tajos (oso, pantera, Ironpalm)
+       vendaval     un remolino que corre recto y te empuja (espantapájaros, polilla, Emberhorn)
+       emboscada    se funde con las hojas y sale detrás de ti (la pantera)
+       dardos       un abanico de cinco dardos envenenados (el chamán)
+       erupcion     tres géiseres de lava donde marcó (salamandra, gólem de magma, Cindermaw)
+       meteoro      una roca encendida cae del cielo (gólem de magma, Cindermaw)
+       esporas      revienta una nube de esporas a su alrededor (la seta, la Reina)
+       brote        brotan setas bajo tus pies y te atrapan (la seta, la Reina) */
+
+  /** La textura, o la de respaldo (un PNG sin subir no rompe el poder: se ve luz). */
+  function texDe(scene, clave, otra) {
+    if (scene.textures.exists(clave)) return clave;
+    return otra && scene.textures.exists(otra) ? otra : 'gfsv_polvo';
+  }
+  /** ¿(x, y) está a menos de `r` del monstruo? (lo anunciado tiene que ser de él) */
+  function cercaM(m, x, y, r) { return Math.hypot(x - m.x, y - m.y) <= r; }
+  /** Un charco o una nube que frena (y, si lleva `dano`, quema cada `cada` ms). */
+  function ponerCharco(st, c) {
+    while (st.charcos.length >= 6) soltarCharco(st, st.charcos.shift());
+    c.picado = false; c.ultimo = 0;
+    st.charcos.push(c);
+  }
+  function soltarCharco(st, c) {
+    [c.img].concat(c.extra || []).forEach(function (o) {
+      if (!o) return;
+      try { st.scene.tweens.killTweensOf(o); } catch (e) {}
+      soltarEfimero(st, o);
+    });
+  }
+
+  function pxMarea(st, m, d) {
+    var scene = st.scene, ang = d.a, t0 = scene.time.now;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(ang), Math.sin(ang));
+    m.accion = { hasta: t0 + 700, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'ola');
+    var ux = Math.cos(ang), uy = Math.sin(ang), lado = ux < 0;
+    var giro = (lado ? -1 : 1) * Math.asin(Math.max(-1, Math.min(1, uy))) * 0.4;
+    var x0 = m.x + ux * 46, y0 = m.y + uy * 34, dado = false, fin = false, LARGO = 560;
+    // La ola y su eco (más pálido, detrás), y la espuma en el suelo.
+    var olas = [0, 1].map(function (k) {
+      return efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_ola')).setOrigin(0.5, 0.78)
+        .setFlipX(lado).setRotation(giro).setScale(0.6).setAlpha(k ? 0.45 : 1).setDepth(y0 + 1));
+    });
+    var espuma = efimero(st, scene.add.image(x0, y0, 'gfsv_onda').setScale(0.6, 0.3).setTint(0xdff8ff).setAlpha(0.7).setDepth(2.7));
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 1500, ease: 'Sine.easeOut', onUpdate: function (tw) {
+      if (fin || !olas[0].scene) return;
+      var u = tw.getValue(), rec = u * LARGO, k = 0.9 + u * 0.8, a = u > 0.8 ? (1 - u) * 5 : 1;
+      var x = x0 + ux * rec, y = y0 + uy * rec * 0.85, atras = Math.max(0, rec - 46);
+      olas[0].setPosition(x, y).setScale(k).setDepth(y + 1).setAlpha(a);
+      olas[1].setPosition(x0 + ux * atras, y0 + uy * atras * 0.85).setScale(k * 0.8).setDepth(y).setAlpha(a * 0.45);
+      espuma.setPosition(x - ux * 20, y - uy * 14).setScale(0.6 + u * 1.2, 0.3 + u * 0.5).setAlpha(0.6 * (1 - u));
+      var p = pies(scene);
+      if (!dado && Math.hypot(p.x - x, p.y - y) < 30 + 18 * k) {
+        dado = true;
+        golpearJugador(st, 'monstruo_poder', x - ux * 30, y - uy * 30, 56);
+        frenar(st, 1000, m.def.freno, m.def.frenoIco);
+      }
+      if (u > 0.08 && !libre(scene, x, y, 20, 8)) { fin = true; tw.stop(); }
+    }, onComplete: function () { acaba(); }, onStop: function () { acaba(); } });
+    function acaba() {
+      if (!st.vivo || !olas[0].scene) return;
+      onda(st, olas[0].x, olas[0].y, 0.7);
+      olas.forEach(function (o) { soltarEfimero(st, o); });
+      soltarEfimero(st, espuma);
+    }
+  }
+
+  function pxAncla(st, m, d) {
+    var scene = st.scene, tx = d.x, ty = d.y, t0 = scene.time.now;
+    animar(m, 'ataque');
+    orientar(m, tx - m.x, ty - m.y);
+    m.accion = { hasta: t0 + 1100, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'cadena');
+    marca(st, tx, ty, 30, 12, m.def.color || 0x7ad8c8, 650);
+    var x0 = m.x, y0 = m.y - 64;
+    var ancla = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_ancla', 'gfm_roca')).setScale(1.3).setDepth(9000));
+    var cadena = efimero(st, scene.add.graphics().setDepth(8999));
+    var pintaCadena = function () {
+      if (!cadena.scene || !ancla.scene) return;
+      var hx = m.x + (ancla.x > m.x ? 14 : -14), hy = m.y - 64;
+      cadena.clear().lineStyle(3, 0x2a3038, 0.95).lineBetween(hx, hy, ancla.x, ancla.y - 14)
+            .lineStyle(1, 0x8a96a4, 0.9).lineBetween(hx, hy - 1, ancla.x, ancla.y - 15);
+    };
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 650, ease: 'Linear', onUpdate: function (tw) {
+      if (!ancla.scene) return;
+      var u = tw.getValue();
+      ancla.setPosition(x0 + (tx - x0) * u, y0 + (ty - 4 - y0) * u - Math.sin(u * Math.PI) * 120)
+           .setRotation((tx < x0 ? -1 : 1) * u * Math.PI * 2);
+      pintaCadena();
+    }, onComplete: function () {
+      if (!st.vivo || !ancla.scene) return;
+      ancla.setRotation(0).setDepth(ty);
+      onda(st, tx, ty, 0.5);
+      if (cercaDeMi(st, tx, ty, 500)) { try { scene.cameras.main.shake(110, 0.004); } catch (e) {} }
+      var p = pies(scene);
+      if (m.vivo && Math.hypot(p.x - tx, p.y - ty) < 48) {
+        // Enganchado: te arrastra hacia él por pasos (nunca dentro de una
+        // pared) y te deja a un paso de él, no encima.
+        var dx = m.x - p.x, dy = m.y - p.y, dd = Math.hypot(dx, dy) || 1;
+        golpearJugador(st, 'monstruo_poder', p.x - dx / dd * 40, p.y - dy / dd * 40, Math.max(0, Math.min(110, dd - 70)));
+        frenar(st, 1200, m.def.freno, m.def.frenoIco);
+      }
+      // Recoge el ancla.
+      scene.tweens.add({ targets: ancla, x: m.x, y: m.y - 50, alpha: 0.2, delay: 220, duration: 380, ease: 'Quad.easeIn',
+        onUpdate: pintaCadena, onComplete: function () { soltarEfimero(st, ancla); soltarEfimero(st, cadena); } });
+    } });
+  }
+
+  function pxNube(st, m, d) {
+    var scene = st.scene, tx = d.x, ty = d.y, t0 = scene.time.now;
+    animar(m, 'ataque');
+    orientar(m, tx - m.x, ty - m.y);
+    m.accion = { hasta: t0 + 650, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'croar');
+    marca(st, tx, ty, 74, 28, m.def.color || 0x9acd3a, 700);
+    var x0 = m.x, y0 = m.y - 30;
+    var bola = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_nube_toxica')).setScale(0.35).setDepth(9000));
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 700, onUpdate: function (tw) {
+      if (!bola.scene) return;
+      var u = tw.getValue();
+      bola.setPosition(x0 + (tx - x0) * u, y0 + (ty - 20 - y0) * u - Math.sin(u * Math.PI) * 110).setScale(0.35 + u * 0.5);
+    }, onComplete: function () {
+      soltarEfimero(st, bola);
+      if (!st.vivo) return;
+      // Se posa: tres nubes lisas que respiran y se quedan unos segundos.
+      var nubes = [[0, 0, 1.5], [-46, 6, 1.15], [44, 8, 1.2]].map(function (q, k) {
+        var o = efimero(st, scene.add.image(tx + q[0], ty - 14 + q[1], texDe(scene, 'gfm_nube_toxica')).setScale(0.4).setAlpha(0).setDepth(ty + 4 + k));
+        scene.tweens.add({ targets: o, scale: q[2], alpha: 0.82, duration: 380, ease: 'Quad.easeOut' });
+        scene.tweens.add({ targets: o, y: o.y - 8, x: o.x + (k - 1) * 6, duration: 1500, yoyo: true, repeat: 1, ease: 'Sine.easeInOut' });
+        return o;
+      });
+      ponerCharco(st, { x: tx, y: ty, rx: 82, ry: 32, hasta: scene.time.now + 4600, img: nubes[0], extra: nubes.slice(1),
+                        aviso: m.def.freno, ico: m.def.frenoIco, dano: 'monstruo_poder', cada: 1300 });
+    } });
+  }
+
+  function pxMaldicion(st, m, d) {
+    var scene = st.scene, cx = d.x, cy = d.y, t0 = scene.time.now;
+    animar(m, 'ataque');
+    m.accion = { hasta: t0 + 900, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    var sello = efimero(st, scene.add.image(cx, cy, texDe(scene, 'gfm_sello')).setDepth(2.9).setScale(0.3).setAlpha(0));
+    scene.tweens.add({ targets: sello, scale: 1.55, alpha: 0.95, duration: 380, ease: 'Back.easeOut' });
+    var brillo = efimero(st, scene.add.image(cx, cy, 'gfsv_brillo').setDepth(2.95).setScale(2.4, 1.0).setTint(m.def.color || 0x9aff5a).setAlpha(0));
+    brillo.setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({ targets: brillo, alpha: 0.55, duration: 1100, ease: 'Quad.easeIn' });
+    scene.time.delayedCall(1150, function () {
+      if (!st.vivo) return;
+      // Se cierra de golpe y suben rayas verdes por el borde.
+      scene.tweens.add({ targets: [sello, brillo], scaleX: 0.2, scaleY: 0.1, alpha: 0, duration: 260, ease: 'Quad.easeIn',
+        onComplete: function () { soltarEfimero(st, sello); soltarEfimero(st, brillo); } });
+      for (var k = 0; k < 7; k++) {
+        var a = k / 7 * Math.PI * 2, rx = cx + Math.cos(a) * 58, ry = cy + Math.sin(a) * 24;
+        var r = efimero(st, scene.add.image(rx, ry, 'gfsv_raya_verde').setDepth(ry + 2).setScale(1.2, 1.6).setAlpha(0.95));
+        r.setBlendMode(Phaser.BlendModes.ADD);
+        scene.tweens.add({ targets: r, y: ry - 70, alpha: 0, duration: 620 + k * 30, ease: 'Sine.easeOut', onComplete: function (tw, tg) { soltarEfimero(st, tg[0]); } });
+      }
+      var p = pies(scene), dx = (p.x - cx) / 72, dy = (p.y - cy) / 32;
+      if (dx * dx + dy * dy < 1) { golpearJugador(st, 'monstruo_poder', cx, cy, 8); frenar(st, 2200, m.def.freno, m.def.frenoIco); }
+    });
+  }
+
+  function pxRayoSolar(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, ult = d.pts[d.pts.length - 1];
+    animar(m, 'ataque');
+    orientar(m, ult[0] - m.x, ult[1] - m.y);
+    m.accion = { hasta: t0 + 800, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'sol');
+    var dado = false;
+    d.pts.forEach(function (pt, k) {
+      var x = pt[0], y = pt[1], espera = 650 + k * 200;
+      marca(st, x, y, 34, 13, 0xffc24a, espera);
+      scene.time.delayedCall(espera, function () {
+        if (!st.vivo) return;
+        var col = efimero(st, scene.add.image(x, y + 4, texDe(scene, 'gfm_rayo_sol', 'gfm_rayo')).setOrigin(0.5, 1).setDepth(9000).setScale(1.25, 0.15));
+        col.setBlendMode(Phaser.BlendModes.ADD);
+        scene.tweens.add({ targets: col, scaleY: 1.35, duration: 120, ease: 'Quad.easeOut' });
+        scene.tweens.add({ targets: col, alpha: 0, scaleX: 0.5, delay: 200, duration: 360, onComplete: function () { soltarEfimero(st, col); } });
+        var luz = efimero(st, scene.add.image(x, y, 'gfsv_brillo').setDepth(2.95).setScale(1.8, 0.8).setTint(0xffd27a).setAlpha(0.9));
+        luz.setBlendMode(Phaser.BlendModes.ADD);
+        scene.tweens.add({ targets: luz, alpha: 0, scaleX: 2.6, scaleY: 1.1, duration: 520, onComplete: function () { soltarEfimero(st, luz); } });
+        onda(st, x, y, 0.45);
+        if (k === 0 && cercaDeMi(st, x, y, 600)) { try { scene.cameras.main.flash(70, 255, 236, 180); } catch (e) {} }
+        var p = pies(scene);
+        if (!dado && Math.hypot(p.x - x, p.y - y) < 42) { dado = true; golpearJugador(st, 'monstruo_poder', x, y, 22); frenar(st, 800, m.def.freno, m.def.frenoIco); }
+      });
+    });
+  }
+
+  /** Tres tajos (el dibujo) delante de (fx, fy). */
+  function tajos(st, fx, fy, prof, izquierda) {
+    var scene = st.scene;
+    var z = efimero(st, scene.add.image(fx, fy - 34, texDe(scene, 'gfm_zarpazo')).setDepth(prof).setScale(0.6)
+      .setFlipX(izquierda).setRotation((izquierda ? -1 : 1) * 0.35));
+    scene.tweens.add({ targets: z, scale: 1.7, alpha: 0, duration: 340, ease: 'Quad.easeOut', onComplete: function () { soltarEfimero(st, z); } });
+  }
+
+  function pxZarpazo(st, m, d) {
+    var scene = st.scene, ang = d.a, t0 = scene.time.now;
+    var anfitrion = !st.red || st.red.esHost();
+    var ux = Math.cos(ang), uy = Math.sin(ang), hecho = false;
+    animar(m, 'quieto');
+    orientar(m, ux, uy);
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'rugido');
+    m.accion = { hasta: t0 + 640, cada: function (t, seg) {
+      if (t < t0 + 160) return;
+      if (t < t0 + 380) {                            // el salto (lo mueve el anfitrión)
+        animar(m, 'ataque');
+        if (anfitrion) mover(st, m, ux * 300, uy * 300, seg);
+        return;
+      }
+      if (hecho) return;
+      hecho = true;
+      var fx = m.x + ux * 52, fy = m.y + uy * 34;
+      tajos(st, fx, fy, m.y + 3, ux < 0);
+      if (cercaDeMi(st, fx, fy, 500)) { try { scene.cameras.main.shake(120, 0.005); } catch (e) {} }
+      var p = pies(scene);
+      if (Math.hypot(p.x - fx, p.y - fy) < 74) golpearJugador(st, 'monstruo_poder', m.x, m.y, 44);
+    } };
+  }
+
+  function pxVendaval(st, m, d) {
+    var scene = st.scene, ang = d.a, t0 = scene.time.now;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(ang), Math.sin(ang));
+    m.accion = { hasta: t0 + 600, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'viento');
+    var ux = Math.cos(ang), uy = Math.sin(ang);
+    var x0 = m.x + ux * 40, y0 = m.y + uy * 30, dado = false, fin = false, LARGO = 640;
+    var rem = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_viento')).setOrigin(0.6, 0.85).setFlipX(ux < 0).setScale(0.8).setAlpha(0).setDepth(y0 + 2));
+    var polvo = efimero(st, scene.add.image(x0, y0, 'gfsv_polvo').setScale(1.2, 0.6).setAlpha(0).setDepth(2.7));
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 1800, ease: 'Linear', onUpdate: function (tw) {
+      if (fin || !rem.scene) return;
+      // Recto, con un vaivén de lado a lado (perpendicular a la marcha).
+      var u = tw.getValue(), rec = u * LARGO, va = Math.sin(u * Math.PI * 4) * 16;
+      var x = x0 + ux * rec - uy * va, y = y0 + uy * rec * 0.85 + ux * va * 0.5;
+      var a = u > 0.85 ? (1 - u) / 0.15 : Math.min(1, u * 8);
+      rem.setPosition(x, y).setDepth(y + 2).setScale(1.1 + 0.15 * Math.sin(u * 40)).setAlpha(0.95 * a);
+      polvo.setPosition(x, y).setScale(1.3 + 0.2 * Math.sin(u * 30), 0.6).setAlpha(0.45 * a);
+      var p = pies(scene);
+      if (!dado && Math.hypot(p.x - x, p.y - y) < 46) {
+        dado = true;
+        golpearJugador(st, 'monstruo_poder', x - ux * 40, y - uy * 40, 76);
+        frenar(st, 900, m.def.freno, m.def.frenoIco);
+      }
+      if (u > 0.06 && !libre(scene, x, y, 18, 8)) { fin = true; tw.stop(); }
+    }, onComplete: function () { acaba(); }, onStop: function () { acaba(); } });
+    function acaba() { if (rem.scene) { soltarEfimero(st, rem); soltarEfimero(st, polvo); } }
+  }
+
+  function pxEmboscada(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y, tx = d.tx, ty = d.ty;
+    m.accion = { hasta: t0 + 1000, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    animar(m, 'quieto');
+    // Las hojas se mueven donde estaba (rayas verdes que suben).
+    for (var k = 0; k < 5; k++) {
+      var r = efimero(st, scene.add.image(m.x + (k - 2) * 16, m.y - 20 - (k % 2) * 14, 'gfsv_raya_verde').setDepth(m.y + 2).setAlpha(0.8).setRotation((k - 2) * 0.3));
+      scene.tweens.add({ targets: r, y: r.y - 40, alpha: 0, duration: 520, onComplete: function (tw, tg) { soltarEfimero(st, tg[0]); } });
+    }
+    scene.tweens.add({ targets: m.spr, alpha: 0.08, duration: 260 });
+    m.sombra.setAlpha(0.15);
+    scene.time.delayedCall(520, function () {
+      if (!st.vivo || !m.vivo) return;
+      m.x = x; m.y = y; m.objX = x; m.objY = y;
+      colocar(st, m, scene.time.now);
+    });
+    scene.time.delayedCall(640, function () {
+      if (!st.vivo || !m.vivo) return;
+      var ux = tx - x, uy = ty - y, L = Math.hypot(ux, uy) || 1;
+      ux /= L; uy /= L;
+      orientar(m, ux, uy);
+      animar(m, 'ataque');
+      scene.tweens.add({ targets: m.spr, alpha: 1, duration: 140 });
+      m.sombra.setAlpha(0.85);
+      if (cercaDeMi(st, x, y, 900)) sonar(scene, 'rugido');
+      var fx = x + ux * 48, fy = y + uy * 32;
+      tajos(st, fx, fy, y + 3, ux < 0);
+      var p = pies(scene);
+      if (Math.hypot(p.x - fx, p.y - fy) < 72) golpearJugador(st, 'monstruo_poder', x, y, 40);
+    });
+  }
+
+  function pxDardos(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, bx = d.bx, by = d.by, base = d.a;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(base), Math.sin(base));
+    m.accion = { hasta: t0 + 560, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    scene.time.delayedCall(260, function () {
+      if (!st.vivo || !m.vivo) return;
+      for (var i = -2; i <= 2; i++) {
+        if (st.proyectiles.length >= 24) break;
+        var a = base + i * 0.16;
+        var spr = scene.add.image(bx, by, texDe(scene, 'gfm_dardo', tex(m, 'espina'))).setScale(0.9).setRotation(a).setDepth(m.y + 1);
+        st.proyectiles.push({ spr: spr, x: bx, y: by, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420, hasta: scene.time.now + 1500,
+                              alto: 30, motivo: 'monstruo_poder', freno: 1300, aviso: m.def.freno, ico: m.def.frenoIco });
+      }
+    });
+  }
+
+  function pxErupcion(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now;
+    animar(m, 'ataque');
+    m.accion = { hasta: t0 + 700, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    try { if (cercaDeMi(st, m.x, m.y, 700)) scene.cameras.main.shake(260, 0.004); } catch (e) {}
+    var dado = false;
+    d.pts.forEach(function (pt, k) {
+      var x = pt[0], y = pt[1], espera = 800 + k * 160;
+      marca(st, x, y, 32, 12, 0xff7a1a, espera);
+      // El suelo se enciende antes de reventar.
+      var brasa = efimero(st, scene.add.image(x, y, 'gfsv_brillo').setDepth(2.95).setScale(0.6, 0.25).setTint(0xff7a1a).setAlpha(0));
+      brasa.setBlendMode(Phaser.BlendModes.ADD);
+      scene.tweens.add({ targets: brasa, alpha: 0.9, scaleX: 1.2, scaleY: 0.5, duration: espera, ease: 'Quad.easeIn' });
+      scene.time.delayedCall(espera, function () {
+        if (!st.vivo) return;
+        var g = efimero(st, scene.add.image(x, y + 4, texDe(scene, 'gfm_geiser')).setOrigin(0.5, 1).setDepth(y + 2).setScale(1.0, 0.1));
+        scene.tweens.add({ targets: g, scaleY: 1.3, duration: 160, ease: 'Back.easeOut' });
+        scene.tweens.add({ targets: g, scaleY: 0.1, alpha: 0, delay: 560, duration: 280, onComplete: function () { soltarEfimero(st, g); } });
+        scene.tweens.add({ targets: brasa, alpha: 0, delay: 500, duration: 500, onComplete: function () { soltarEfimero(st, brasa); } });
+        var vapor = efimero(st, scene.add.image(x, y - 30, 'gfsv_polvo').setTint(0xffd8b0).setAlpha(0.55).setDepth(y + 3).setScale(0.8));
+        scene.tweens.add({ targets: vapor, y: y - 120, scale: 2.2, alpha: 0, delay: 300, duration: 900, onComplete: function () { soltarEfimero(st, vapor); } });
+        var p = pies(scene);
+        if (!dado && Math.hypot(p.x - x, p.y - y) < 40) { dado = true; golpearJugador(st, 'monstruo_poder', x, y, 34); frenar(st, 900, m.def.freno, m.def.frenoIco); }
+      });
+    });
+  }
+
+  function pxMeteoro(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y;
+    animar(m, 'ataque');
+    m.accion = { hasta: t0 + 800, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    marca(st, x, y, 62, 24, 0xff5a1a, 1150);
+    var luz = efimero(st, scene.add.image(x, y, 'gfsv_brillo').setDepth(2.95).setScale(1.2, 0.5).setTint(0xff8a3a).setAlpha(0.2));
+    luz.setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({ targets: luz, alpha: 0.85, scaleX: 2.6, scaleY: 1.05, duration: 1150, ease: 'Quad.easeIn' });
+    // Viene de arriba a la izquierda (su estela va detrás) y cae donde marcó.
+    var roca = efimero(st, scene.add.image(x - 380, y - 560, texDe(scene, 'gfm_meteoro', tex(m, 'roca'))).setOrigin(0.75, 0.73).setScale(1.3).setDepth(9000));
+    scene.tweens.add({ targets: roca, x: x, y: y - 6, scale: 1.6, duration: 1150, ease: 'Quad.easeIn', onComplete: function () {
+      if (!st.vivo) return;
+      soltarEfimero(st, roca);
+      scene.tweens.add({ targets: luz, alpha: 0, duration: 380, onComplete: function () { soltarEfimero(st, luz); } });
+      onda(st, x, y, 1.5);
+      if (cercaDeMi(st, x, y, 700)) { sonar(scene, 'roca'); try { scene.cameras.main.shake(320, 0.012); } catch (e) {} }
+      for (var c = 0; c < 8; c++) {
+        var a = -Math.PI + c / 7 * Math.PI, v = 60 + (c % 3) * 30;
+        var r = efimero(st, scene.add.image(x, y - 6, 'gfsv_raya_lava').setDepth(y + 3).setRotation(a + Math.PI / 2).setScale(1.2, 1.4));
+        r.setBlendMode(Phaser.BlendModes.ADD);
+        scene.tweens.add({ targets: r, x: x + Math.cos(a) * v, y: y - 6 + Math.sin(a) * v * 0.7, alpha: 0, duration: 460, onComplete: function (tw, tg) { soltarEfimero(st, tg[0]); } });
+      }
+      var p = pies(scene);
+      if (Math.hypot(p.x - x, p.y - y) < 66) golpearJugador(st, 'monstruo_poder', x, y, 54);
+    } });
+  }
+
+  function pxEsporas(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, ox = m.x, oy = m.y;
+    animar(m, 'ataque');
+    m.accion = { hasta: t0 + 900, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    marca(st, ox, oy, 170, 66, m.def.color || 0xa87aff, 480);
+    scene.time.delayedCall(480, function () {
+      if (!st.vivo) return;
+      for (var k = 0; k < 6; k++) {
+        var a = k / 6 * Math.PI * 2 + 0.3;
+        var o = efimero(st, scene.add.image(ox, oy - 20, texDe(scene, 'gfm_nube_esporas')).setScale(0.4).setAlpha(0.9).setDepth(oy + 4));
+        scene.tweens.add({ targets: o, x: ox + Math.cos(a) * 150, y: oy - 20 + Math.sin(a) * 62, scale: 1.3, alpha: 0, duration: 1300, ease: 'Quad.easeOut',
+          onComplete: function (tw, tg) { soltarEfimero(st, tg[0]); } });
+      }
+      // Lo que queda flotando un rato: frena, no quema.
+      var resto = efimero(st, scene.add.image(ox, oy - 10, texDe(scene, 'gfm_nube_esporas')).setScale(2.4, 1.6).setAlpha(0).setDepth(oy + 3));
+      scene.tweens.add({ targets: resto, alpha: 0.5, duration: 400 });
+      ponerCharco(st, { x: ox, y: oy, rx: 120, ry: 46, hasta: scene.time.now + 2600, img: resto, aviso: m.def.freno, ico: m.def.frenoIco });
+      var p = pies(scene), dx = (p.x - ox) / 170, dy = (p.y - oy) / 66;
+      if (dx * dx + dy * dy < 1) { golpearJugador(st, 'monstruo_poder', ox, oy, 26); frenar(st, 1600, m.def.freno, m.def.frenoIco); }
+    });
+  }
+
+  function pxBrote(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now;
+    animar(m, 'ataque');
+    m.accion = { hasta: t0 + 700, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    var dado = false;
+    d.pts.forEach(function (pt, k) {
+      var x = pt[0], y = pt[1];
+      scene.time.delayedCall(k * 130, function () {
+        if (!st.vivo) return;
+        marca(st, x, y, 22, 9, m.def.color || 0xa87aff, 420);
+        scene.time.delayedCall(420, function () {
+          if (!st.vivo) return;
+          var b = efimero(st, scene.add.image(x, y + 3, texDe(scene, 'gfm_brote')).setOrigin(0.5, 1).setDepth(y + 1).setScale(1.5, 0.1));
+          scene.tweens.add({ targets: b, scaleY: 1.6, duration: 150, ease: 'Back.easeOut' });
+          scene.tweens.add({ targets: b, scaleY: 0.1, alpha: 0, delay: 1000, duration: 260, onComplete: function () { soltarEfimero(st, b); } });
+          onda(st, x, y, 0.35);
+          var p = pies(scene);
+          if (!dado && Math.hypot(p.x - x, p.y - y) < 34) { dado = true; golpearJugador(st, 'monstruo_poder', x, y, 12); frenar(st, 1600, m.def.freno, m.def.frenoIco); }
+        });
+      });
+    });
+  }
+
   /** El anfitrión: ¿usa ahora uno de los poderes de su especie? */
   function poderExtra(st, m, dist, b, v, anunciar) {
     var lista = m.def.poderes, scene = st.scene;
@@ -1146,6 +1800,43 @@
       var bx = m.x + fr.x * 34, by = m.y - 24 + fr.y * 20;
       d = { bx: Math.round(bx), by: Math.round(by), a: Number(Math.atan2(b.y - 30 + v.y * 0.4 - by, b.x + v.x * 0.4 - bx).toFixed(3)) };
     }
+    // (2026-11-21) Los de los siete reinos.
+    else if (cual === 'marea' && dist < 560) d = { a: ang };
+    else if (cual === 'ancla' && dist > 110 && dist < 460) {
+      var la = Math.hypot(tx - m.x, ty - m.y) || 1, ka = Math.min(440, la) / la;
+      d = { x: Math.round(m.x + (tx - m.x) * ka), y: Math.round(m.y + (ty - m.y) * ka) };
+    } else if (cual === 'nube_toxica' && dist < 480) d = { x: Math.round(tx), y: Math.round(ty) };
+    else if (cual === 'maldicion' && dist < 520) d = { x: Math.round(tx), y: Math.round(ty) };
+    else if (cual === 'rayo_solar' && dist < 560) {
+      var lr = Math.min(520, Math.hypot(tx - m.x, ty - m.y) + 40);
+      d = { pts: [0.42, 0.71, 1].map(function (q) { return [Math.round(m.x + Math.cos(ang) * lr * q), Math.round(m.y + Math.sin(ang) * lr * q)]; }) };
+    } else if (cual === 'zarpazo' && dist < 170) d = { a: ang };
+    else if (cual === 'vendaval' && dist > 60 && dist < 600) d = { a: ang };
+    else if (cual === 'emboscada' && dist > 150 && dist < 520) {
+      // Detrás del blanco (según de dónde viene), en suelo libre y sin soltar la correa.
+      var ex = (b.x - m.x) / (dist || 1), ey = (b.y - m.y) / (dist || 1);
+      for (var q = 0; q < 10 && !d; q++) {
+        var desv = (q % 2 ? 1 : -1) * Math.floor((q + 1) / 2) * 0.3, rq = 70 + q * 6;
+        var ax = Math.cos(desv) * ex - Math.sin(desv) * ey, ay = Math.sin(desv) * ex + Math.cos(desv) * ey;
+        var qx = b.x + ax * rq, qy = b.y + ay * rq * 0.8;
+        if (libreM(scene, m, qx, qy) && Math.hypot(qx - m.casa.x, qy - m.casa.y) < m.def.correa) {
+          d = { x: Math.round(qx), y: Math.round(qy), tx: Math.round(b.x), ty: Math.round(b.y) };
+        }
+      }
+    } else if (cual === 'dardos' && dist < 420) {
+      var fd = frente(m), dbx = m.x + fd.x * 30, dby = m.y - 34 + fd.y * 20;
+      d = { bx: Math.round(dbx), by: Math.round(dby), a: Number(Math.atan2(b.y - 30 + v.y * 0.4 - dby, b.x + v.x * 0.4 - dbx).toFixed(3)) };
+    } else if (cual === 'erupcion' && dist < 520) {
+      d = { pts: [[Math.round(tx), Math.round(ty)],
+                  [Math.round(tx + entre(-90, -55)), Math.round(ty + entre(-36, 36))],
+                  [Math.round(tx + entre(55, 90)), Math.round(ty + entre(-36, 36))]] };
+    } else if (cual === 'meteoro' && dist < 640) d = { x: Math.round(tx), y: Math.round(ty) };
+    else if (cual === 'esporas' && dist < 200) d = {};
+    else if (cual === 'brote' && dist < 460) {
+      d = { pts: [[Math.round(tx), Math.round(ty)],
+                  [Math.round(tx + entre(-60, -36)), Math.round(ty + entre(-26, 26))],
+                  [Math.round(tx + entre(36, 60)), Math.round(ty + entre(-26, 26))]] };
+    }
     if (!d) return false;
     d.e = 'px'; d.q = cual;
     m.ultimoExtra = cual;
@@ -1168,6 +1859,27 @@
     else if (d.q === 'raices' && num(d.a)) pxRaices(st, m, { a: Number(d.a) });
     else if (d.q === 'petalos' && num(d.x) && num(d.y)) pxPetalos(st, m, { x: Number(d.x), y: Number(d.y) });
     else if (d.q === 'espinos' && num(d.bx) && num(d.by) && num(d.a)) aranaEspinas(st, m, Number(d.bx), Number(d.by), Number(d.a));
+    // (2026-11-21) Los de los siete reinos: números comprobados y, lo que
+    // cae en un sitio, cerca del monstruo (un anuncio raro no lo lleva lejos).
+    else if (d.q === 'marea' && num(d.a)) pxMarea(st, m, { a: Number(d.a) });
+    else if (d.q === 'ancla' && sitio(d.x, d.y, 600)) pxAncla(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'nube_toxica' && sitio(d.x, d.y, 700)) pxNube(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'maldicion' && sitio(d.x, d.y, 700)) pxMaldicion(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'rayo_solar' && puntos(d.pts, 700)) pxRayoSolar(st, m, { pts: puntos(d.pts, 700) });
+    else if (d.q === 'zarpazo' && num(d.a)) pxZarpazo(st, m, { a: Number(d.a) });
+    else if (d.q === 'vendaval' && num(d.a)) pxVendaval(st, m, { a: Number(d.a) });
+    else if (d.q === 'emboscada' && sitio(d.x, d.y, 900) && sitio(d.tx, d.ty, 900)) {
+      pxEmboscada(st, m, { x: Number(d.x), y: Number(d.y), tx: Number(d.tx), ty: Number(d.ty) });
+    } else if (d.q === 'dardos' && sitio(d.bx, d.by, 200) && num(d.a)) pxDardos(st, m, { bx: Number(d.bx), by: Number(d.by), a: Number(d.a) });
+    else if (d.q === 'erupcion' && puntos(d.pts, 760)) pxErupcion(st, m, { pts: puntos(d.pts, 760) });
+    else if (d.q === 'meteoro' && sitio(d.x, d.y, 800)) pxMeteoro(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'esporas') pxEsporas(st, m, {});
+    else if (d.q === 'brote' && puntos(d.pts, 700)) pxBrote(st, m, { pts: puntos(d.pts, 700) });
+    function sitio(x, y, r) { return num(x) && num(y) && cercaM(m, Number(x), Number(y), r); }
+    function puntos(l, r) {
+      if (!Array.isArray(l) || !l.length || !l.every(function (q) { return Array.isArray(q) && sitio(q[0], q[1], r); })) return null;
+      return l.slice(0, 3).map(function (q) { return [Number(q[0]), Number(q[1])]; });
+    }
   }
 
   /* LO QUE DECIDE EL ANFITRIÓN: el poder, sus números, y se anuncia. */
@@ -1396,6 +2108,7 @@
       var pared = !libre(scene, b.x, b.y + b.alto, 6, 4);
       if (toca || pared || t > b.hasta) {
         if (toca) golpearJugador(st, b.motivo, b.x - b.vx * 0.05, b.y - b.vy * 0.05, 18);
+        if (toca && b.freno) frenar(st, b.freno, b.aviso, b.ico);     // (2026-11-21) los dardos envenenados
         b.spr.destroy();
         st.proyectiles.splice(i, 1);
       }
@@ -1408,14 +2121,21 @@
       var c = st.charcos[i];
       if (t > c.hasta) {
         st.charcos.splice(i, 1);
-        (function (img) { scene.tweens.add({ targets: img, alpha: 0, duration: 400, onComplete: function () { soltarEfimero(st, img); } }); })(c.img);
+        // (2026-11-21) Con sus nubes de más (`extra`), y sin tweens vivos detrás.
+        (function (imgs) {
+          if (!imgs.length) return;
+          imgs.forEach(function (o) { try { scene.tweens.killTweensOf(o); } catch (e) {} });
+          scene.tweens.add({ targets: imgs, alpha: 0, duration: 400, onComplete: function () { imgs.forEach(function (o) { soltarEfimero(st, o); }); } });
+        })([c.img].concat(c.extra || []).filter(function (o) { return o && o.scene; }));
         continue;
       }
-      var dx = (pj.x - c.x) / 48, dy = (pj.y - c.y) / 18;
-      if (dx * dx + dy * dy < 1) {
+      // (2026-11-21) Su tamaño (`rx`, `ry`; los de savia, 48 x 18) y, si quema, cada cuánto.
+      var dx = (pj.x - c.x) / (c.rx || 48), dy = (pj.y - c.y) / (c.ry || 18);
+      if (dx * dx + dy * dy < 1 && !fantasma()) {
         // SalvajeScene.update frena al jugador mientras dure esto.
         scene._frenoHasta = t + 250;
-        if (!c.picado) { c.picado = true; aviso(scene, '🕸 ' + (c.aviso || 'Sticky sap — you are slowed!'), 'warning'); }
+        if (!c.picado) { c.picado = true; aviso(scene, (c.ico || '🕸') + ' ' + (c.aviso || 'Sticky sap — you are slowed!'), 'warning'); }
+        if (c.dano && t - (c.ultimo || 0) > (c.cada || 1200)) { c.ultimo = t; golpearJugador(st, c.dano, c.x, c.y, 6); }
       }
     }
   }
@@ -2265,6 +2985,7 @@
       // (2026-10-25) Y lo que piden sus poderes propios.
       (d.poderes || []).forEach(function (pd) {
         (PODER_TEX[pd] || []).forEach(function (q) { texs[(d.tex && d.tex[q]) || TEX_BASE[q]] = true; });
+        (PODER_SUELTAS[pd] || []).forEach(function (k) { texs[k] = true; });     // (2026-11-21) los de los reinos
       });
     });
     var arte = A ? A.cargar(scene, Object.keys(artes), Object.keys(texs)) : Promise.resolve(false);

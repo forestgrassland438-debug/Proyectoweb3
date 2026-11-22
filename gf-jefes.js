@@ -12,6 +12,14 @@
  *   glaciar        jefe_yeti       The Glacier King         (glaciar)   (2026-10-25)
  *   caverna        jefe_murcielago Nightwing, the Cave Matriarch (cueva)
  *   pradera        jefe_ent        Oakheart, the Elder Grove (bosque)
+ *   (2026-11-21) los siete reinos, niveles 11 a 17:
+ *   puerto         jefe_cangrejo   Krakenclaw, the Tide Tyrant   (marea)
+ *   pantano        jefe_sapo       Grogmaw, the Bog Sovereign    (cienaga)
+ *   aldor          jefe_coloso     Solarion, the Sun Colossus    (sol)
+ *   colinas        jefe_ciervo     Emberhorn, the Autumn Stag    (otono)
+ *   selva          jefe_gorila     Ironpalm, the Canopy King     (selva)
+ *   volcan         jefe_dragon     Cindermaw, the Ash Dragon     (magma)
+ *   hongos         jefe_micelio    The Mycelium Queen            (micelio)
  *   (la mina ya tiene el suyo: la Serpiente de Magma, gf-mina-serpiente.js)
  *
  * Son monstruos de gf-salvaje.js (especies con `jefe`): andan, cazan, pegan,
@@ -43,7 +51,19 @@
     // junto al círculo de piedras de la pradera.
     GlaciarScene:    { tipo: 'jefe_yeti',       tema: 'glaciar', caja: [1600, 300, 3600, 1500], poderes: ['lluvia', 'nova', 'pinchos'] },
     CavernaScene:    { tipo: 'jefe_murcielago', tema: 'cueva',   caja: [500, 3300, 1700, 4300], poderes: ['lluvia', 'orbes', 'nova'] },
-    PraderaScene:    { tipo: 'jefe_ent',        tema: 'bosque',  caja: [900, 400, 2500, 1300], poderes: ['pinchos', 'orbes', 'nova'] }
+    PraderaScene:    { tipo: 'jefe_ent',        tema: 'bosque',  caja: [900, 400, 2500, 1300], poderes: ['pinchos', 'orbes', 'nova'] },
+    // (2026-11-21) Los siete reinos (niveles 11 a 17). Cada guarida es la que
+    // dejó tools/generar-reinos.py en su mapa: la cala de los contrabandistas
+    // del puerto, las charcas del este de la ciénaga, el templo hundido del sur
+    // de Aldor, el claro del oeste de las colinas, la espesura del sureste de
+    // la selva, el nido al norte de la caldera y el corazón de la hondonada.
+    PuertoScene:     { tipo: 'jefe_cangrejo', tema: 'marea',   caja: [3900, 4100, 4540, 4740], poderes: ['nova', 'lluvia', 'pinchos'] },
+    PantanoScene:    { tipo: 'jefe_sapo',     tema: 'cienaga', caja: [3900, 3480, 4600, 4180], poderes: ['orbes', 'nova', 'lluvia'] },
+    AldorScene:      { tipo: 'jefe_coloso',   tema: 'sol',     caja: [2150, 3560, 2860, 4270], poderes: ['lluvia', 'nova', 'pinchos'] },
+    ColinasScene:    { tipo: 'jefe_ciervo',   tema: 'otono',   caja: [480, 2080, 1180, 2780],  poderes: ['pinchos', 'orbes', 'nova'] },
+    SelvaScene:      { tipo: 'jefe_gorila',   tema: 'selva',   caja: [3800, 3600, 4500, 4300], poderes: ['nova', 'pinchos', 'lluvia'] },
+    VolcanScene:     { tipo: 'jefe_dragon',   tema: 'magma',   caja: [2060, 1300, 2960, 1980], poderes: ['lluvia', 'orbes', 'nova'] },
+    HongosScene:     { tipo: 'jefe_micelio',  tema: 'micelio', caja: [3460, 860, 4160, 1560],  poderes: ['orbes', 'pinchos', 'nova'] }
   };
   var TEMAS = {
     cristal: { luz: '#b6ffd8', medio: '#5fe0a0', oscuro: '#1f7a4a', hex: 0x5fe0a0 },
@@ -52,7 +72,15 @@
     hielo:   { luz: '#f0fbff', medio: '#8ce9ff', oscuro: '#2f6fa8', hex: 0x8ce9ff },
     glaciar: { luz: '#ffffff', medio: '#b8e4ff', oscuro: '#3a6a9c', hex: 0xb8e4ff },
     cueva:   { luz: '#f2e2ff', medio: '#b48cff', oscuro: '#4a2a7a', hex: 0xb48cff },
-    bosque:  { luz: '#f0ffd8', medio: '#8fd45a', oscuro: '#3a6a22', hex: 0x8fd45a }
+    bosque:  { luz: '#f0ffd8', medio: '#8fd45a', oscuro: '#3a6a22', hex: 0x8fd45a },
+    // (2026-11-21) Los de los siete reinos.
+    marea:   { luz: '#e6fbff', medio: '#5fc8e8', oscuro: '#1e5a8a', hex: 0x5fc8e8 },
+    cienaga: { luz: '#eaffc0', medio: '#9acd3a', oscuro: '#3a5a14', hex: 0x9acd3a },
+    sol:     { luz: '#fffbe6', medio: '#ffc24a', oscuro: '#a8621a', hex: 0xffc24a },
+    otono:   { luz: '#ffe8c8', medio: '#e8913a', oscuro: '#8a3a14', hex: 0xe8913a },
+    selva:   { luz: '#e0ffd0', medio: '#4ac86a', oscuro: '#1a5a2a', hex: 0x4ac86a },
+    magma:   { luz: '#fff2b8', medio: '#ff7a1a', oscuro: '#8a2008', hex: 0xff7a1a },
+    micelio: { luz: '#f0e8ff', medio: '#a87aff', oscuro: '#3a2a7a', hex: 0xa87aff }
   };
   var ID_JEFE = 900;
   var sonidos = new WeakMap();

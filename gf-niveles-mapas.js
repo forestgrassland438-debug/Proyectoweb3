@@ -30,10 +30,14 @@
   if (window.GFNivelMapa) return;
 
   // mundo → nivel mínimo (3 mina, 6 salvaje, 7 cementerio, 8 desierto, 9 tundra;
-  // (2026-10-25) 10 glaciar, 11 caverna, 12 pradera: niveles 8, 9 y 10).
-  var MINIMO = Object.freeze({ 3: 2, 6: 4, 8: 5, 7: 6, 9: 7, 10: 8, 11: 9, 12: 10 });
+  // (2026-10-25) 10 glaciar, 11 caverna, 12 pradera: niveles 8, 9 y 10;
+  // (2026-11-21) del 13 al 19, los siete del este: niveles 11 a 17).
+  var MINIMO = Object.freeze({ 3: 2, 6: 4, 8: 5, 7: 6, 9: 7, 10: 8, 11: 9, 12: 10,
+                               13: 11, 14: 12, 15: 13, 16: 14, 17: 15, 18: 16, 19: 17 });
   var NOMBRE = Object.freeze({ 3: 'The Mine', 6: 'The Wild Lands', 7: 'The Cemetery', 8: 'The Desert', 9: 'The Frost Tundra',
-                               10: 'The Shattered Glacier', 11: 'The Crystal Caverns', 12: 'Blossom Meadow' });
+                               10: 'The Shattered Glacier', 11: 'The Crystal Caverns', 12: 'Blossom Meadow',
+                               13: 'Saltwind Harbor', 14: 'Mirefen Bog', 15: 'The Sunken Ruins of Aldor', 16: 'The Amberleaf Highlands',
+                               17: 'The Emerald Jungle', 18: 'The Emberfall Caldera', 19: 'Glowcap Hollow' });
   var TOPE = 150;
   var AVISO_CADA = 2500;
   var avisadoEn = 0, avisoPendiente = null, relojAviso = null;

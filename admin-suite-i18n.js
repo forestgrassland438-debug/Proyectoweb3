@@ -1338,9 +1338,10 @@ Failed|Fallida
 Gold purchase|Compra de oro
 No Gold purchases yet.|Aún no hay compras de oro.
 From exchange fees|De las comisiones de cambio
+From map travel (30%)|De los viajes del mapa (30 %)
 zkLTC received for Gold|zkLTC recibido por oro
 Gold sold|Oro vendido
-Two treasuries. The circular-economy treasury pays the coins monsters drop; the game treasury keeps the game's income. Shop and P2P fees are 5%: 1.5% circular and 3.5% game. Exchange fees go to the circular treasury; map travel, VIP and revive potions go to the game treasury.|Dos tesoros. El de la economía circular paga las monedas que sueltan los monstruos; el del juego guarda los ingresos del juego. Las comisiones de la tienda y del P2P son del 5 %: 1,5 % al circular y 3,5 % al del juego. Las comisiones de cambio van al tesoro circular; los viajes del mapa, el VIP y las pociones de revivir van al tesoro del juego.
+Two treasuries. The circular-economy treasury pays the coins monsters drop; the game treasury keeps the game's income. Shop and P2P fees are 5%: 1.5% circular and 3.5% game. Map travel (the world map and the friends button) is split like the market fees: 30% circular and 70% game. Exchange fees go to the circular treasury; VIP and revive potions go to the game treasury.|Dos tesoros. El de la economía circular paga las monedas que sueltan los monstruos; el del juego guarda los ingresos del juego. Las comisiones de la tienda y del P2P son del 5 %: 1,5 % al circular y 3,5 % al del juego. Los viajes del mapa (el mapa del mundo y el botón de amigos) se reparten como las comisiones del mercado: 30 % al circular y 70 % al del juego. Las comisiones de cambio van al tesoro circular; el VIP y las pociones de revivir van al tesoro del juego.
 From the game shop (1.5%)|De la tienda del juego (1,5 %)
 From the P2P market (1.5%)|Del mercado P2P (1,5 %)
 P2P market|Mercado P2P

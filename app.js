@@ -845,6 +845,7 @@
     var scenes = new Map();
     var knownNames = ['LoadingScenegame', 'GameScene', 'MinaScene', 'LandsScene', 'InteriorScene', 'SalvajeScene',
                       'CementerioScene', 'DesiertoScene', 'TundraScene', 'GlaciarScene', 'CavernaScene', 'PraderaScene',
+                      'PuertoScene', 'PantanoScene', 'AldorScene', 'ColinasScene', 'SelvaScene', 'VolcanScene', 'HongosScene',
                       'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
     if (root.__secureSceneRegistry instanceof root.Map) {
       root.__secureSceneRegistry.forEach(function (cls, key) {

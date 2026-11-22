@@ -52,7 +52,10 @@
   var ZONAS = { GameScene: 'game', MinaScene: 'mina', SalvajeScene: 'salvaje',
                 CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra',
                 // (2026-10-25) Los de nivel 8, 9 y 10 (el servidor: BOTE_ZONAS).
-                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera' };
+                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera',
+                // (2026-11-21) Los siete del este (el servidor: BOTE_ZONAS).
+                PuertoScene: 'puerto', PantanoScene: 'pantano', AldorScene: 'aldor', ColinasScene: 'colinas',
+                SelvaScene: 'selva', VolcanScene: 'volcan', HongosScene: 'hongos' };
   var TEX = 'gfbo_bote';
   var ESCALA = 2;                 // 72 px de largo × 2: el remero (102 px) cabe sentado
   var QUILLA = 40;                // los pies = p.y + 40 (lo mismo que la pesca y el servidor)

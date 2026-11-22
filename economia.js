@@ -128,7 +128,9 @@
     $('ec-circ-saldo').textContent = fmt(c.saldo);
     filas($('ec-circ-filas'), [
       ['Reserved for dropped coins', fmt(c.reservado)], ['From the game shop (1.5%)', fmt(c.ingresado.tienda)], ['From the P2P market (1.5%)', fmt(c.ingresado.p2p)],
-      ['From exchange fees', fmt(c.ingresado.cambio || 0)], ['Deposited by admins', fmt(c.ingresado.admin)],
+      ['From exchange fees', fmt(c.ingresado.cambio || 0)],
+      // (2026-11-21) Los viajes se reparten como las comisiones del mercado: el 30 % viene aquí.
+      ['From map travel (30%)', fmt(c.ingresado.viajes || 0)], ['Deposited by admins', fmt(c.ingresado.admin)],
       ['Paid to free players', fmt(c.pagado.free)], ['Paid to VIP players', fmt(c.pagado.vip)], ['Withdrawn', fmt(c.retirado)]
     ]);
     $('ec-juego-saldo').textContent = fmt(j.saldo);

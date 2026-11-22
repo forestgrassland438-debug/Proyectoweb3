@@ -177,6 +177,14 @@
     { name: 'GlaciarScene',     required: false },
     { name: 'CavernaScene',     required: false },
     { name: 'PraderaScene',     required: false },
+    // (2026-11-21) Los siete del este (Scenes/ReinosScenes.js).
+    { name: 'PuertoScene',      required: false },
+    { name: 'PantanoScene',     required: false },
+    { name: 'AldorScene',       required: false },
+    { name: 'ColinasScene',     required: false },
+    { name: 'SelvaScene',       required: false },
+    { name: 'VolcanScene',      required: false },
+    { name: 'HongosScene',      required: false },
     { name: 'tiendajuego',      required: true  },
     { name: 'LoadingSceneshop', required: true  },
     // Batallas P2P de mascotas. required:false para que, si el archivo no

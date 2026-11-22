@@ -334,7 +334,8 @@
         return [Math.round(r.rect[0] + Math.max(0, Math.min(1, sc.player.x / r.mapa[0])) * r.rect[2]),
                 Math.round(r.rect[1] + Math.max(0, Math.min(1, sc.player.y / r.mapa[1])) * r.rect[3])];
       };
-      var NIVEL_MM = { mina: 2, salvaje: 4, desierto: 5, cementerio: 6, tundra: 7, glaciar: 8, caverna: 9, pradera: 10 };
+      var NIVEL_MM = { mina: 2, salvaje: 4, desierto: 5, cementerio: 6, tundra: 7, glaciar: 8, caverna: 9, pradera: 10,
+                       puerto: 11, pantano: 12, aldor: 13, colinas: 14, selva: 15, volcan: 16, hongos: 17 };
       var estadoMM = function () {
         var yo = dondeMM(), nivel = nivelDeExp(estado.stats.exp || EXP), vip = resumenVip().activo, ds = {};
         MM.destinos.forEach(function (d) {

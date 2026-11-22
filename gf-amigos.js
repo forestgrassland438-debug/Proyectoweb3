@@ -1553,6 +1553,14 @@
     if (j.zona === 'glacier') partes.push('on the glacier');
     if (j.zona === 'caverns') partes.push('in the caverns');
     if (j.zona === 'meadow') partes.push('in the meadow');
+    // (2026-11-21) Los siete del este (server2.js zonaDeSala).
+    if (j.zona === 'harbor') partes.push('at Saltwind Harbor');
+    if (j.zona === 'bog') partes.push('in the bog');
+    if (j.zona === 'ruins') partes.push('in the ruins of Aldor');
+    if (j.zona === 'highlands') partes.push('in the highlands');
+    if (j.zona === 'jungle') partes.push('in the jungle');
+    if (j.zona === 'caldera') partes.push('in the caldera');
+    if (j.zona === 'hollow') partes.push('in Glowcap Hollow');
     if (j.zona === 'battle') partes.push('in a battle');
     if (j.zona === 'island') {
       partes.push(!j.islaDe || j.islaDe === j.playerName ? 'on their island'
