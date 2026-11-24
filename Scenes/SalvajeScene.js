@@ -384,12 +384,18 @@ class SalvajeScene extends GameScene {
       spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = this.add.image(x + 6, y - 4, 'sv_sombra_arbol').setScale(k * 0.95).setDepth(2).setAlpha(0.9);
       this._arboles.push({ spr, sombra, x, y, visible: true });
+      window.GFRecorte?.anadir?.(this, spr, [sombra]);   // (2026-11-24) con su sombra: ver _recortarArboles
     });
     this._recorteEn = 0;
     console.log('🌲 árboles:', this._arboles.length);
   }
 
+  /* (2026-11-24) Con gf-recorte.js cargado esto no hace nada: allí se decide a
+     la vez lo cerca de la cámara y el radio de la barra "chunks", con la sombra
+     pegada a su árbol (este recorte y el de la barra peleaban por `visible`).
+     Se queda de respaldo si el módulo no cargara. */
   _recortarArboles(ahora) {
+    if (window.GFRecorte && window.GFRecorte.activo(this)) return;
     if (ahora < this._recorteEn) return;
     this._recorteEn = ahora + 250;
     const v = this.cameras.main.worldView;

@@ -16675,6 +16675,14 @@ _setupZoomKeeper() {
         if (esc && esc.rehacerJoin) esc.rehacerJoin('el servidor lo pide');
       });
 
+      /* (2026-11-23) El servidor no deja entrar en la sala pedida (los siete del este
+         sin VIP, un nivel bajo): lo decide la escena activa (ZonaScene._alRechazarSala). */
+      poner('sala:rechazada', (d) => {
+        var esc = window.activeScene;
+        try { if (esc && typeof esc._alRechazarSala === 'function') esc._alRechazarSala(d); }
+        catch (e) { console.warn('sala:rechazada', e); }
+      });
+
       poner('disconnect', (reason) => {
         console.log('❌ Socket global desconectado:', reason);
         var esc = window.activeScene;

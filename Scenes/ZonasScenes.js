@@ -365,6 +365,7 @@ class ZonaScene extends GameScene {
       spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = this.add.image(o.x + 6, o.y - 4, 'zn_sombra_pie').setScale(1.25).setDepth(2).setAlpha(0.9);
       this._arboles.push({ spr, sombra, x: o.x, y: o.y, visible: true });
+      window.GFRecorte?.anadir?.(this, spr, [sombra]);   // (2026-11-24) con su sombra: ver _recortarVisibles
     });
     this._recorteEn = 0;
   }
@@ -386,6 +387,7 @@ class ZonaScene extends GameScene {
       const ancho = prop ? Number(prop.value) : 0;
       const sombra = ancho > 0 ? this.add.image(o.x + 4, o.y - 3, 'zn_sombra_pie').setScale(ancho / 96 * 1.15, ancho / 96).setDepth(2).setAlpha(0.85) : null;
       this._objetosZona.push({ spr, sombra, x: o.x, y: o.y, visible: true });
+      window.GFRecorte?.anadir?.(this, spr, [sombra]);
     });
     console.log('🧭 ' + c.zona + ': ' + this._arboles.length + ' árboles, ' + this._objetosZona.length + ' objetos');
   }
@@ -426,6 +428,7 @@ class ZonaScene extends GameScene {
       spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
       const sombra = e.sombra ? this.add.image(e.x + 4, e.y - 3, 'zn_sombra_pie').setScale(e.sombra / 96 * 1.15, e.sombra / 96).setDepth(2).setAlpha(0.85) : null;
       this._objetosZona.push({ spr, sombra, x: e.x, y: e.y, visible: true });
+      window.GFRecorte?.anadir?.(this, spr, [sombra]);
       (e.choques || []).forEach((r) => this.collisionRectangles.push(new Phaser.Geom.Rectangle(e.x + r[0], e.y + r[1], r[2], r[3])));
       if (e.salida) {
         const r = e.salida.rect;
@@ -435,8 +438,14 @@ class ZonaScene extends GameScene {
     if ((c.extras || []).length) this._reconstruirIndiceColisiones();
   }
 
-  /** Solo se muestra lo que cae cerca de la cámara (son cientos). */
+  /** Solo se muestra lo que cae cerca de la cámara (son cientos).
+      (2026-11-24) Con gf-recorte.js cargado esto ya no hace nada: allí se
+      decide a la vez lo cerca de la cámara Y el radio de la barra "chunks",
+      con la sombra pegada a su árbol. Este recorte y el de la barra peleaban
+      por el mismo `visible` (árboles más allá del radio, parpadeos y sombras
+      sueltas). Se queda como respaldo si el módulo no llegara a cargar. */
   _recortarVisibles(ahora) {
+    if (window.GFRecorte && window.GFRecorte.activo(this)) return;
     if (ahora < this._recorteEn) return;
     this._recorteEn = ahora + 250;
     const v = this.cameras.main.worldView;
@@ -552,6 +561,16 @@ class ZonaScene extends GameScene {
   // LA SALA Y LA SALIDA (al mapa salvaje)
   // =========================================================================
   _salaDeEscena() { return this.cfg.sala; }
+
+  /* (2026-11-23) El servidor no deja entrar en la sala de esta escena (joinRoom →
+     'sala:rechazada', ver GameScene.setupGlobalSocketEvents). En los siete del este
+     sin VIP —caducó dentro y se reconectó, o se entró con la partida guardada— se
+     vuelve al muelle del pueblo (GFVip.vigilarReino). Un aviso de otra sala es viejo. */
+  _alRechazarSala(d) {
+    const c = this.cfg;
+    if (!d || !c || !c.reino || d.sala !== c.sala || d.motivo !== 'vip') return;
+    if (window.GFVip && window.GFVip.vigilarReino) window.GFVip.vigilarReino(this, { yaRechazado: true, motivo: d.motivo });
+  }
 
   _comprobarSalidas() {
     if (!this.playerRect || !this._salidas) return;

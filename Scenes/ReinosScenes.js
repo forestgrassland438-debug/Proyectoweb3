@@ -38,7 +38,7 @@
 
 /* global ZonaScene, cfgZona */
 
-const REINOS_V = '20261121a';   // la versión de los mapas, sus atlas y sus árboles (?v=)
+const REINOS_V = '20261124c';   // la versión de los mapas, sus atlas y sus árboles (?v=); (2026-11-24) casas, faroles y árboles del motor 2D y sus huellas (antes 20261124b: la lava de la mina en el volcán)
 
 function cfgReino(zona, extra) {
   return cfgZona(zona, Object.assign({ version: REINOS_V, reino: true }, extra));
