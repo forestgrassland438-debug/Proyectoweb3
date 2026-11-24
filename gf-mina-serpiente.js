@@ -458,6 +458,10 @@
     s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false).setScale(1.8);
     s.agujero = scene.add.image(s.x, s.y, 'gfsp_agujero').setVisible(false).setScale(2.4);
     [s.cabeza].concat(s.anillos).forEach(function (o) { o.setData('optimized', true); window.GFGraphics?.registrar?.(o.scene,o); });
+    /* (2026-11-24) Su `visible` lo decide su estado (enterrada o fuera: verCuerpo).
+       La barra "chunks" lo apagaba de lejos y al volver lo encendía con el valor
+       de antes: una serpiente enterrada mientras tanto sacaba la cabeza. */
+    [s.cabeza].concat(s.anillos).forEach(function (o) { window.GFRecorte?.propio?.(o); });
     reiniciarRastro(s);
   }
 

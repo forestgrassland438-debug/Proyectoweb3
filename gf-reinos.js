@@ -43,7 +43,7 @@
   // La racha de las colinas y el temblor de la caldera (segundos de la hora del servidor).
   var RACHA = { cada: 75, dura: 7 };
   var TEMBLOR = { cada: 210, dura: 2.6 };
-  var ALTO_FARO = 200;       // de su apoyo a la linterna (px de mundo, ya a escala 2)
+  var ALTO_FARO = 434;       // de su apoyo a la linterna (px de mundo, ya a escala 2; 2026-11-24: el faro 2D, gf_motor_casas.altura_luz)
 
   /** Vuelve a 0..1 (también lo negativo: en JS, -0.2 % 1 es -0.2). */
   function vuelta(u) { return u - Math.floor(u); }
@@ -79,6 +79,13 @@
     try { var t = window.GFClima && window.GFClima.ahora ? window.GFClima.ahora() : null; return t && t.activo ? Math.max(0, Math.min(1, t.lluvia || 0)) : 0; }
     catch (e) { return 0; }
   }
+  /** Cuánto nublado y cuánto sol de verdad hay en pantalla (0..1, lo pintado por gf-clima). */
+  function delTiempo(campo) {
+    try { var t = window.GFClima && window.GFClima.ahora ? window.GFClima.ahora() : null; return t && t.activo ? Math.max(0, Math.min(1, Number(t[campo]) || 0)) : 0; }
+    catch (e) { return 0; }
+  }
+  /** Un número de 0 a 1 fijo para cada casilla (ix, iy): el mismo en todas las partidas. */
+  function azarFijo(a, b) { var q = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return q - Math.floor(q); }
   /** 0..1: lo que sopla un suceso que se repite cada `cada` s y dura `dura` (entra y sale suave). */
   function campana(t, cada, dura, desfase) {
     var k = (((t + (desfase || 0)) % cada) + cada) % cada;
@@ -145,17 +152,23 @@
       lienzo(scene, 'rn_gas', 112, 64, function (x, w, h) { ovalo(x, w, h, '150,190,90', 0.42); });
     }
     if (zona === 'aldor' || zona === 'selva') {
-      // El rayo de sol: una banda alta, más clara en el centro, que se apaga hacia abajo.
+      // El rayo de sol: una banda alta con el perfil de una campana (sin borde
+      // que se lea como franja), que nace blanda arriba y llega al suelo.
       var tono = zona === 'aldor' ? '255,236,170' : '214,255,170';
       lienzo(scene, 'rn_rayo_' + zona, 96, 512, function (x, w, h) {
         var g = x.createLinearGradient(0, 0, w, 0);
-        g.addColorStop(0, 'rgba(' + tono + ',0)'); g.addColorStop(0.5, 'rgba(' + tono + ',0.55)'); g.addColorStop(1, 'rgba(' + tono + ',0)');
+        [[0, 0], [0.18, 0.05], [0.32, 0.2], [0.5, 0.5], [0.68, 0.2], [0.82, 0.05], [1, 0]].forEach(function (c) {
+          g.addColorStop(c[0], 'rgba(' + tono + ',' + c[1] + ')');
+        });
         x.fillStyle = g; x.fillRect(0, 0, w, h);
         x.globalCompositeOperation = 'destination-in';
         var v = x.createLinearGradient(0, 0, 0, h);
-        v.addColorStop(0, 'rgba(0,0,0,1)'); v.addColorStop(0.7, 'rgba(0,0,0,0.7)'); v.addColorStop(1, 'rgba(0,0,0,0)');
+        v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.3, 'rgba(0,0,0,0.8)'); v.addColorStop(0.8, 'rgba(0,0,0,1)');
+        v.addColorStop(1, 'rgba(0,0,0,0.35)');
         x.fillStyle = v; x.fillRect(0, 0, w, h);
       });
+      // Donde toca el suelo: un charco de luz ovalado y blando.
+      lienzo(scene, 'rn_charco_' + zona, 160, 64, function (x, w, h) { ovalo(x, w, h, tono, 0.55); });
     }
     if (zona === 'aldor') {
       lienzo(scene, 'rn_hilo', 96, 3, function (x, w, h) {
@@ -333,50 +346,91 @@
   }
 
   // ─────────────────────────────────────────────────────── ALDOR Y SELVA: RAYOS DE LUZ
+  /* (2026-11-23) "Las luces del clima no se adaptan bien" (captura de Aldor):
+     los rayos iban pegados a la PANTALLA, eran franjas duras y salían igual con
+     nubes que con sol. Ahora el mundo se reparte en casillas y en dos de cada
+     tres cae un rayo, en un punto fijo de la casilla (el mismo para todos y en
+     todas las partidas): al andar, el rayo se queda en su sitio, como un árbol.
+     Bajan inclinados desde arriba a la izquierda y donde tocan dejan un charco
+     de luz en el suelo. Su fuerza es la del tiempo de verdad: de día y sin
+     lluvia; las nubes los apagan casi del todo y el sol los aviva. Se usan unas
+     pocas piezas (las casillas que caen cerca de la vista) y se reciclan. */
+  var RAYO = { aldor: { paso: [560, 600], fuerza: 0.2, piezas: 12 }, selva: { paso: [470, 540], fuerza: 0.17, piezas: 14 } };
+  var RAYO_LARGO = 820, RAYO_GIRO = -0.38;
   function montarRayos(st, zona) {
-    var scene = st.scene, n = zona === 'aldor' ? 5 : 6;
-    st.rayos = [];
-    for (var i = 0; i < n; i++) {
-      st.rayos.push({ spr: propio(st, scene.add.image(0, 0, 'rn_rayo_' + zona)).setOrigin(0.5, 0).setScrollFactor(0).setDepth(PROF_AIRE - 3)
-                        .setBlendMode(aditivo()).setAlpha(0).setRotation(-0.38),
-                      x: (i + 0.5) / n + az(-0.06, 0.06), ancho: az(0.7, 1.6), fase: Math.random() * 6.3, ritmo: az(0.08, 0.2) });
+    var scene = st.scene, c = RAYO[zona];
+    st.rayos = []; st.rayoCfg = c;
+    for (var i = 0; i < c.piezas; i++) {
+      st.rayos.push({
+        spr: propio(st, scene.add.image(0, 0, 'rn_rayo_' + zona)).setOrigin(0.5, 1).setDepth(PROF_AIRE - 3)
+          .setBlendMode(aditivo()).setRotation(RAYO_GIRO).setAlpha(0).setVisible(false),
+        charco: propio(st, scene.add.image(0, 0, 'rn_charco_' + zona)).setDepth(PROF_SUELO + 0.03)
+          .setBlendMode(aditivo()).setAlpha(0).setVisible(false)
+      });
     }
-    st.fuerzaRayos = zona === 'aldor' ? 0.42 : 0.34;
     if (zona === 'aldor') {
       st.hilos = [];
       for (var k = 0; k < 10; k++) {
-        st.hilos.push({ spr: propio(st, scene.add.image(0, 0, 'rn_hilo')).setDepth(PROF_SUELO + 0.02).setAlpha(0),
-                        x: Math.random(), y: Math.random(), v: az(0.08, 0.16), k: az(0.7, 1.5), fase: Math.random() * 6.3 });
+        st.hilos.push({ spr: propio(st, scene.add.image(0, 0, 'rn_hilo')).setDepth(PROF_SUELO + 0.02).setAlpha(0).setVisible(false),
+                        x: null, y: 0, v: az(70, 140), k: az(0.7, 1.5), fase: Math.random() * 6.3 });
       }
     } else {
       montarBandas(st, 'rn_humedad', 2, PROF_SUELO, null);
     }
   }
+  /** La fuerza de los rayos ahora (0: no hay). */
+  function fuerzaRayos(st) {
+    var dia = 1 - noche(st.scene), seco = 1 - Math.min(1, lluvia() * 1.6);
+    return st.rayoCfg.fuerza * Math.max(0, (dia - 0.25) / 0.75) * seco
+      * (1 - 0.82 * delTiempo('nublado')) * (1 + 0.45 * delTiempo('sol'));
+  }
   function rayosTic(st, tSrv, dt) {
-    var scene = st.scene, cam = scene.cameras && scene.cameras.main;
-    if (!cam) return;
-    var dia = 1 - noche(scene), seco = 1 - Math.min(1, lluvia() * 1.6);
-    var a = st.fuerzaRayos * Math.max(0, (dia - 0.25) / 0.75) * seco;
-    var w = cam.width, h = cam.height;
-    for (var i = 0; i < st.rayos.length; i++) {
-      var r = st.rayos[i];
-      var respira = 0.55 + 0.45 * Math.sin(tSrv * r.ritmo * 6.28 + r.fase);
-      r.spr.setVisible(a > 0.01).setAlpha(a * respira)
-        .setPosition(w * r.x + Math.sin(tSrv * 0.05 + r.fase) * 30, -h * 0.15).setScale(r.ancho * w / 900 + 0.4, (h * 1.4) / 512);
-    }
-    if (st.hilos) {
-      var v = vista(scene);
-      if (!v) return;
-      for (var k = 0; k < st.hilos.length; k++) {
-        var q = st.hilos[k];
-        q.x += q.v * dt;
-        if (q.x > 1.15) { q.x = -0.2; q.y = Math.random(); }
-        var al = (0.14 + 0.2 * Math.max(0, Math.sin(tSrv * 0.8 + q.fase))) * seco;
-        q.spr.setVisible(al > 0.01).setAlpha(al).setScale(q.k, 1)
-          .setPosition(v.x + q.x * v.width, v.y + 40 + q.y * Math.max(40, v.height - 60) + Math.sin(tSrv * 1.2 + q.fase) * 3);
+    var scene = st.scene, v = vista(scene);
+    if (!v) return;
+    var a = fuerzaRayos(st), usados = 0;
+    if (a > 0.004) {
+      var px = st.rayoCfg.paso[0], py = st.rayoCfg.paso[1];
+      // La punta se va arriba a la izquierda: un rayo se ve aunque su pie quede
+      // a la derecha o por debajo de la vista.
+      var alto = RAYO_LARGO * Math.cos(RAYO_GIRO), lado = RAYO_LARGO * Math.sin(-RAYO_GIRO);
+      var x0 = Math.floor((v.x - 120) / px), x1 = Math.floor((v.right + lado + 60) / px);
+      var y0 = Math.floor((v.y - 60) / py), y1 = Math.floor((v.bottom + alto) / py);
+      var cand = [], cx = v.x + v.width / 2, cy = v.y + v.height / 2;
+      for (var iy = y0; iy <= y1; iy++) for (var ix = x0; ix <= x1; ix++) {
+        if (azarFijo(ix, iy) < 0.34) continue;                        // una de cada tres casillas, sin rayo
+        var gx = (ix + 0.15 + 0.7 * azarFijo(ix + 17.3, iy)) * px, gy = (iy + 0.15 + 0.7 * azarFijo(ix, iy + 29.1)) * py;
+        var mx = gx - lado / 2, my = gy - alto / 2;                   // el centro del rayo
+        cand.push({ ix: ix, iy: iy, x: gx, y: gy, d: (mx - cx) * (mx - cx) + (my - cy) * (my - cy) });
+      }
+      cand.sort(function (p, q) { return p.d - q.d; });
+      for (var n = 0; n < cand.length && usados < st.rayos.length; n++) {
+        var q = cand[n], r = st.rayos[usados++];
+        var fase = azarFijo(q.ix + 5.7, q.iy + 3.1) * 6.283, ritmo = 0.35 + 0.5 * azarFijo(q.ix + 1.9, q.iy + 7.7);
+        var ancho = 0.8 + 0.9 * azarFijo(q.ix + 9.4, q.iy + 11.2);
+        var respira = 0.6 + 0.4 * Math.sin(tSrv * ritmo + fase);
+        r.spr.setVisible(true).setPosition(q.x, q.y).setScale(ancho, RAYO_LARGO / 512).setAlpha(a * respira);
+        r.charco.setVisible(true).setPosition(q.x, q.y).setScale(ancho * 1.05, ancho * 0.9).setAlpha(a * respira * 0.7);
       }
     }
+    for (var k = usados; k < st.rayos.length; k++) { st.rayos[k].spr.setVisible(false); st.rayos[k].charco.setVisible(false); }
+    if (st.hilos) hilosTic(st, v, tSrv, dt);
     if (st.bandas) bandasTic(st, dt, 0.16 + 0.14 * noche(scene) + 0.1 * lluvia());
+  }
+  /* Los hilos de arena de Aldor corren a ras de suelo con el viento. Viven en
+     el MUNDO, como el polvo del desierto (gf-zonas): al andar se quedan atrás;
+     el que sale por sotavento vuelve a nacer por barlovento, dentro de la vista. */
+  function hilosTic(st, v, tSrv, dt) {
+    var seco = 1 - Math.min(1, lluvia() * 1.6), alto = Math.max(40, v.height - 60);
+    for (var k = 0; k < st.hilos.length; k++) {
+      var q = st.hilos[k];
+      if (q.x === null) { q.x = v.x + Math.random() * v.width; q.y = v.y + 40 + Math.random() * alto; }
+      q.x += q.v * dt;
+      if (q.x > v.right + 160 || q.x < v.x - 320 || q.y < v.y - 120 || q.y > v.bottom + 120) {
+        q.x = v.x - 140 - Math.random() * 120; q.y = v.y + 40 + Math.random() * alto;
+      }
+      var al = (0.14 + 0.2 * Math.max(0, Math.sin(tSrv * 0.8 + q.fase))) * seco;
+      q.spr.setVisible(al > 0.01).setAlpha(al).setScale(q.k, 1).setPosition(q.x, q.y + Math.sin(tSrv * 1.2 + q.fase) * 3);
+    }
   }
 
   // ─────────────────────────────────────────────────────── COLINAS: HOJAS Y RACHAS
@@ -425,10 +479,13 @@
     for (var j = 0; j < 8; j++) st.vapores.push({ spr: propio(st, scene.add.image(0, 0, 'rn_vapor')).setVisible(false), vida: 0, max: 1 });
     st.temblorVisto = Math.floor(ahoraServidor() / TEMBLOR.cada);    // al entrar no tiembla de golpe
     dato(st, '_vientoExtra', 0.3);
+    // (2026-11-24) La lava de la mina, animada (si falla, queda la pintada, quieta).
+    try { montarLavaMina(st); } catch (e) { console.warn('[reinos] lava:', e); quitarLava(st); }
   }
   function volcanTic(st, tSrv, dt) {
     var scene = st.scene, v = vista(scene);
     if (!v) return;
+    if (st.lavaMina) lavaTic(st, v, dt);
     for (var i = 0; i < st.cenizas.length; i++) {
       var c = st.cenizas[i];
       c.y += c.v * dt;
@@ -482,6 +539,178 @@
       aviso(scene, '🌋 The caldera rumbles — the ground shakes beneath your feet!', 'warning');
       st.avivar = TEMBLOR.dura + 2;     // más brasas mientras tiembla y un poco después
     }
+  }
+
+  // ─────────────────────────────────────────────────────── VOLCÁN: LA LAVA DE LA MINA
+  /* (2026-11-24) "La lava no es igual a la de la mina de nivel 2." La de la mina
+     es un tileset ANIMADO (seis fotogramas) con burbujas y luz; la del volcán
+     era un degradado pintado quieto en el suelo. tools/gf_lava_mina.py le hace
+     la MISMA lava (el mismo campo, semilla, colores y movimiento que la mina):
+     la capa de casillas 'lava' del mapa y sus hojas Game/MAPAS/<zona>/lava_<f>.png,
+     ya extruidas (margen 1, separación 2). Aquí se monta y se mueve como en la
+     mina (MinaScene._animarLiquidos): se cambia la IMAGEN del tileset, no las
+     casillas. Las hojas se cargan al entrar, sin parar la escena; mientras
+     llegan se ve la misma lava quieta (el suelo pintado lleva debajo su primer
+     fotograma, en el mismo sitio). Y como en la mina, burbujas que revientan
+     (en la lava de dentro que se ve, nunca en el labio) y, de noche, su luz
+     (scene._lucesNoche, gf-ciclo-dia). Lo fija tools/lava-volcan.test.cjs. */
+  var PROF_LAVA = 0.5, PROF_BURBUJA = 0.6;        // las del agua (gf-agua) y de lo que flota en ella
+  var LAVA_BURBUJAS = 8;                          // como la mina: ocho que se reciclan
+  var LAVA_LUZ = { cubre: 96, r: 150, a: 0.6 };   // ninguna casilla de lava a más de 96 px de una luz
+  function propiedadMapa(scene, nombre) {
+    var ps = scene.map && scene.map.properties;
+    if (Array.isArray(ps)) {
+      for (var i = 0; i < ps.length; i++) if (ps[i] && ps[i].name === nombre) return ps[i].value;
+      return undefined;
+    }
+    return ps && typeof ps === 'object' ? ps[nombre] : undefined;
+  }
+  function montarLavaMina(st) {
+    var scene = st.scene, map = scene.map, zona = st.zona;
+    var n = Math.floor(Number(propiedadMapa(scene, 'lava_fotogramas')) || 0);
+    if (!map || typeof map.getLayer !== 'function' || !map.getLayer('lava') || n < 1 || !scene.load || !scene.textures) return;
+    var lv = st.lavaMina = {
+      claves: [], fps: Number(propiedadMapa(scene, 'lava_fps')) || 6, interior: Number(propiedadMapa(scene, 'lava_interior')) || 256,
+      i: 0, acc: 0, ts: null, centros: [], burbujas: [], luces: [], alumbrar: null, alCargar: null
+    };
+    var v = '?v=' + ((scene.cfg && scene.cfg.version) || ''), faltan = 0;
+    for (var f = 0; f < n; f++) {
+      var k = 'rn_lava_' + zona + '_' + f;
+      lv.claves.push(k);
+      if (!scene.textures.exists(k)) { scene.load.image(k, './Game/MAPAS/' + zona + '/lava_' + f + '.png' + v); faltan++; }
+    }
+    if (!scene.textures.exists('rn_lava_burbuja')) {
+      // La hoja de burbujas de la mina: seis de 32 px (cortada a 16 salían cuartos).
+      scene.load.spritesheet('rn_lava_burbuja', './Game/MAPAS/Mina/lava_burbuja.png' + v, { frameWidth: 32, frameHeight: 32 });
+      faltan++;
+    }
+    lv.alCargar = function () {
+      lv.alCargar = null;
+      if (!st.vivo || st.lavaMina !== lv) return;
+      try { crearLavaMina(st); } catch (e) { console.warn('[reinos] lava:', e); }
+    };
+    if (!faltan) { lv.alCargar(); return; }
+    scene.load.once('complete', lv.alCargar);
+    scene.load.start();
+  }
+  function crearLavaMina(st) {
+    var scene = st.scene, lv = st.lavaMina, map = scene.map;
+    var claves = lv.claves.filter(function (k) { return scene.textures.exists(k); });
+    if (!claves.length) return;                       // no llegaron: queda la pintada, quieta
+    claves.forEach(function (k) { try { scene.textures.get(k).setFilter(Phaser.Textures.FilterMode.NEAREST); } catch (e) {} });
+    var ts = map.addTilesetImage('lava_' + st.zona, claves[0], 32, 32, 1, 2);
+    if (!ts) return;
+    var capa = map.createLayer('lava', ts, 0, 0);
+    if (!capa) return;
+    propio(st, capa).setDepth(PROF_LAVA);
+    lv.ts = ts; lv.claves = claves;
+    /* El centro de cada casilla, donde la dibuja Phaser: en pixelX + ancho/2 -
+       tileOffset.x (y lo mismo en vertical), o sea sobre su casilla de 32
+       (gf_lava_mina, DÓNDE DIBUJA PHASER). Las del parche (las primeras de la
+       hoja) son las de dentro: ahí salen las burbujas. */
+    var off = ts.tileOffset || { x: 0, y: 0 };
+    var mx = ts.tileWidth / 2 - (off.x || 0), my = ts.tileHeight / 2 - (off.y || 0), bordes = [];
+    capa.forEachTile(function (t) {
+      if (!t || !(t.index >= ts.firstgid)) return;
+      var c = { x: t.pixelX + mx, y: t.pixelY + my };
+      if (t.index - ts.firstgid < lv.interior) lv.centros.push(c); else bordes.push(c);
+    });
+    lv.luces = cubrirDeLuz(lv.centros.concat(bordes), LAVA_LUZ.cubre);
+    montarBurbujas(st);
+    if (lv.luces.length) {
+      lv.alumbrar = function (luz) { for (var i = 0; i < lv.luces.length; i++) luz(lv.luces[i].x, lv.luces[i].y, LAVA_LUZ.r, LAVA_LUZ.a); };
+      if (!Array.isArray(scene._lucesNoche)) scene._lucesNoche = [];
+      scene._lucesNoche.push(lv.alumbrar);
+    }
+  }
+  /** Las luces de la lava: las que hagan falta para que ninguna casilla quede a
+      más de `d` px de una. Primero las de dentro, así caen en medio de la lava. */
+  function cubrirDeLuz(casillas, d) {
+    var luces = [], rejilla = Object.create(null), d2 = d * d;
+    for (var i = 0; i < casillas.length; i++) {
+      var c = casillas[i], gx = Math.floor(c.x / d), gy = Math.floor(c.y / d), cerca = false;
+      for (var yy = gy - 1; yy <= gy + 1 && !cerca; yy++) {
+        for (var xx = gx - 1; xx <= gx + 1 && !cerca; xx++) {
+          var cubo = rejilla[xx + ',' + yy];
+          if (!cubo) continue;
+          for (var k = 0; k < cubo.length; k++) {
+            var dx = cubo[k].x - c.x, dy = cubo[k].y - c.y;
+            if (dx * dx + dy * dy <= d2) { cerca = true; break; }
+          }
+        }
+      }
+      if (cerca) continue;
+      var l = { x: c.x, y: c.y };
+      luces.push(l);
+      (rejilla[gx + ',' + gy] || (rejilla[gx + ',' + gy] = [])).push(l);
+    }
+    return luces;
+  }
+  function montarBurbujas(st) {
+    var scene = st.scene, lv = st.lavaMina;
+    if (!lv.centros.length || !scene.anims || !scene.textures.exists('rn_lava_burbuja')) return;
+    // Como en la mina, la animación se rehace en cada entrada: las animaciones
+    // son del juego, y una de otra visita apuntaría a una textura ya soltada.
+    if (scene.anims.exists('rn_lava_burbuja_anim')) scene.anims.remove('rn_lava_burbuja_anim');
+    scene.anims.create({ key: 'rn_lava_burbuja_anim', frames: scene.anims.generateFrameNumbers('rn_lava_burbuja', { start: 0, end: 5 }),
+                         frameRate: 9, repeat: 0 });
+    for (var i = 0; i < LAVA_BURBUJAS; i++) {
+      lv.burbujas.push({ spr: propio(st, scene.add.sprite(0, 0, 'rn_lava_burbuja', 0)).setDepth(PROF_BURBUJA).setVisible(false),
+                         espera: 0.2 + i * 0.26 });
+    }
+  }
+  /** Una casilla de dentro que se vea ahora (o null). */
+  function centroEnVista(lista, v, margen) {
+    var vis = [];
+    for (var i = 0; i < lista.length; i++) {
+      var c = lista[i];
+      if (c.x > v.x - margen && c.x < v.right + margen && c.y > v.y - margen && c.y < v.bottom + margen) vis.push(c);
+    }
+    return vis.length ? vis[Math.floor(Math.random() * vis.length)] : null;
+  }
+  function lavaTic(st, v, dt) {
+    var scene = st.scene, lv = st.lavaMina;
+    if (!lv.ts) return;
+    if (lv.claves.length > 1) {
+      lv.acc += dt * 1000;
+      var paso = 1000 / lv.fps;
+      if (lv.acc >= paso) {
+        lv.acc %= paso;
+        lv.i = (lv.i + 1) % lv.claves.length;
+        var tex = scene.textures.get(lv.claves[lv.i]);
+        if (tex && tex.key !== '__MISSING') lv.ts.setImage(tex);
+      }
+    }
+    // Las burbujas: la que reventó se esconde y, al rato, sale en otra casilla de dentro que se vea.
+    for (var i = 0; i < lv.burbujas.length; i++) {
+      var b = lv.burbujas[i];
+      if (b.spr.visible) {
+        if (b.spr.anims && b.spr.anims.isPlaying) continue;
+        b.spr.setVisible(false);
+        b.espera = az(0.4, 2.2);
+        continue;
+      }
+      if ((b.espera -= dt) > 0) continue;
+      var c = centroEnVista(lv.centros, v, 16);
+      if (!c) { b.espera = 0.5; continue; }
+      b.spr.setPosition(c.x + az(-8, 8), c.y + az(-8, 8)).setVisible(true).play('rn_lava_burbuja_anim');
+    }
+  }
+  /** Fuera la lava: su carga a medias, su luz, su animación y sus hojas (son
+      de este mapa; la capa y las burbujas se van con los objetos). */
+  function quitarLava(st) {
+    var lv = st.lavaMina, scene = st.scene;
+    if (!lv) return;
+    st.lavaMina = null;
+    if (lv.alCargar) { try { scene.load.off('complete', lv.alCargar); } catch (e) {} lv.alCargar = null; }
+    if (lv.alumbrar && Array.isArray(scene._lucesNoche)) {
+      var k = scene._lucesNoche.indexOf(lv.alumbrar);
+      if (k >= 0) scene._lucesNoche.splice(k, 1);
+    }
+    try { if (scene.anims && scene.anims.exists('rn_lava_burbuja_anim')) scene.anims.remove('rn_lava_burbuja_anim'); } catch (e) {}
+    lv.claves.concat(['rn_lava_burbuja']).forEach(function (c) {
+      try { if (scene.textures && scene.textures.exists(c)) scene.textures.remove(c); } catch (e) {}
+    });
   }
 
   // ─────────────────────────────────────────────────────── HONGOS: VELOS Y LUCES
@@ -553,6 +782,12 @@
       }
     };
     scene.events.on('update', st.onUpdate);
+    /* (2026-11-23) "Los 7 mapas deben ser solo para VIP." Dentro sin él (caducó, o se
+       entró con la partida guardada): el aviso y al muelle del pueblo (GFVip.vigilarReino).
+       A los 2,5 s, como la isla (gf-lands): antes la escena aún no tiene cuenta. */
+    if (window.GFVip && window.GFVip.vigilarReino && scene.time && scene.time.delayedCall) {
+      st.vigilaVip = scene.time.delayedCall(2500, function () { if (st.vivo) window.GFVip.vigilarReino(scene); });
+    }
     console.log('🧭 reino ' + zona + ': ' + st.objetos.length + ' piezas');
     return st;
   }
@@ -561,11 +796,13 @@
     var st = scene && scene.__gfReinos;
     if (!st) return;
     st.vivo = false;
+    if (st.vigilaVip) { try { st.vigilaVip.remove(false); } catch (e) {} st.vigilaVip = null; }
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     st.objetos.forEach(function (o) { try { if (o && o.scene) { scene.tweens.killTweensOf(o); o.destroy(); } } catch (e) {} });
     st.objetos.length = 0;
+    quitarLava(st);
     st.faros = st.gases = st.fatuos = st.rayos = st.hilos = st.bandas = st.hojas = st.cenizas = st.brasas = st.vapores = st.luces = null;
     st.agua = st.lava = st.fumarolas = st.origenes = null;
     // Lo que se escribió en la escena vuelve a como estaba (si nadie lo cambió después).

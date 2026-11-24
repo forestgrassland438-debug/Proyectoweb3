@@ -294,6 +294,12 @@
                        '3m': { dias: 90, nombre: 'VIP · 3 months', precio: { oro: 12, plata: 12000, bronce: 12000000 } },
                        '6m': { dias: 180, nombre: 'VIP · 6 months', precio: { oro: 20, plata: 20000, bronce: 20000000 } } };
     estado.vip = estado.vip || { facturas: [] };
+    // (2026-11-24) ?vip=1: se entra ya con VIP (los siete reinos son solo para VIP).
+    if (/[?&]vip=1/.test(location.search) && !estado.vip.facturas.length) {
+      var iniVip = Date.now() - 86400000, finVip = iniVip + 30 * 86400000;
+      estado.vip.facturas.push({ id: 899, dias: 30, inicio: iniVip, fin: finVip, plan: '1m', moneda: 'bronce', precio: 5000000,
+                                 manualId: ['vip', 'abcd1234', Math.floor(iniVip / 1000), Math.floor(finVip / 1000), '1m', 'bronce', 5000000].join(':') });
+    }
     var resumenVip = function () {
       var fin = 0, ini = null;
       estado.vip.facturas.forEach(function (f) { if (f.fin > fin) fin = f.fin; if (ini === null || f.inicio < ini) ini = f.inicio; });

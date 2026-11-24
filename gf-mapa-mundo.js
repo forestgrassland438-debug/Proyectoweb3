@@ -93,6 +93,17 @@
     try { return window.game && window.game.scene ? window.game.scene.getScenes(true) : []; } catch (e) { return []; }
   }
   function cuenta() { var sc = escena(); return sc ? String(sc.playerName || sc.address || '') : ''; }
+  /* (2026-11-23) "Cuando un personaje muere no puede viajar a otros mapas por el botón
+     map" (a pie, sí). El mapa se puede mirar; viajar, no. El servidor lo mira también. */
+  var TEXTO_FANTASMA = '👻 You are a ghost — revive to travel with the map. You can still <b>walk</b> to other maps on your own.';
+  function muerto() {
+    try { return !!(window.GFMuerte && typeof window.GFMuerte.muerto === 'function' && window.GFMuerte.muerto(escena())); }
+    catch (e) { return false; }
+  }
+  /** Sin VIP: la isla es "tu isla"; los siete del este, por su nombre. */
+  function textoVip(d) {
+    return '👑 You need <b>VIP</b> to enter ' + (d && d.sala === 'isla' ? 'your island' : '<b>' + esc(d ? d.nombre : '') + '</b>') + '.';
+  }
   function api(ruta, cuerpo) {
     if (window.GFMascota && typeof window.GFMascota.api === 'function') return window.GFMascota.api(ruta, cuerpo);
     return Promise.resolve({ ok: false, status: 0, datos: null });
@@ -626,12 +637,16 @@
     } else if (info.aqui) {
       cuerpo = '<p class="gfmm-t-texto">◎ You are here.</p>';
       botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
+    } else if (muerto()) {
+      cuerpo = '<p class="gfmm-t-texto gfmm-t-mal">' + TEXTO_FANTASMA + '</p>';
+      botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
     } else if (info.bloqueo === 'nivel') {
       cuerpo = '<p class="gfmm-t-texto gfmm-t-mal">🔒 This place opens at <b>level ' + info.nivelMin + '</b>. You are level ' + miNivel() + '.</p>' +
                '<p class="gfmm-t-nota">Defeat monsters and finish missions to level up.</p>';
       botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
     } else if (info.bloqueo === 'vip') {
-      cuerpo = '<p class="gfmm-t-texto gfmm-t-mal">👑 You need <b>VIP</b> to enter your island.</p>' +
+      cuerpo = '<p class="gfmm-t-texto gfmm-t-mal">' + textoVip(d) + '</p>' +
+               (d.sala === 'isla' ? '' : '<p class="gfmm-t-nota">The eastern kingdoms are for VIP players.</p>') +
                '<p class="gfmm-t-nota">Get it from Rosalind the VIP Merchant, inside Farmer Joe’s house.</p>';
       botones = '<button type="button" class="gfmm-btn" data-a="no">OK</button>';
     } else if (info.precio === null) {
@@ -687,6 +702,7 @@
       decir('🔒 This place opens at <b>level ' + window.GFNivelMapa.minimo(d.mundo) + '</b>.', true);
       return;
     }
+    if (muerto()) { decir(TEXTO_FANTASMA, true); return; }
     ocupado = true;
     decir('⏳ Paying for the journey…', false, ' ');
     var dueno = cuenta();
@@ -716,7 +732,9 @@
       } else if (e === 'nivel_bajo') {
         decir('🔒 This place opens at <b>level ' + num(x.nivelMinimo) + '</b>. You are level ' + num(x.nivel) + '.', true);
       } else if (e === 'vip_required') {
-        decir('👑 You need <b>VIP</b> to enter your island. Get it from Rosalind the VIP Merchant, inside Farmer Joe’s house.', true);
+        decir(textoVip(d) + ' Get it from Rosalind the VIP Merchant, inside Farmer Joe’s house.', true);
+      } else if (e === 'fantasma') {
+        decir(TEXTO_FANTASMA, true);
       } else if (e === 'ya_estas_aqui') {
         decir('◎ You are already here.');
       } else if (e === 'sin_posicion') {
@@ -1010,5 +1028,7 @@
   else boton();
 
   window.GFMapaMundo = { abrir: abrir, cerrar: cerrar, alternar: alternar, abierto: function () { return abierto; },
-                         refrescar: pedirEstado, destruir: destruir };
+                         refrescar: pedirEstado, destruir: destruir,
+                         // Para las pruebas (tools/viajes-vip-muerte.test.cjs): el viaje y lo que dice la tarjeta.
+                         _interno: { viajarA: viajarA, mensaje: function () { return mensajeTarjeta; } } };
 })();

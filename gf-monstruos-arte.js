@@ -28,7 +28,7 @@
 (function () {
   'use strict';
 
-  var V = '20261121a';   // (2026-11-21) los siete reinos (antes 20261025a: los de nivel 8, 9 y 10)
+  var V = '20261124a';   // (2026-11-24) los gólems con cuerpo propio, tools/gf_golems.py (antes 20261123a: el dragón que vuela)
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
@@ -84,7 +84,8 @@
     jefe_coloso:      { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] },
     jefe_ciervo:      { camina: [4, 8, -1],  ataque: [3, 9, 0],  quieto: [2, 1.6, -1] },
     jefe_gorila:      { camina: [4, 6, -1],  ataque: [3, 8, 0],  quieto: [2, 1.4, -1] },
-    jefe_dragon:      { camina: [4, 7, -1],  ataque: [3, 8, 0],  quieto: [2, 2.4, -1] },
+    // (2026-11-23) Cindermaw VUELA: 'vuela' (sus aletazos, en sus tres vistas).
+    jefe_dragon:      { camina: [4, 7, -1],  ataque: [3, 8, 0],  quieto: [2, 2.4, -1], vuela: [4, 8, -1] },
     jefe_micelio:     { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] }
   };
   // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
@@ -98,6 +99,8 @@
     gfsp_grieta: 'serpiente/grieta.png',
     gfsp_bola: 'efectos/bola_fuego.png',
     gfm_orbe_mago: 'efectos/orbe_mago.png',
+    // (2026-11-23) La magia verde del chamán de la selva (antes, dardos con plumas).
+    gfm_orbe_selva: 'efectos/orbe_selva.png',
     gfm_roca: 'efectos/roca.png',
     gfm_espina: 'efectos/espina.png',
     gfm_savia: 'efectos/savia.png',

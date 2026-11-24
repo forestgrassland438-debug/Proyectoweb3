@@ -482,6 +482,9 @@
     if (escena._cambiandoEscena) return false;
     var mundo = Number(destino.mundo);
     if (mundo===4 && (!root.GFVip || !root.GFVip.exigir(escena,'lands'))) return false;
+    // (2026-11-23) Los siete del este (13-19), solo con VIP: con el botón de amigos, el
+    // mapa del mundo o el ferri (el servidor lo mira también al entrar en la sala).
+    if (mundo >= 13 && mundo <= 19 && (!root.GFVip || !root.GFVip.exigir(escena, 'reinos'))) return false;
     var clave = ESCENA_DE_MUNDO[mundo];
     if (!clave || !escena.scene.get(clave)) { log('viaje: mundo sin escena', mundo); return false; }
     // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js): ni con el botón de amigos.

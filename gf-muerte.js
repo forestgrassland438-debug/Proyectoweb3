@@ -351,7 +351,10 @@
     plant: 'plant', water: 'water crops', harvest: 'harvest', cut: 'cut crops',
     chop: 'chop trees', mine: 'mine', craft: 'craft', mission: 'complete missions',
     furnace: 'use the furnace', collect: 'collect water', buy: 'get new items',
-    attack: 'fight', torch: 'light a torch'
+    attack: 'fight', torch: 'light a torch',
+    // (2026-11-23) "Muerto no puede viajar por el botón map ni teletransportarse a un
+    // usuario" (a pie entre mapas, sí: eso no pregunta aquí).
+    travel: 'travel by the map or to other players', ferry: 'take the ferry'
   };
   var avisadoEn = 0;
 

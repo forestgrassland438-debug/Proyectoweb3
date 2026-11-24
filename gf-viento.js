@@ -696,6 +696,10 @@
     for (var i = 0; i < st.arboles.length; i++) {
       var a = st.arboles[i];
       if (!a.spr || a.spr.active === false) continue;
+      // (2026-11-24) El que está apagado (lejos: gf-recorte, la barra) no se ve
+      // mecerse: no se le escribe el giro. En la selva son 540 por fotograma y
+      // se ven unos 40. Al volver a encenderse retoma el balanceo en el acto.
+      if (a.spr.visible === false) continue;
       var balanceo = Math.sin(ahora / 700 * a.ritmo + a.fase) * 0.62
                    + Math.sin(ahora / 1900 * a.ritmo + a.fase2) * 0.38;
       // El empuje siempre va hacia donde sopla: la planta no se dobla contra

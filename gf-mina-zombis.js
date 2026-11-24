@@ -71,6 +71,10 @@
   var MORDISCO_MS = 1150, ALCANCE_MORDISCO = 38;
   var VUELVE_ZOMBI_MS = 75 * 1000, VUELVE_JEFE_MS = 10 * 60 * 1000;
   var LEJOS = 1000;
+  /* (2026-11-24) La barra "chunks" también manda en el dibujo (con radio menor
+     que LEJOS, más allá no se dibuja). El zombi decide solo su `visible`
+     (GFRecorte.propio): la barra ya no lo toca, que era pelearse y parpadear. */
+  function seDibuja(d, seVe) { var R = window.GFRecorte; return d < LEJOS && (!R || R.cerca(d, seVe)); }
 
   function log() {
     if (!window.GF_ZOMBIS_DEBUG) return;
@@ -181,6 +185,7 @@
       objX: sitio.x, objY: sitio.y
     };
     spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
+    window.GFRecorte?.propio?.(spr);                       // se apaga solo: ver seDibuja
     jugarAnim(z, 'down', false);
     return z;
   }
@@ -532,7 +537,7 @@
       }
       var miD = Math.hypot(p.x - z.x, p.y + 45 - pies(z));
       var b = blancoDe(st, z, LEJOS);
-      var ver = miD < LEJOS;
+      var ver = seDibuja(miD, z.spr.visible);
       if (ver !== z.spr.visible) { z.spr.setVisible(ver); z.sombra.setVisible(ver); }
       if (!ver && !b) continue;                 // nadie cerca: ni piensa
 
@@ -576,7 +581,7 @@
         else if (d > 0.3) { var k = Math.min(1, seg * 9); z.x += dx * k; z.y += dy * k; }
         jugarAnim(z, z.dir, z.andandoRed);
       }
-      var ver = Math.hypot(p.x - z.x, p.y + 45 - pies(z)) < LEJOS;
+      var ver = seDibuja(Math.hypot(p.x - z.x, p.y + 45 - pies(z)), z.spr.visible);
       if (ver !== z.spr.visible) { z.spr.setVisible(ver); z.sombra.setVisible(ver); }
       if (z.estado !== 'salta') colocar(z);
       pintarBarra(st, z);

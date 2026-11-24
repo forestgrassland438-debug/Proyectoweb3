@@ -30,7 +30,9 @@
     { k: 'plata', nombre: 'Silver', img: './Game/Source/moneda de plata.png', color: '#4a5563' },
     { k: 'bronce', nombre: 'Bronze', img: './Game/Source/moneda de bronce.png', color: '#8a4f2a' }
   ];
-  var QUE = { drop: 'drop items for other players', market: 'use the P2P Market', lands: 'enter your island' };
+  var QUE = { drop: 'drop items for other players', market: 'use the P2P Market', lands: 'enter your island',
+              // (2026-11-23) Los siete del este (mundos 13-19).
+              reinos: 'enter the eastern kingdoms' };
   var estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
   var pidiendo = null, avisadoEn = Object.create(null), propietario = '', destruido = false, compraRef = null;
   /* (2026-10-26) LA HORA DEL SERVIDOR. Los días que quedan y si el VIP sigue
@@ -406,6 +408,42 @@
     }).catch(guarda.cerrar);
   }
 
+  // ── LOS SIETE DEL ESTE (2026-11-23) ───────────────────────────────────────
+  /** Dentro de uno de los siete del este sin VIP (caducó, o se entró con la partida
+      guardada): el aviso y, al rato, al muelle del pueblo. `op.yaRechazado`: el
+      servidor ya dijo que no al entrar en la sala ('sala:rechazada'), y manda él. */
+  function vigilarReino(scene, op) {
+    if (!scene || !scene.sys) return;
+    if (scene.__gfVipReino) scene.__gfVipReino.cerrar();
+    var dueno = asegurarCuenta(), espera = null, cerrado = false;
+    var guarda = { cerrar: function () {
+      if (cerrado) return; cerrado = true; clearTimeout(espera); guardas.delete(guarda);
+      if (scene.events) { scene.events.off('shutdown', guarda.cerrar); scene.events.off('destroy', guarda.cerrar); }
+      if (scene.__gfVipReino === guarda) scene.__gfVipReino = null;
+    } };
+    scene.__gfVipReino = guarda; guardas.add(guarda);
+    if (scene.events) { scene.events.once('shutdown', guarda.cerrar); scene.events.once('destroy', guarda.cerrar); }
+    function actual() { return !cerrado && vigente(dueno) && scene.__gfVipReino === guarda && scene.sys && scene.sys.isActive(); }
+    var fuera = function () {
+      if (!actual()) return;
+      avisar(scene, '👑 The eastern kingdoms are for VIP players. Get VIP from Rosalind the VIP Merchant in Farmer Joe\'s house. Back to the village dock…', 'warning');
+      espera = setTimeout(function () {
+        if (actual()) {
+          var Z = window.GFZonas;
+          if (Z && Z.ZONAS && Z.ZONAS.pueblo_desde_puerto) Z.viajar(scene, 'pueblo_desde_puerto');
+          else if (window.GFViaje) window.GFViaje.viajar({ mundo: 1 });
+        }
+        guarda.cerrar();
+      }, 1600);
+    };
+    if (op && op.yaRechazado) { fuera(); return; }
+    refrescar().then(function () {
+      if (!actual()) return;
+      if (estado.cargado && !estado.sinServicio && !tiene()) fuera();
+      else guarda.cerrar();
+    }).catch(guarda.cerrar);
+  }
+
   /** Antes de visitar la isla de otro: ¿su dueño tiene VIP? → Promise<boolean>. */
   function islaAbierta(playerName) {
     var dueno = asegurarCuenta();
@@ -444,6 +482,7 @@
   function cerrarTienda() { var m = modales['gf-vip-tienda']; if (m) m.cerrar(); }
 
   window.GFVip = { estado: function () { asegurarCuenta(); return estado; }, tiene: tiene, exigir: exigir, refrescar: refrescar,
-                   abrirTienda: abrirTienda, abrirInfo: abrirInfo, vigilarIsla: vigilarIsla, islaAbierta: islaAbierta, destruir: destruir,
+                   abrirTienda: abrirTienda, abrirInfo: abrirInfo, vigilarIsla: vigilarIsla, vigilarReino: vigilarReino,
+                   islaAbierta: islaAbierta, destruir: destruir,
                    tiendaAbierta: tiendaAbierta, cerrarTienda: cerrarTienda };
 })();

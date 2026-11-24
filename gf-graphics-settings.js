@@ -375,6 +375,7 @@
     for (var i = 0; i < objs.length; i++) {
       var o = objs[i];
       if (!o || !o.scene) continue;           // destruido (árbol talado, etc.)
+      if (o.__gfRecortePropio) { soltarPropio(o); continue; }   // lo decide otro (ver soltarPropio)
 
       var dx = o.x - cx;
       var dy = o.y - cy;
@@ -397,10 +398,27 @@
     }
   }
 
+  /* (2026-11-24) LO QUE DECIDE OTRO. Fuera del pueblo, los árboles, objetos,
+     casas y carteles los enciende y apaga gf-recorte.js con las DOS reglas a la
+     vez (cerca de la cámara y dentro del radio de esta barra) y con su sombra;
+     los monstruos se apagan solos al alejarse (gf-salvaje, gf-mina-zombis...).
+     Los dos llevan `__gfRecortePropio`. Si este bucle también los tocaba,
+     peleaban por el mismo `visible`: en la selva quedaban 106 árboles
+     encendidos más allá del radio, 36 parpadeaban al andar y ~100 sombras se
+     quedaban sueltas sin su árbol. Aquí ya no se tocan; lo que este módulo
+     llegó a esconder antes de que lo reclamaran se devuelve como estaba
+     (salvo que gf-recorte lo tenga apagado). */
+  function soltarPropio(o) {
+    if (!o.__gfCulled) return;
+    o.__gfCulled = false;
+    if (o.__gfVisiblePrevio !== false && !o.__gfRecOculto) { try { o.setVisible(true); } catch (e) {} }
+  }
+
   /** Devuelve TODO a la vista (al subir la barra al máximo o al salir). */
   function mostrarTodo(escena) {
     var objs = escena._gfObjetosMapa || objetosDelMapa(escena);
     objs.forEach(function (o) {
+      if (o && o.scene && o.__gfRecortePropio) { soltarPropio(o); return; }
       if (o && o.scene && o.__gfCulled) {
         o.__gfCulled = false;
         try { o.setVisible(o.__gfVisiblePrevio !== false); } catch (e) {}

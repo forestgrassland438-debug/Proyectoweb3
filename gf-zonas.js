@@ -97,6 +97,12 @@
     volcan_desde_hongos:   { mundo: 18, escena: 'VolcanScene',  sala: 'volcan',  nombre: 'The Emberfall Caldera',      llegada: { x: 4758, y: 2480 } }
   };
 
+  /* (2026-11-23) "Los 7 mapas que pusiste deben ser solo para VIP": también a pie
+     entre ellos (el servidor lo mira al entrar en la sala: gfAccesoSala). Volver al
+     pueblo (`pueblo_desde_puerto`) no lo pide. Y muerto se camina igual: "que no le
+     impidas moverse entre mapas si camina por su cuenta". */
+  var REINO_VIP = { puerto: 1, pantano: 1, aldor: 1, colinas: 1, selva: 1, volcan: 1, hongos: 1 };
+
   var ATRAE = 280, DANO = 54;                 // px: arrastra / hace daño
   var CICLO_TORMENTA = 11 * 60, DURA_TORMENTA = 4 * 60, RAMPA_TORMENTA = 25;   // segundos
   var PROF_NIEBLA = 2.95, PROF_AIRE = 8040;
@@ -146,6 +152,7 @@
     }
     // (2026-10-22) Cada mapa tiene su nivel mínimo (gf-niveles-mapas.js).
     if (window.GFNivelMapa && !window.GFNivelMapa.exigir(scene, z.mundo)) return Promise.resolve(false);
+    if (REINO_VIP[z.sala] && (!window.GFVip || !window.GFVip.exigir(scene, 'reinos'))) return Promise.resolve(false);
     scene._viajeZona = true;
     var contexto = { cancelado: false, reloj: null, resolver: null }, nota = null;
     scene.__gfViajeZona = contexto;
@@ -364,27 +371,110 @@
      dibujo de la hoguera trae una llama quieta; encima va un fuego vivo: tres
      llamas que cambian de forma y se estiran, el resplandor que tiembla en el
      suelo y unas chispas que suben (rayas cortas). */
-  /* Lo que arde con llamas de verdad y a qué altura sobre su apoyo (px):
-     (2026-11-21) también los braseros de las ruinas de Aldor y de la caldera,
-     a la altura de su cuenco (la de su luz en LUCES, menos 10). */
-  var FUEGOS = { hoguera: 0, brasero: 30, brasero_dorado: 30, brasero_volcan: 34 };
-  function montarHogueras(st) {
-    var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
-    st.hogueras = [];
+  /* Lo que arde con llamas de verdad: (2026-11-21) también los braseros de las
+     ruinas de Aldor y de la caldera.
+     (2026-11-23) "Repara de todos los mapas el fuego ese y donde va": la llama
+     viva iba a una altura FIJA y quedaba flotando por encima de la que ya trae
+     el dibujo (en el volcán, 28 px). Ahora se MIDE en el propio fotograma la
+     llama pintada (los píxeles con el rojo a tope: las llamas del arte son
+     ff9a3a, ff7a2a, ffb04a y ffe28a; el oro y la brasa no llegan a 255) y la viva
+     nace donde nace esa, con el alto y el ancho para taparla entera aunque
+     tiemble. Vale para cualquier mapa y para el arte que venga. Sin lienzo con
+     que medir (o sin llama pintada), lo medido el 2026-11-23: px de pantalla
+     desde el pie, a escala 2. */
+  var FUEGOS = {
+    hoguera: { arriba: -18, abajo: 2, izq: -4, der: 6 },
+    brasero: { arriba: -42, abajo: -22, izq: -10, der: 10 },
+    // (2026-11-24) Los de Aldor y el volcán, a la escala de GameScene (antes -34/-16, ±6 y ±8).
+    brasero_dorado: { arriba: -45, abajo: -21, izq: -7, der: 7 },
+    brasero_volcan: { arriba: -45, abajo: -21, izq: -12, der: 12 }
+  };
+  var LLAMA_ALTO = 28;                                   // zn_llama_*: 22×30, la punta a 28 px del pie
+  var medidasLlama = Object.create(null);
+  function esPixelLlama(d, i) { return d[i + 3] > 40 && d[i] >= 240 && d[i + 1] >= 96 && d[i + 2] <= 160 && d[i] - d[i + 2] >= 90; }
+  /** La llama pintada de un fotograma, en px de imagen desde su pie (sin
+      escalar), o null. Se mide una vez por atlas y fotograma. */
+  function medirLlamaPintada(scene, clave, nombre) {
+    var id = clave + '|' + nombre;
+    if (id in medidasLlama) return medidasLlama[id];
+    var m = null;
+    try {
+      var fr = scene.textures.getFrame && scene.textures.getFrame(clave, nombre);
+      var img = fr && fr.source && fr.source.image;
+      var w = fr && fr.cutWidth, h = fr && fr.cutHeight;
+      if (img && w > 0 && h > 0 && w * h <= 65536 && typeof document !== 'undefined') {
+        var lz = document.createElement('canvas'); lz.width = w; lz.height = h;
+        var x = lz.getContext('2d', { willReadFrequently: true });
+        x.drawImage(img, fr.cutX, fr.cutY, w, h, 0, 0, w, h);
+        var d = x.getImageData(0, 0, w, h).data, porCol = [], cx, cy, i;
+        for (cx = 0; cx < w; cx++) porCol[cx] = 0;
+        for (cy = 0; cy < h; cy++) for (cx = 0; cx < w; cx++) if (esPixelLlama(d, (cy * w + cx) * 4)) porCol[cx]++;
+        var cols = [];
+        for (cx = 0; cx < w; cx++) if (porCol[cx] >= 2) cols.push(cx);           // una brasa suelta no es la llama
+        var arriba = Infinity, abajo = -Infinity;
+        for (cy = 0; cy < h; cy++) for (i = 0; i < cols.length; i++) {
+          if (esPixelLlama(d, (cy * w + cols[i]) * 4)) { if (cy < arriba) arriba = cy; if (cy + 1 > abajo) abajo = cy + 1; }
+        }
+        if (cols.length && abajo > arriba) {
+          var pieY = (fr.customPivot ? fr.pivotY : 0.5) * (fr.realHeight || h) - (fr.y || 0);
+          var pieX = (fr.customPivot ? fr.pivotX : 0.5) * (fr.realWidth || w) - (fr.x || 0);
+          m = { arriba: arriba - pieY, abajo: abajo - pieY, izq: cols[0] - pieX, der: cols[cols.length - 1] + 1 - pieX };
+        }
+      }
+    } catch (e) { m = null; }
+    medidasLlama[id] = m;
+    return m;
+  }
+  /** Los fuegos que hay que encender: los objetos con fuego que la escena
+      DIBUJÓ (un brasero en zona despejada no se pinta y no debe arder en el
+      aire), cada uno con su llama pintada en px de mundo desde su pie. */
+  function fuegosDeLaEscena(scene) {
+    var capa = scene.map && scene.map.getObjectLayer && scene.map.getObjectLayer('objetos');
+    var dibujados = Array.isArray(scene._objetosZona) ? scene._objetosZona : null;
+    var clave = scene.cfg && scene.cfg.objetos, lista = [];
     (capa ? capa.objects : []).forEach(function (o) {
       if (!Object.prototype.hasOwnProperty.call(FUEGOS, o.name)) return;
-      var alto = FUEGOS[o.name];                       // el fuego del brasero, en su cuenco
-      var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
-      var brillo = propio(st, scene.add.image(o.x, o.y - 8 - alto * 0.3, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
-      var llamas = [-4, 0, 4].map(function (dx, k) {
-        return { spr: propio(st, scene.add.image(o.x + dx, o.y - 10 - alto, 'zn_llama_' + k)).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
-                 dx: dx, fase: Math.random() * 6, k: (k === 1 ? 1.0 : 0.68) * (alto ? 0.7 : 1) };
+      var spr = null;
+      if (dibujados) {
+        for (var i = 0; i < dibujados.length; i++) {
+          var a = dibujados[i];
+          if (a.x === o.x && a.y === o.y && a.spr && a.spr.frame && a.spr.frame.name === o.name) { spr = a.spr; break; }
+        }
+        if (!spr) return;
+      }
+      var esc = spr && spr.scaleY ? Math.abs(spr.scaleY) : 2;
+      var m = clave ? medirLlamaPintada(scene, clave, o.name) : null;
+      var l = m ? { arriba: m.arriba * esc, abajo: m.abajo * esc, izq: m.izq * esc, der: m.der * esc } : FUEGOS[o.name];
+      lista.push({ o: o, llama: l, spr: spr });
+    });
+    return lista;
+  }
+  function montarHogueras(st) {
+    var scene = st.scene;
+    st.hogueras = [];
+    var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
+    fuegosDeLaEscena(scene).forEach(function (f) {
+      var o = f.o, l = f.llama;
+      var alto = l.abajo - l.arriba, ancho = l.der - l.izq, centro = (l.izq + l.der) / 2;
+      // La del medio: aunque encoja al temblar (un 18 %) sigue tapando la
+      // pintada con 1 px de sobra arriba, y es ancha como ella; las de los
+      // lados, más bajas. Nace 1 px dentro del cuenco.
+      // (2026-11-24) La textura deja 1 px vacío bajo el pie de la llama: escalada
+      // k veces, su base visible sube k px. Se baja otro tanto, y así nace 1 px
+      // dentro del cuenco a cualquier tamaño (con el brasero al doble quedaba
+      // 1,3 px por encima de la pintada); el alto cuenta con esa bajada.
+      var k = Math.max((alto + 3) / (LLAMA_ALTO * 0.82 - 1), ancho * 0.0363 + 0.22);
+      var dx = Math.max(2, ancho * 0.3), base = o.y + l.abajo + 1 + k;
+      var brillo = propio(st, scene.add.image(o.x + centro, o.y + l.abajo * 0.5 - 2, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
+      var llamas = [-dx, 0, dx].map(function (d, n) {
+        return { spr: propio(st, scene.add.image(o.x + centro + d, base, 'zn_llama_' + n)).setOrigin(0.5, 1).setDepth(o.y + 1 + n * 0.01),
+                 dx: centro + d, fase: Math.random() * 6, k: n === 1 ? k : k * 0.68 };
       });
       var chispas = [];
       for (var i = 0; i < 6; i++) {
         chispas.push({ spr: propio(st, scene.add.image(o.x, o.y, 'zn_chispa')).setDepth(o.y + 2).setBlendMode(ADD).setVisible(false), vida: 0 });
       }
-      st.hogueras.push({ x: o.x, y: o.y - alto, base: o.y, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0 });
+      st.hogueras.push({ x: o.x, y: base, base: o.y, punta: o.y + l.arriba, ancho: ancho, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0, spr: f.spr });
     });
   }
   function hoguerasTic(st, t, dt) {
@@ -392,13 +482,20 @@
     for (var i = 0; i < st.hogueras.length; i++) {
       var h = st.hogueras[i];
       var ve = !v || (h.x > v.x - 100 && h.x < v.right + 100 && h.base > v.y - 100 && h.base < v.bottom + 140);
+      // (2026-11-24) Y si su brasero está apagado (el recorte de lo lejano con la
+      // barra "chunks" corta: gf-recorte.js), su fuego también: no arde en el aire.
+      if (ve && h.spr && h.spr.visible === false) ve = false;
       h.brillo.setVisible(ve);
-      if (!ve) { h.llamas.forEach(function (l) { l.spr.setVisible(false); }); continue; }
+      if (!ve) {
+        h.llamas.forEach(function (l) { l.spr.setVisible(false); });
+        h.chispas.forEach(function (c) { c.spr.setVisible(false); c.vida = 0; });
+        continue;
+      }
       var cambia = t > h.prox;
       if (cambia) h.prox = t + 90 + Math.random() * 80;
       h.llamas.forEach(function (l, k) {
         var w = Math.sin(t / 1000 * (7 + k * 1.3) + l.fase) * 0.5 + Math.sin(t / 1000 * (13 + k) + k * 2) * 0.5;
-        l.spr.setVisible(true).setScale(l.k * 1.15 * (1 + w * 0.1), l.k * 1.15 * (1 + w * 0.24));
+        l.spr.setVisible(true).setScale(l.k * (1 + w * 0.1), l.k * (1 + w * 0.18));
         l.spr.x = h.x + l.dx + Math.sin(t / 260 + k) * 1.2;
         if (cambia) l.spr.setTexture('zn_llama_' + Math.floor(Math.random() * 3));
       });
@@ -408,7 +505,7 @@
         if (ch.vida <= 0) {
           if (Math.random() < dt * 1.6) {
             ch.vida = 0.7 + Math.random() * 0.6; ch.max = ch.vida;
-            ch.x = h.x + (Math.random() - 0.5) * 10; ch.y = h.y - 30; ch.vx = (Math.random() - 0.5) * 18;
+            ch.x = h.x + (Math.random() - 0.5) * h.ancho * 0.6; ch.y = h.punta - 2; ch.vx = (Math.random() - 0.5) * 18;
           } else { ch.spr.setVisible(false); continue; }
         }
         ch.vida -= dt;
@@ -739,21 +836,37 @@
     cristal_cueva: [-26, 150, 0.6], cristal_cueva_t: [-26, 150, 0.6], cristal_grande_cueva: [-50, 260, 0.85],
     seta_brillante: [-12, 90, 0.5], salida_cueva: [-60, 320, 0.9], casa_bruja: [-70, 260, 0.8],
     // (2026-11-21) Los siete del este (tools/gf_reinos_arte.py LUCES: la misma tabla).
-    farol_puerto: [-74, 260, 0.9], faro: [-200, 520, 1], taberna_puerto: [-60, 300, 0.8], tienda_puerto: [-50, 220, 0.5],
-    farol_fatuo: [-50, 200, 0.7], caldero_pantano: [-24, 200, 0.7], choza_zancos: [-40, 200, 0.5],
-    brasero_dorado: [-40, 280, 1], altar_solar: [-36, 220, 0.7], obelisco_sol: [-60, 180, 0.6], cabana_cazador: [-40, 240, 0.7],
-    templo_selva: [-70, 220, 0.6], totem_selva: [-24, 140, 0.5],
-    forja: [-40, 320, 1], brasero_volcan: [-44, 280, 1], fumarola: [-16, 180, 0.7], cristal_fuego: [-24, 160, 0.6],
-    obelisco_obsidiana: [-50, 180, 0.6], roca_lava: [-10, 140, 0.5], roca_volcanica: [-14, 120, 0.4],
-    cristal_luz: [-24, 170, 0.7], farol_luciernaga: [-46, 200, 0.8], casa_seta: [-40, 260, 0.8],
-    piedra_runa: [-30, 150, 0.6], seta_pequena: [-10, 100, 0.5], raiz_brillante: [-16, 130, 0.5], tocon_musgo: [-12, 90, 0.4]
+    // (2026-11-24) Medidas en el dibujo del motor 2D: la farola, desde su farol (198 px, como el poste de
+    // GameScene); el faro, desde su linterna (434 px, gf-reinos.js ALTO_FARO).
+    farol_puerto: [-198, 270, 0.95], faro: [-434, 560, 1], taberna_puerto: [-110, 300, 0.8], tienda_puerto: [-64, 250, 0.55],
+    // (2026-11-24) Las casas 2D del puerto (tools/gf_motor_casas.py): el farol de la puerta.
+    casa_azul: [-106, 170, 0.55], casa_coral: [-106, 170, 0.55], casa_ocre: [-106, 170, 0.55], casa_menta: [-106, 170, 0.55],
+    casa_pizarra: [-106, 170, 0.55], casa_terracota: [-106, 170, 0.55], casa_lila: [-106, 170, 0.55], casa_marfil: [-106, 170, 0.55],
+    farol_fatuo: [-68, 220, 0.7], caldero_pantano: [-32, 220, 0.7], choza_zancos: [-158, 210, 0.6],
+    brasero_dorado: [-54, 300, 1], altar_solar: [-49, 240, 0.7], obelisco_sol: [-81, 200, 0.6], cabana_cazador: [-106, 250, 0.7],
+    templo_selva: [-147, 300, 0.6], cabana_selva: [-134, 190, 0.55], totem_selva: [-38, 150, 0.5],
+    forja: [-56, 340, 1], brasero_volcan: [-59, 300, 1], fumarola: [-22, 200, 0.7], cristal_fuego: [-32, 170, 0.6],
+    obelisco_obsidiana: [-68, 190, 0.6], roca_lava: [-14, 150, 0.5], roca_volcanica: [-19, 130, 0.4],
+    cristal_luz: [-32, 180, 0.7], farol_luciernaga: [-62, 210, 0.8], casa_seta: [-96, 270, 0.8],
+    piedra_runa: [-40, 160, 0.6], seta_pequena: [-14, 110, 0.5], raiz_brillante: [-22, 140, 0.5], tocon_musgo: [-16, 100, 0.4]
   };
   function montarLuces(st) {
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
     st.luces = [];
+    // (2026-11-23) Lo que arde alumbra desde el centro de SU llama (medida en
+    // el dibujo, como el fuego vivo), no desde una altura fija por encima.
+    var deFuego = Object.create(null);
+    fuegosDeLaEscena(scene).forEach(function (f) { deFuego[f.o.id] = f; });
     (capa ? capa.objects : []).forEach(function (o) {
       var l = Object.prototype.hasOwnProperty.call(LUCES, o.name) ? LUCES[o.name] : null;
-      if (l) st.luces.push({ x: o.x, y: o.y + l[0], r: l[1], a: l[2] });
+      if (!l) return;
+      if (Object.prototype.hasOwnProperty.call(FUEGOS, o.name)) {
+        var f = deFuego[o.id];
+        if (!f) return;                                           // un brasero sin dibujar no alumbra
+        st.luces.push({ x: o.x, y: o.y + Math.round((f.llama.arriba + f.llama.abajo) / 2), r: l[1], a: l[2] });
+        return;
+      }
+      st.luces.push({ x: o.x, y: o.y + l[0], r: l[1], a: l[2] });
     });
     // Y lo que la escena pone a mano (la casa de la bruja).
     ((scene.cfg && scene.cfg.extras) || []).forEach(function (e) {

@@ -757,6 +757,9 @@
                                             : n + ' is on the move. Try again in a moment.',
           sin_bronce:   'Not enough coins to travel (' + Math.floor(Number(d.precio) || 0).toLocaleString('en-US') + ' Bronze needed).',
           isla_sin_vip: n + ' is on an island that is closed: its owner has no VIP.',
+          // (2026-11-23) Muerto no se viaja; y los siete del este piden VIP (el de quien viaja).
+          fantasma:     '👻 You are a ghost — revive to travel to other players.',
+          reino_sin_vip: '👑 ' + n + ' is in the eastern kingdoms, which are for VIP players. Get VIP from Rosalind the VIP Merchant in Farmer Joe\'s house.',
           // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js); el viaje no se cobra.
           nivel:        '🔒 ' + n + ' is in a place that opens at level ' + Math.floor(Number(d.nivelMinimo) || 0) +
                         ' — you are level ' + Math.floor(Number(d.nivel) || 0) + '.'
@@ -988,6 +991,9 @@
   /** Pregunta al servidor donde esta, y alli se va (ver 'friends:ir'). */
   function irCon(j) {
     if (!global.GFViaje) { aviso('Travelling is not available here.', 'error'); return; }
+    // (2026-11-23) "Muerto no puede teletransportarse a un usuario" (a pie, sí). El
+    // servidor lo mira también, antes de decir el precio.
+    if (global.GFMuerte && global.GFMuerte.bloquear(escena, 'travel')) return;
     if (!enlazar()) { aviso('Not connected. Try again in a moment.', 'error'); return; }
     socket.emit('friends:ir', { playerName: j.playerName });
   }
@@ -996,6 +1002,7 @@
   function visitarIsla(j) {
     var V = global.GFViaje;
     if (!V) { aviso('Travelling is not available here.', 'error'); return; }
+    if (global.GFMuerte && global.GFMuerte.bloquear(escena, 'travel')) return;
     var n = desescapar(j.username || j.playerName);
     // (2026-10-20) Una isla sin VIP está cerrada (también para las visitas).
     if (global.GFVip && !j.__vipVisto) {
@@ -2277,6 +2284,9 @@
     refrescar: pedirEstado,
     _interno: {
       estado: function () { return estado; },
+      // (2026-11-23) Los dos viajes del panel (tools/viajes-vip-muerte.test.cjs).
+      irCon: irCon,
+      visitarIsla: visitarIsla,
       desescapar: desescapar,
       colorSeguro: colorSeguro,
       hace: hace

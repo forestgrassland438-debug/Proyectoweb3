@@ -121,7 +121,7 @@
     golem_cripta: {
       arte: 'golem_cripta', molde: 'golem', nombre: 'Crypt Golem', vida: 240, escala: 2, sombra: 1.9,
       vel: 38, velCaza: 62, vista: 380, olvida: 760, correa: 700,
-      golpe: { alcance: 76, cada: 2000 }, poder: [5200, 7600], ancho: 56, alto: 20, cabeza: 128,
+      golpe: { alcance: 76, cada: 2000 }, poder: [5200, 7600], ancho: 56, alto: 20, cabeza: 118,
       vuelveMs: 8 * 60 * 1000, color: 0x7dffb8
     },
     nigromante_cementerio: {
@@ -146,10 +146,10 @@
       vuelveMs: 6 * 60 * 1000, color: 0xffd04a
     },
     golem_arena: {
-      arte: 'golem_arena', molde: 'golem', nombre: 'Sandstone Golem', vida: 220, escala: 2, sombra: 1.9,
+      arte: 'golem_arena', molde: 'golem', nombre: 'Sandstone Golem', vida: 220, escala: 2, sombra: 1.6,
       vel: 40, velCaza: 64, vista: 380, olvida: 760, correa: 720,
       tex: { roca: 'gfm_roca_arena' },
-      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
+      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 134,
       vuelveMs: 7 * 60 * 1000, color: 0xff9a3a
     },
 
@@ -164,7 +164,7 @@
       arte: 'golem_hielo', molde: 'golem', nombre: 'Ice Golem', vida: 230, escala: 2, sombra: 1.9,
       vel: 38, velCaza: 62, vista: 380, olvida: 760, correa: 720,
       tex: { roca: 'gfm_roca_hielo' },
-      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
+      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 180,
       vuelveMs: 7 * 60 * 1000, color: 0xc6f6ff
     },
     bruja_ventisca: {
@@ -217,7 +217,7 @@
       arte: 'golem_cristal', molde: 'arana', nombre: 'Crystal Golem', vida: 300, escala: 2, sombra: 1.9,
       vel: 34, velCaza: 60, vista: 420, olvida: 800, correa: 760, distancia: 220,
       tex: { espina: 'gfm_esquirla', savia: 'gfm_charco_cristal' }, poderes: ['emerger'], freno: 'Crystal shards — you are slowed!',
-      golpe: { alcance: 76, cada: 2000 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 132,
+      golpe: { alcance: 76, cada: 2000 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 126,
       vuelveMs: 9 * 60 * 1000, color: 0xc79cff
     },
 
@@ -240,7 +240,7 @@
       arte: 'golem_musgo', molde: 'golem', nombre: 'Bramble Golem', vida: 320, escala: 2, sombra: 1.9,
       vel: 36, velCaza: 62, vista: 400, olvida: 780, correa: 740,
       tex: { roca: 'gfm_roca_musgo' }, poderes: ['raices'], freno: 'Tangled in brambles — you are slowed!',
-      golpe: { alcance: 76, cada: 1900 }, poder: [4600, 7000], ancho: 56, alto: 20, cabeza: 128,
+      golpe: { alcance: 76, cada: 1900 }, poder: [4600, 7000], ancho: 56, alto: 20, cabeza: 166,
       vuelveMs: 9 * 60 * 1000, color: 0x8fd45a
     },
 
@@ -371,7 +371,8 @@
     chaman_selva: {
       arte: 'chaman_selva', molde: 'arana', humanoide: true, nombre: 'Jungle Shaman', vida: 300, escala: 2, sombra: 1.2,
       vel: 42, velCaza: 86, vista: 480, olvida: 840, correa: 780, distancia: 230,
-      tex: { espina: 'gfm_dardo', savia: 'gfm_veneno' }, poderes: ['dardos'], freno: 'Jungle venom — you are slowed!', frenoIco: '☠',
+      // (2026-11-23) Lleva BÁCULO: lanza orbes de magia verde, no dardos (se leían como flechas).
+      tex: { espina: 'gfm_orbe_selva', savia: 'gfm_veneno' }, orbe: 0x9aff5a, poderes: ['dardos'], freno: 'Jungle venom — you are slowed!', frenoIco: '☠',
       golpe: { alcance: 54, cada: 1400 }, poder: [3000, 4600], ancho: 30, alto: 14, cabeza: 116,
       vuelveMs: 8 * 60 * 1000, color: 0x6ac84a
     },
@@ -387,7 +388,7 @@
       arte: 'golem_magma', molde: 'golem', nombre: 'Magma Golem', vida: 420, escala: 2, sombra: 1.9,
       vel: 34, velCaza: 60, vista: 420, olvida: 800, correa: 760,
       tex: { roca: 'gfm_roca_magma' }, poderes: ['meteoro', 'erupcion'], freno: 'Scorched by lava — you are slowed!', frenoIco: '🔥',
-      golpe: { alcance: 78, cada: 1900 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 124,
+      golpe: { alcance: 78, cada: 1900 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 142,
       vuelveMs: 9 * 60 * 1000, color: 0xff5a1a
     },
     // LA HONDONADA DE GLOWCAP (17)
@@ -444,6 +445,7 @@
     },
     jefe_dragon: {
       arte: 'jefe_dragon', molde: 'lobo', jefe: true, nombre: 'Cindermaw, the Ash Dragon', vida: 4500, escala: 2, sombra: 3.8,
+      vuela: 72,   // (2026-11-23) va por el aire, a 72 px de su sombra; baja en picado para cada ataque (altoDeVuelo)
       vel: 46, velCaza: 120, vista: 560, olvida: 1050, correa: 1150, grito: 'rugido',
       tex: { roca: 'gfm_roca_magma' }, poderes: ['meteoro', 'erupcion'], freno: 'Scorched by lava — you are slowed!', frenoIco: '🔥',
       golpe: { alcance: 110, cada: 1300 }, poder: [2400, 3800], ancho: 96, alto: 26, cabeza: 210,
@@ -472,7 +474,12 @@
     return { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -0.6 }, down: { x: 0, y: 0.6 } }[m.dir] || { x: 1, y: 0 };
   }
   var LEJOS = 1300;                 // más lejos que esto, ni piensa ni se dibuja
-  var DIR_ES = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
+  /* (2026-11-24) Y la barra "chunks" también manda en el dibujo: con el radio
+     por debajo de LEJOS, más allá de él no se dibuja (pensar, sí, si alguien lo
+     tiene cerca). El bicho decide solo su `visible` (GFRecorte.propio): la
+     barra ya no lo toca por su cuenta, que era pelearse con esto y parpadear. */
+  function seDibuja(d, seVe) { var R = window.GFRecorte; return d < LEJOS && (!R || R.cerca(d, seVe)); }
+  var DIR_ES ={ right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
   // Lo que se puede soltar en el suelo: la MISMA lista que el servidor
   // (SUELO_SOLTABLES). (2026-10-27) Ya también lo crafteado y lo de construcción
   // (cofres, espadas, parcelas…), con su nivel para recogerlo; las herramientas
@@ -734,6 +741,7 @@
     // patas de delante caen más abajo que el centro).
     if (!def.humanoide) spr.setOriginFromFrame();
     spr.setData('optimized', true); window.GFGraphics?.registrar?.(spr.scene,spr);
+    window.GFRecorte?.propio?.(spr);                       // se apaga solo: ver seDibuja
     var sombra = scene.add.image(punto.x, punto.y, 'gfsv_sombra').setScale(def.sombra).setAlpha(0.85).setDepth(2.5);
     var m = {
       id: id, tipo: tipo, def: def, n: n, casa: { x: punto.x, y: punto.y }, x: punto.x, y: punto.y,
@@ -758,10 +766,15 @@
   function animar(m, accion) {
     var A = window.GFMonstruosArte, spr = m.spr;
     if (!spr || !spr.scene) return;
-    m.accionNombre = accion;
-    var key = m.def.humanoide ? A.anim(m.def.arte, m.dir) : A.anim(m.def.arte, accion);
+    m.accionNombre = accion;                 // lo que va en la foto del anfitrión (ACCIONES)
+    // (2026-11-23) El que vuela va batiendo las alas cuando anda o espera (si su
+    // atlas trae el vuelo; con uno viejo en la caché, como antes).
+    var que = accion;
+    if (m.def.vuela && !m.accion && (accion === 'camina' || accion === 'quieto') &&
+        spr.scene.anims.exists(A.anim(m.def.arte, 'vuela'))) que = 'vuela';
+    var key = m.def.humanoide ? A.anim(m.def.arte, m.dir) : A.anim(m.def.arte, que);
     if (!m.def.humanoide && (m.dir === 'down' || m.dir === 'up')) {
-      var vista = A.anim(m.def.arte, accion + (m.dir === 'down' ? '_abajo' : '_arriba'));
+      var vista = A.anim(m.def.arte, que + (m.dir === 'down' ? '_abajo' : '_arriba'));
       if (spr.scene.anims.exists(vista)) key = vista;
     }
     if (m.anim === key && spr.anims.isPlaying) return;
@@ -841,10 +854,34 @@
     return ok;
   }
 
+  /* (2026-11-23) "El dragón del mundo de lava debería volar." A cuánto del
+     suelo va el que VUELA (`vuela`: su altura de crucero, en px): arriba,
+     meciéndose al batir las alas, y en picado al suelo para cada acción (su
+     mordisco, sus poderes y los del jefe, que salen de su cuerpo en el suelo);
+     luego sube despacio. Muerto, abajo (morir lo deja caer). Lo que recibe los
+     tajos y choca con las paredes sigue en el suelo, bajo la sombra: igual en
+     todos los navegadores. Nace en el aire. */
+  var VUELO_BAJA = 300, VUELO_SUBE = 110;              // px/s: el picado y la subida
+  function altoDeVuelo(m, t) {
+    if (m.altoVuelo === undefined) m.altoVuelo = m.def.vuela;
+    var seg = m.tVuelo === undefined ? 0 : Math.min(0.1, Math.max(0, (t - m.tVuelo) / 1000));
+    m.tVuelo = t;
+    var meta = (!m.vivo || m.accion) ? 0 : m.def.vuela + Math.sin(t / 380 + m.fase) * 7;
+    var d = meta - m.altoVuelo, paso = (d < 0 ? VUELO_BAJA : VUELO_SUBE) * seg;
+    m.altoVuelo += Math.abs(d) <= paso ? d : (d < 0 ? -paso : paso);
+    return m.altoVuelo;
+  }
+
   function colocar(st, m, t) {
     // Flotan los espectros y las brujas; los zombis, esqueletos y momias andan.
-    var alzado = m.def.flota ? 8 + Math.sin(t / 420 + m.fase) * 5 : 0;
+    var alzado = m.def.vuela ? altoDeVuelo(m, t) : m.def.flota ? 8 + Math.sin(t / 420 + m.fase) * 5 : 0;
     m.spr.setPosition(m.x, m.y - alzado).setDepth(m.y);
+    if (m.def.vuela) {
+      // Su sombra, cuanto más alto va, más pequeña y más clara.
+      var k = Math.max(0, alzado / m.def.vuela);
+      m.sombra.setPosition(m.x, m.y - 2).setDepth(m.y - 1).setScale(m.def.sombra * (1 - 0.35 * k)).setAlpha(0.85 - 0.35 * k);
+      return;
+    }
     m.sombra.setPosition(m.x, m.y - 2).setDepth(m.y - 1).setScale(m.def.sombra * (m.def.flota ? 0.9 - alzado * 0.01 : 1));
   }
 
@@ -862,7 +899,7 @@
         fontFamily: '"PressStart2P"', fontSize: '7px', color: '#ffe9c9', resolution: 4, stroke: '#000000', strokeThickness: 3
       }).setOrigin(0.5, 1);
     }
-    var w = m.def.jefe ? 120 : 46, x = m.x - w / 2, y = m.y - m.def.cabeza - 8;
+    var w = m.def.jefe ? 120 : 46, x = m.x - w / 2, y = m.y - m.def.cabeza - 8 - (m.def.vuela ? m.altoVuelo || 0 : 0);   // (el que vuela, sobre él)
     m.barra.clear().setVisible(true).setDepth(m.y + 2);
     m.barra.fillStyle(0x000000, 0.65).fillRect(x - 1, y - 1, w + 2, m.def.jefe ? 8 : 6);
     m.barra.fillStyle(m.def.jefe ? 0xffc84a : 0xe2574c, 1).fillRect(x, y, w * Math.max(0, m.vida / m.max), m.def.jefe ? 6 : 4);
@@ -1006,6 +1043,26 @@
     });
   }
 
+  /** (2026-11-23) Un proyectil del molde araña (sus espinas, los dardos del
+      chamán). Si la especie lanza MAGIA (`orbe`: el color de su brillo; el
+      chamán con su báculo) es un orbe: no se gira hacia donde va como una
+      flecha, lleva su brillo y nace arriba, en el cristal del báculo, y en
+      200 ms baja a su línea de vuelo (la del golpe, la misma para todos). */
+  function lanzar(st, m, x, y, a, vel, vida, textura, escala, extra) {
+    var scene = st.scene, orbe = m.def.orbe;
+    var b = { spr: scene.add.image(x, y, textura).setScale(escala).setRotation(orbe ? 0 : a).setDepth(m.y + 1),
+              x: x, y: y, vx: Math.cos(a) * vel, vy: Math.sin(a) * vel, hasta: scene.time.now + vida, alto: 30, motivo: 'monstruo_poder' };
+    if (orbe) {
+      b.brillo = scene.add.image(x, y, 'gfsv_brillo').setScale(0.55).setTint(orbe).setAlpha(0.7)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(m.y + 0.9);
+      b.nace = scene.time.now;
+      b.alzado = Math.min(0, (m.y - (m.def.cabeza || 110)) - y);
+    }
+    if (extra) for (var k in extra) b[k] = extra[k];
+    st.proyectiles.push(b);
+    return b;
+  }
+
   /** Tres espinas desde (bx, by) hacia `base`: cada uno mira si le dan. */
   function aranaEspinas(st, m, bx, by, base) {
     var scene = st.scene, t0 = scene.time.now;
@@ -1016,9 +1073,7 @@
       if (!st.vivo || !m.vivo) return;
       for (var i = -1; i <= 1; i++) {
         if (st.proyectiles.length >= 24) break;
-        var a = base + i * 0.2;
-        var spr = scene.add.image(bx, by, tex(m, 'espina')).setScale(1.1).setRotation(a).setDepth(m.y + 1);
-        st.proyectiles.push({ spr: spr, x: bx, y: by, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, hasta: scene.time.now + 1600, alto: 30, motivo: 'monstruo_poder' });
+        lanzar(st, m, bx, by, base + i * 0.2, 380, 1600, tex(m, 'espina'), m.def.orbe ? 1 : 1.1);
       }
     });
   }
@@ -1661,10 +1716,9 @@
       if (!st.vivo || !m.vivo) return;
       for (var i = -2; i <= 2; i++) {
         if (st.proyectiles.length >= 24) break;
-        var a = base + i * 0.16;
-        var spr = scene.add.image(bx, by, texDe(scene, 'gfm_dardo', tex(m, 'espina'))).setScale(0.9).setRotation(a).setDepth(m.y + 1);
-        st.proyectiles.push({ spr: spr, x: bx, y: by, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420, hasta: scene.time.now + 1500,
-                              alto: 30, motivo: 'monstruo_poder', freno: 1300, aviso: m.def.freno, ico: m.def.frenoIco });
+        // El chamán, su magia (su `espina` es el orbe); los demás, el dardo.
+        var cual = m.def.orbe ? texDe(scene, tex(m, 'espina'), 'gfm_dardo') : texDe(scene, 'gfm_dardo', tex(m, 'espina'));
+        lanzar(st, m, bx, by, base + i * 0.16, 420, 1500, cual, 0.9, { freno: 1300, aviso: m.def.freno, ico: m.def.frenoIco });
       }
     });
   }
@@ -1999,7 +2053,7 @@
       var miD = Math.hypot(pj.x - m.x, pj.y - m.y);
       var b = window.GFMobsRed ? window.GFMobsRed.masCercano(scene, m.x, m.y, LEJOS)
                                : (fantasma() ? null : { x: pj.x, y: pj.y, d: miD, local: true });
-      var ver = miD < LEJOS;
+      var ver = seDibuja(miD, m.spr.visible);
       if (ver !== m.spr.visible) { m.spr.setVisible(ver); m.sombra.setVisible(ver); }
       if (!ver && m.barra) m.barra.setVisible(false);
       if (!ver && m.nombre) m.nombre.setVisible(false);
@@ -2040,7 +2094,7 @@
         var k = Math.min(1, seg * 9);
         m.x += dx * k; m.y += dy * k;
       }
-      var cerca = Math.hypot(pj.x - m.x, pj.y - m.y) < LEJOS;
+      var cerca = seDibuja(Math.hypot(pj.x - m.x, pj.y - m.y), m.spr.visible);
       if (cerca !== m.spr.visible) { m.spr.setVisible(cerca); m.sombra.setVisible(cerca); }
       if (!cerca) { if (m.barra) m.barra.setVisible(false); if (m.nombre) m.nombre.setVisible(false); continue; }
       if (m.accion) {
@@ -2103,13 +2157,17 @@
     for (var i = st.proyectiles.length - 1; i >= 0; i--) {
       var b = st.proyectiles[i];
       b.x += b.vx * seg; b.y += b.vy * seg;
-      b.spr.setPosition(b.x, b.y).setDepth(b.y + b.alto);
+      // El orbe que nace en el báculo baja a su línea de vuelo (y su brillo con él, latiendo).
+      var k = b.alzado ? Math.max(0, 1 - (t - b.nace) / 220) : 0, alza = b.alzado ? b.alzado * k * k : 0;
+      b.spr.setPosition(b.x, b.y + alza).setDepth(b.y + b.alto);
+      if (b.brillo) b.brillo.setPosition(b.x, b.y + alza).setDepth(b.y + b.alto - 0.1).setScale(0.55 + 0.06 * Math.sin(t / 70));
       var toca = !fantasma() && Math.hypot(pj.x - b.x, (pj.y - 34) - b.y) < 24;
       var pared = !libre(scene, b.x, b.y + b.alto, 6, 4);
       if (toca || pared || t > b.hasta) {
         if (toca) golpearJugador(st, b.motivo, b.x - b.vx * 0.05, b.y - b.vy * 0.05, 18);
         if (toca && b.freno) frenar(st, b.freno, b.aviso, b.ico);     // (2026-11-21) los dardos envenenados
         b.spr.destroy();
+        if (b.brillo) b.brillo.destroy();
         st.proyectiles.splice(i, 1);
       }
     }
@@ -2271,6 +2329,12 @@
     if (m.nombre) m.nombre.setVisible(false);
     onda(st, m.x, m.y, 0.9);
     m.spr.anims.stop();
+    // (2026-11-23) El que vuela cae al suelo (y su sombra vuelve a su tamaño).
+    if (m.def.vuela && m.altoVuelo) {
+      m.altoVuelo = 0;
+      scene.tweens.add({ targets: m.spr, y: m.y, duration: 380, ease: 'Quad.easeIn' });
+      m.sombra.setScale(m.def.sombra);
+    }
     scene.tweens.add({ targets: [m.spr, m.sombra], alpha: 0, duration: 650, onComplete: function () {
       if (m.spr.scene) { m.spr.setVisible(false); m.sombra.setVisible(false); }
     } });
@@ -2315,6 +2379,7 @@
     m.objX = m.x; m.objY = m.y;
     m.spr.setAlpha(1).setVisible(true).clearTint().setScale(m.def.escala);
     m.sombra.setAlpha(0.85).setVisible(true);
+    if (m.def.vuela) { m.altoVuelo = m.def.vuela; m.tVuelo = undefined; }   // (2026-11-23) vuelve en el aire
     animar(m, 'quieto');
   }
 
@@ -2937,6 +3002,8 @@
         align: 'center', wordWrap: { width: 150 }
       }).setOrigin(0.5, 1).setDepth(o.y + 1);
       st.carteles.push(img, txt);
+      // (2026-11-24) El cartel y su letrero, al recorte de lo lejano (gf-recorte.js).
+      if (window.GFRecorte) window.GFRecorte.anadir(scene, img, [txt]);
     });
   }
 
@@ -3065,7 +3132,7 @@
       [m.spr, m.sombra, m.barra, m.nombre].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     });
     st.bichos.length = 0;
-    st.proyectiles.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} });
+    st.proyectiles.forEach(function (b) { try { b.spr.destroy(); if (b.brillo) b.brillo.destroy(); } catch (e) {} });
     st.proyectiles.length = 0;
     st.charcos.length = 0;
     st.efimeros.slice().forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
@@ -3084,7 +3151,11 @@
     _interno: {
       ESPECIES: ESPECIES, SOLTABLES: SOLTABLES, estado: function (s) { return s && s.__gfSalvaje; },
       empujarJugador: empujarJugador, recibirTajo: recibirTajo, tajoPvp: tajoPvp, ritmo: ritmo, libre: libre,
-      empujarMonstruo: empujar   // la ráfaga de viento (gf-poderes.js)
+      empujarMonstruo: empujar,  // la ráfaga de viento (gf-poderes.js)
+      // (2026-11-23) Para tools/chaman-orbes.test.cjs: los disparos del molde araña.
+      aranaEspinas: aranaEspinas, pxDardos: pxDardos, actualizarProyectiles: actualizarProyectiles,
+      // (2026-11-23) Para tools/dragon-vuela.test.cjs: el dragón que vuela.
+      colocar: colocar, animar: animar, pintarBarra: pintarBarra, morir: morir, revivir: revivir
     }
   };
 })();
