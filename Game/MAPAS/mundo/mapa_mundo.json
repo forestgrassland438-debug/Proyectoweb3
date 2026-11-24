@@ -439,7 +439,8 @@
    "px": [
     2688,
     1180
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "pantano",
@@ -455,7 +456,8 @@
    "px": [
     3158,
     1182
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "aldor",
@@ -471,7 +473,8 @@
    "px": [
     2688,
     1499
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "colinas",
@@ -487,7 +490,8 @@
    "px": [
     2693,
     732
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "selva",
@@ -503,7 +507,8 @@
    "px": [
     3091,
     730
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "volcan",
@@ -519,7 +524,8 @@
    "px": [
     2697,
     290
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "hongos",
@@ -535,7 +541,8 @@
    "px": [
     3154,
     285
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "pueblo_tienda",
@@ -737,7 +744,8 @@
    "px": [
     2667,
     1132
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "cementerio_bruja",
@@ -929,7 +937,8 @@
    "px": [
     2560,
     1087
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "puerto_lonja",
@@ -945,7 +954,8 @@
    "px": [
     2545,
     1182
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "puerto_parque",
@@ -961,7 +971,8 @@
    "px": [
     2742,
     1051
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "pantano_santuario",
@@ -977,7 +988,8 @@
    "px": [
     3103,
     1104
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "aldor_plaza",
@@ -993,7 +1005,8 @@
    "px": [
     2672,
     1543
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "aldor_laguna",
@@ -1009,7 +1022,8 @@
    "px": [
     2762,
     1682
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "colinas_granja",
@@ -1025,7 +1039,8 @@
    "px": [
     2731,
     782
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "selva_aldea",
@@ -1041,7 +1056,8 @@
    "px": [
     3064,
     730
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "volcan_termas",
@@ -1057,7 +1073,8 @@
    "px": [
     2738,
     356
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "hongos_runas",
@@ -1073,7 +1090,8 @@
    "px": [
     3055,
     245
-   ]
+   ],
+   "vip": true
   },
   {
    "id": "isla",
