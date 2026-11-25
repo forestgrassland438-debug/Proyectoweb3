@@ -1,0 +1,68 @@
+{
+ "frames": {
+  "atras": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 152,
+    "h": 152
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 152,
+    "h": 152
+   },
+   "sourceSize": {
+    "w": 152,
+    "h": 152
+   }
+  },
+  "delante": {
+   "frame": {
+    "x": 154,
+    "y": 0,
+    "w": 152,
+    "h": 152
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 152,
+    "h": 152
+   },
+   "sourceSize": {
+    "w": 152,
+    "h": 152
+   }
+  }
+ },
+ "meta": {
+  "image": "ferri.png",
+  "size": {
+   "w": 306,
+   "h": 152
+  },
+  "scale": "1",
+  "app": "tools/generar-ferri.py",
+  "agua": 146,
+  "popa": 8,
+  "proa": 144,
+  "farol": [
+   133,
+   93
+  ],
+  "barquero": [
+   72,
+   130
+  ],
+  "pasajero": [
+   88,
+   130
+  ]
+ }
+}

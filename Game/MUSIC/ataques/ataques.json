@@ -1,0 +1,344 @@
+{
+ "version": "20261124a",
+ "sr": 32000,
+ "bits": 16,
+ "canales": 1,
+ "sonidos": {
+  "aleteo": {
+   "seg": 0.447,
+   "nivel": -16
+  },
+  "alma_carga": {
+   "seg": 1.5,
+   "nivel": -16
+  },
+  "alma_golpe": {
+   "seg": 2.6,
+   "nivel": -14
+  },
+  "ancla": {
+   "seg": 1.339,
+   "nivel": -14
+  },
+  "aullido": {
+   "seg": 4,
+   "nivel": -15
+  },
+  "baston": {
+   "seg": 1.035,
+   "nivel": -15
+  },
+  "bola_nieve": {
+   "seg": 2.534,
+   "nivel": -16
+  },
+  "brote": {
+   "seg": 0.8,
+   "nivel": -16
+  },
+  "chillido": {
+   "seg": 1.4,
+   "nivel": -16
+  },
+  "croar": {
+   "seg": 1.2,
+   "nivel": -16
+  },
+  "derrumbe": {
+   "seg": 2.6,
+   "nivel": -13
+  },
+  "embestida": {
+   "seg": 0.419,
+   "nivel": -16
+  },
+  "emboscada": {
+   "seg": 0.503,
+   "nivel": -17
+  },
+  "emerger": {
+   "seg": 0.731,
+   "nivel": -15
+  },
+  "emerger_sale": {
+   "seg": 1.9,
+   "nivel": -13
+  },
+  "erupcion": {
+   "seg": 2.8,
+   "nivel": -13
+  },
+  "espinas": {
+   "seg": 0.656,
+   "nivel": -16
+  },
+  "esporas": {
+   "seg": 1.257,
+   "nivel": -16
+  },
+  "esquirlas": {
+   "seg": 1.536,
+   "nivel": -15
+  },
+  "flechas": {
+   "seg": 0.609,
+   "nivel": -16
+  },
+  "geiser": {
+   "seg": 1.845,
+   "nivel": -13
+  },
+  "gemido": {
+   "seg": 2.2,
+   "nivel": -15
+  },
+  "golpe_arena": {
+   "seg": 0.877,
+   "nivel": -14
+  },
+  "golpe_bestia": {
+   "seg": 0.293,
+   "nivel": -14
+  },
+  "golpe_blando": {
+   "seg": 0.201,
+   "nivel": -16
+  },
+  "golpe_cristal": {
+   "seg": 1.8,
+   "nivel": -14
+  },
+  "golpe_hielo": {
+   "seg": 1.245,
+   "nivel": -14
+  },
+  "golpe_hueso": {
+   "seg": 0.36,
+   "nivel": -15
+  },
+  "golpe_madera": {
+   "seg": 0.859,
+   "nivel": -15
+  },
+  "golpe_magma": {
+   "seg": 1.075,
+   "nivel": -14
+  },
+  "golpe_muerto": {
+   "seg": 0.572,
+   "nivel": -15
+  },
+  "golpe_piedra": {
+   "seg": 1.029,
+   "nivel": -14
+  },
+  "grito_arana": {
+   "seg": 0.817,
+   "nivel": -17
+  },
+  "grito_bruja": {
+   "seg": 2.5,
+   "nivel": -16
+  },
+  "grito_driada": {
+   "seg": 2.1,
+   "nivel": -17
+  },
+  "grito_espectro": {
+   "seg": 3.1,
+   "nivel": -16
+  },
+  "grito_golem": {
+   "seg": 2.2,
+   "nivel": -14
+  },
+  "grito_hueso": {
+   "seg": 1.5,
+   "nivel": -16
+  },
+  "grito_madera": {
+   "seg": 1.8,
+   "nivel": -16
+  },
+  "grunido_jabali": {
+   "seg": 0.957,
+   "nivel": -15
+  },
+  "hielo_carga": {
+   "seg": 1,
+   "nivel": -16
+  },
+  "hielo_golpe": {
+   "seg": 1.474,
+   "nivel": -14
+  },
+  "hoja_carga": {
+   "seg": 0.94,
+   "nivel": -17
+  },
+  "hoja_golpe": {
+   "seg": 1.158,
+   "nivel": -15
+  },
+  "jefe_impacto": {
+   "seg": 2.3,
+   "nivel": -12
+  },
+  "jefe_nova": {
+   "seg": 2.5,
+   "nivel": -12
+  },
+  "jefe_orbes": {
+   "seg": 2.2,
+   "nivel": -15
+  },
+  "jefe_pincho": {
+   "seg": 1.094,
+   "nivel": -14
+  },
+  "jefe_rugido": {
+   "seg": 3.6,
+   "nivel": -12
+  },
+  "maldicion": {
+   "seg": 2.85,
+   "nivel": -15
+  },
+  "marea": {
+   "seg": 1.512,
+   "nivel": -14
+  },
+  "meteoro": {
+   "seg": 3.1,
+   "nivel": -12
+  },
+  "mordisco": {
+   "seg": 0.41,
+   "nivel": -15
+  },
+  "nieve_impacto": {
+   "seg": 0.434,
+   "nivel": -15
+  },
+  "nieve_lanza": {
+   "seg": 0.768,
+   "nivel": -15
+  },
+  "nube_toxica": {
+   "seg": 1.6,
+   "nivel": -16
+  },
+  "orbes": {
+   "seg": 2,
+   "nivel": -16
+  },
+  "petalos": {
+   "seg": 2.95,
+   "nivel": -17
+  },
+  "picadura": {
+   "seg": 0.229,
+   "nivel": -16
+  },
+  "pinza": {
+   "seg": 0.182,
+   "nivel": -14
+  },
+  "pisoton": {
+   "seg": 2.268,
+   "nivel": -12
+  },
+  "prision": {
+   "seg": 2.198,
+   "nivel": -15
+  },
+  "puf_esporas": {
+   "seg": 0.532,
+   "nivel": -17
+  },
+  "raices": {
+   "seg": 1.047,
+   "nivel": -15
+  },
+  "rayo_solar": {
+   "seg": 2.095,
+   "nivel": -14
+  },
+  "rayos_carga": {
+   "seg": 1,
+   "nivel": -16
+  },
+  "rayos_golpe": {
+   "seg": 2.5,
+   "nivel": -13
+  },
+  "roca_arranca": {
+   "seg": 1.4,
+   "nivel": -14
+  },
+  "roca_impacto": {
+   "seg": 1.459,
+   "nivel": -13
+  },
+  "rugido": {
+   "seg": 2.25,
+   "nivel": -14
+  },
+  "rugido_dragon": {
+   "seg": 3.8,
+   "nivel": -13
+  },
+  "rugido_helado": {
+   "seg": 2.144,
+   "nivel": -14
+  },
+  "salto": {
+   "seg": 1.4,
+   "nivel": -16
+  },
+  "savia": {
+   "seg": 1.142,
+   "nivel": -16
+  },
+  "serpiente_aliento": {
+   "seg": 1.2,
+   "nivel": -14
+  },
+  "serpiente_golpe": {
+   "seg": 1.522,
+   "nivel": -13
+  },
+  "serpiente_grito": {
+   "seg": 2.9,
+   "nivel": -13
+  },
+  "siseo_lava": {
+   "seg": 1.016,
+   "nivel": -16
+  },
+  "tajo_sable": {
+   "seg": 0.647,
+   "nivel": -15
+  },
+  "tajos": {
+   "seg": 0.278,
+   "nivel": -14
+  },
+  "vendaval": {
+   "seg": 2,
+   "nivel": -15
+  },
+  "zarpa": {
+   "seg": 0.322,
+   "nivel": -15
+  },
+  "zarpazo": {
+   "seg": 0.6,
+   "nivel": -14
+  },
+  "zumbido": {
+   "seg": 1.1,
+   "nivel": -17
+  }
+ }
+}
