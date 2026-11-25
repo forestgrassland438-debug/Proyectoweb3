@@ -274,6 +274,8 @@
      grave y crepitar). */
   function sonido(scene, tipo, fuerza) {
     try {
+      // (2026-11-24) El grabado (gf-sonidos-ataque.js); si aún no ha llegado, el de abajo.
+      if (window.GFSonAtaque && window.GFSonAtaque.sonar(scene, tipo === 'aliento' ? 'serpiente_aliento' : 'geiser', null, null, { fuerza: fuerza || 1 })) return;
       var snd = scene.sound, ctx = snd && snd.context;
       if (!ctx || snd.mute || typeof ctx.createBufferSource !== 'function') return;
       var vol = (scene.audioState && Number.isFinite(scene.audioState.sfxVolumeApplied)) ? scene.audioState.sfxVolumeApplied : 0.5;
@@ -315,6 +317,7 @@
      temblor, y un siseo encima. Respeta el silencio y el volumen del juego. */
   function gritar(scene, fuerza) {
     try {
+      if (window.GFSonAtaque && window.GFSonAtaque.sonar(scene, 'serpiente_grito', null, null, { fuerza: fuerza || 1 })) return;   // (2026-11-24) el grabado
       var snd = scene.sound;
       var ctx = snd && snd.context;
       if (!ctx || snd.mute || typeof ctx.createOscillator !== 'function') return;
@@ -911,6 +914,7 @@
       ponerCabeza(s, true);
       scene.time.delayedCall(220, function () { if (s.estado === 'superficie' || s.estado === 'repta') ponerCabeza(s, false); });
     }
+    if (window.GFSonAtaque) window.GFSonAtaque.sonar(scene, 'serpiente_golpe', s.x, s.y, { fuerza: 0.9 });   // (2026-11-24)
     golpearAlJugador(st, 'serpiente_mordisco');
   }
 
@@ -1741,6 +1745,7 @@
     var st = { scene: scene, vivo: true, bolas: [], botin: [], barra: null, ultimoGolpe: 0, vista: false,
                pasos: {}, red: null, barraVista: false };
     scene.__gfSerpiente = st;
+    if (window.GFSonAtaque) window.GFSonAtaque.precargar(scene, window.GFSonAtaque.SERPIENTE);   // (2026-11-24) sus sonidos
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);

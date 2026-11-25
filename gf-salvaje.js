@@ -108,7 +108,7 @@
     // arriba ya es hueso de verdad y este es el que va a por ti con la espada.
     esqueleto_guerrero: {
       arte: 'esqueleto_guerrero', molde: 'lobo', humanoide: true, nombre: 'Skeleton Warrior', vida: 130, escala: 2, sombra: 1.2,
-      vel: 34, velCaza: 82, vista: 440, olvida: 800, correa: 760,
+      vel: 34, velCaza: 82, vista: 440, olvida: 800, correa: 760, grito: 'hueso',
       golpe: { alcance: 62, cada: 1300 }, poder: [4200, 6200], ancho: 30, alto: 14, cabeza: 108,
       vuelveMs: 5 * 60 * 1000, color: 0xe6dcc2
     },
@@ -185,7 +185,7 @@
     },
     oso_polar: {
       arte: 'oso_polar', molde: 'lobo', nombre: 'Frost Bear', vida: 170, escala: 2, sombra: 1.7,
-      vel: 46, velCaza: 120, vista: 400, olvida: 800, correa: 780, poderes: ['rugido_helado'],
+      vel: 46, velCaza: 120, vista: 400, olvida: 800, correa: 780, grito: 'rugido', poderes: ['rugido_helado'],
       freno: 'Frozen roar — you are slowed!',
       golpe: { alcance: 68, cada: 1500 }, poder: [4200, 6400], ancho: 52, alto: 16, cabeza: 90,
       vuelveMs: 5 * 60 * 1000, color: 0xe6f6ff
@@ -224,7 +224,7 @@
     // ── LA PRADERA EN FLOR (nivel 10) ──
     jabali_espinoso: {
       arte: 'jabali', molde: 'lobo', nombre: 'Thornback Boar', vida: 190, escala: 2, sombra: 1.5,
-      vel: 56, velCaza: 150, vista: 440, olvida: 820, correa: 820, poderes: ['espinos'],
+      vel: 56, velCaza: 150, vista: 440, olvida: 820, correa: 820, grito: 'jabali', poderes: ['espinos'],
       tex: { espina: 'gfm_espino' },
       golpe: { alcance: 62, cada: 1300 }, poder: [3600, 5600], ancho: 44, alto: 14, cabeza: 80,
       vuelveMs: 5 * 60 * 1000, color: 0x9ad45a
@@ -615,6 +615,18 @@
     } catch (e) { /* sin sonido, sin drama */ }
   }
 
+  /** (2026-11-24) El sonido de un ataque: el grabado (gf-sonidos-ataque.js,
+      Game/MUSIC/ataques) y, si aún no ha llegado o no hay WebAudio, el
+      sintetizado de arriba (`respaldo`; null: ninguno). Solo cerca de MI
+      jugador. Devuelve si sonó el grabado (pxMeteoro no repite su caída). */
+  function sonarAtaque(st, m, evento, x, y, respaldo, radio, op) {
+    if (!cercaDeMi(st, x, y, radio)) return false;
+    var S = window.GFSonAtaque, id = S && m ? S.de(m.tipo, m.def, evento) : null;
+    if (id && S.sonar(st.scene, id, x, y, Object.assign({ radio: radio || 700 }, op))) return true;
+    if (respaldo) sonar(st.scene, respaldo);
+    return false;
+  }
+
   // ─────────────────────────────────────────────────────── TEXTURAS DE LUZ
   /* Solo sombra, onda y polvo (luz y aire). Los monstruos son PNG. */
   function texturasSueltas(scene) {
@@ -937,6 +949,7 @@
       var pj = pies(scene);
       var fr = frente(m);
       var ix = m.x + fr.x * m.def.golpe.alcance * 0.45, iy = m.y + fr.y * m.def.golpe.alcance * 0.45;
+      sonarAtaque(st, m, 'golpe', ix, iy, null, 700);
       if (m.def.molde === 'golem') {
         onda(st, ix, iy, 0.6);
         if (cercaDeMi(st, ix, iy, 500)) { try { scene.cameras.main.shake(140, 0.005); } catch (e) {} }
@@ -949,7 +962,7 @@
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
     orientar(m, tx - m.x, 0);
-    if (cercaDeMi(st, m.x, m.y)) sonar(scene, 'roca');
+    sonarAtaque(st, m, 'roca', m.x, m.y, 'roca', 700);
     marca(st, tx, ty, 34, 13, 0xffa04a, 1050);
     m.accion = { hasta: t0 + 700, cada: function () {} };
     scene.time.delayedCall(350, function () {
@@ -965,6 +978,7 @@
         soltarEfimero(st, roca);
         if (!st.vivo) return;
         onda(st, tx, ty, 0.75);
+        sonarAtaque(st, m, 'cae', tx, ty, null, 700);
         if (cercaDeMi(st, tx, ty, 500)) { try { scene.cameras.main.shake(170, 0.006); } catch (e) {} }
         var p2 = pies(scene);
         if (Math.hypot(p2.x - tx, p2.y - ty) < 58) golpearJugador(st, 'monstruo_poder', tx, ty, 30);
@@ -981,7 +995,7 @@
       if (!st.vivo || !m.vivo) return;
       onda(st, m.x, m.y, 1.6);
       if (cercaDeMi(st, m.x, m.y)) {
-        sonar(scene, 'roca');
+        sonarAtaque(st, m, 'pisoton', m.x, m.y, 'roca', 700);
         try { scene.cameras.main.shake(380, 0.011); } catch (e) {}
       }
       var p = pies(scene);
@@ -1000,7 +1014,7 @@
     var dado = false;
     m.accion = { hasta: t0 + 380 + 440, cada: function (t, seg) {
       if (t < t0 + 380) return;
-      if (m.spr.scaleY !== m.def.escala) { m.spr.setScale(m.def.escala); animar(m, 'ataque'); }
+      if (m.spr.scaleY !== m.def.escala) { m.spr.setScale(m.def.escala); animar(m, 'ataque'); sonarAtaque(st, m, 'embestida', m.x, m.y, null, 700); }
       if (anfitrion && !mover(st, m, Math.cos(ang) * 430, Math.sin(ang) * 430, seg)) m.accion.hasta = t;   // pared: se acabó
       var p = pies(scene);
       if (!dado && Math.hypot(p.x - m.x, p.y - m.y) < 48) { dado = true; golpearJugador(st, 'monstruo_poder', m.x, m.y, 36); }
@@ -1014,23 +1028,26 @@
     rugido:  { son: 'rugido',  ico: '🐾', txt: 'roars — it is coming for you!' },
     zumbido: { son: 'zumbido', ico: '✨', txt: 'hums — the swarm wakes!' },
     lava:    { son: 'siseo',   ico: '🔥', txt: 'hisses — the lava stirs!' },
-    esporas: { son: 'siseo',   ico: '🍄', txt: 'puffs — the hollow wakes!' }
+    esporas: { son: 'siseo',   ico: '🍄', txt: 'puffs — the hollow wakes!' },
+    // (2026-11-24) Los que antes aullaban "como la manada" sin ser lobos.
+    hueso:   { son: 'cadena',  ico: '💀', txt: 'rattles its bones — the dead march!' },
+    jabali:  { son: 'rugido',  ico: '🐗', txt: 'squeals — it is charging!' }
   };
   function loboAullido(st, m) {
     var scene = st.scene;
     var gr = m.def.grito && Object.prototype.hasOwnProperty.call(GRITOS, m.def.grito) ? GRITOS[m.def.grito] : null;
     if (gr && cercaDeMi(st, m.x, m.y, 1100)) {
-      sonar(scene, gr.son);
+      sonarAtaque(st, m, 'grito', m.x, m.y, gr.son, 1100, { unico: 'grito:' + m.id });
       aviso(scene, gr.ico + ' ' + (m.def.jefe ? '' : 'A ') + m.def.nombre + ' ' + gr.txt, 'warning');
     } else if (cercaDeMi(st, m.x, m.y, 1100)) {
       if (m.def.grito === 'gemido') {
-        sonar(scene, 'gemido');
+        sonarAtaque(st, m, 'grito', m.x, m.y, 'gemido', 1100, { unico: 'grito:' + m.id });
         aviso(scene, '🧟 A ' + m.def.nombre + ' groans — the dead are waking!', 'warning');
       } else if (m.def.grito === 'chillido') {
-        sonar(scene, 'chillido');
+        sonarAtaque(st, m, 'grito', m.x, m.y, 'chillido', 1100, { unico: 'grito:' + m.id });
         aviso(scene, '🦇 A ' + m.def.nombre + ' shrieks — the colony wakes!', 'warning');
       } else {
-        sonar(scene, 'aullido');
+        sonarAtaque(st, m, 'grito', m.x, m.y, 'aullido', 1100, { unico: 'grito:' + m.id });
         aviso(scene, '🐺 A ' + m.def.nombre + ' howls — the pack is coming!', 'warning');
       }
     }
@@ -1067,7 +1084,7 @@
   function aranaEspinas(st, m, bx, by, base) {
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
-    if (cercaDeMi(st, m.x, m.y)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'espinas', m.x, m.y, 'siseo', 700);
     m.accion = { hasta: t0 + 520, cada: function () {} };
     scene.time.delayedCall(300, function () {
       if (!st.vivo || !m.vivo) return;
@@ -1081,7 +1098,7 @@
   function aranaSavia(st, m, tx, ty) {
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
-    if (cercaDeMi(st, m.x, m.y)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'savia', m.x, m.y, 'siseo', 700);
     marca(st, tx, ty, 48, 18, 0xc99a3a, 800);
     m.accion = { hasta: t0 + 600, cada: function () {} };
     var x0 = m.x, y0 = m.y - 30;
@@ -1101,12 +1118,13 @@
   /** Tres rayos en `puntos` ([[x, y], …]). */
   function brujoRayos(st, m, puntos) {
     var scene = st.scene, t0 = scene.time.now;
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    sonarAtaque(st, m, 'rayos', m.x, m.y, 'tormenta', 900);
     puntos.forEach(function (pt) { marca(st, pt[0], pt[1], 32, 12, m.def.color || 0x8ce9ff, 900); });
     m.accion = { hasta: t0 + 700, cada: function () {} };
     scene.time.delayedCall(900, function () {
       if (!st.vivo || !m.vivo) return;
       if (cercaDeMi(st, puntos[0][0], puntos[0][1], 700)) { try { scene.cameras.main.flash(60, 200, 240, 255); } catch (e) {} }
+      sonarAtaque(st, m, 'rayo', puntos[0][0], puntos[0][1], null, 900);
       var dado = false;
       puntos.forEach(function (pt) {
         var rayo = efimero(st, scene.add.image(pt[0], pt[1], tex(m, 'rayo')).setOrigin(0.5, 1).setScale(1).setDepth(9000).setAlpha(1));
@@ -1122,6 +1140,7 @@
   function brujoSalto(st, m, x, y) {
     var scene = st.scene, t0 = scene.time.now;
     m.accion = { hasta: t0 + 560, cada: function () {} };
+    sonarAtaque(st, m, 'salto', m.x, m.y, null, 700);
     scene.tweens.add({ targets: m.spr, alpha: 0, duration: 240, onComplete: function () {
       if (!st.vivo || !m.vivo) return;
       onda(st, m.x, m.y, 0.5);
@@ -1228,7 +1247,7 @@
     animar(m, 'ataque');
     orientar(m, Math.cos(ang), Math.sin(ang));
     m.accion = { hasta: t0 + 600, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y)) sonar(scene, 'roca');
+    sonarAtaque(st, m, 'px:bola_nieve', m.x, m.y, 'roca', 700);
     var x0 = m.x + Math.cos(ang) * 40, y0 = m.y + Math.sin(ang) * 30, dado = false, fin = false;
     var bola = efimero(st, scene.add.image(x0, y0 - 12, tex(m, 'roca')).setScale(0.5).setDepth(y0 + 1));
     var sombra = efimero(st, scene.add.image(x0, y0, 'gfsv_sombra').setScale(0.8).setAlpha(0.7).setDepth(2.5));
@@ -1246,6 +1265,7 @@
     function acaba() {
       if (!st.vivo || !bola.scene) return;
       onda(st, bola.x, bola.y + 10, 0.8);
+      sonarAtaque(st, m, 'px:bola_nieve:fin', bola.x, bola.y + 10, null, 700);
       if (cercaDeMi(st, bola.x, bola.y, 500)) { try { scene.cameras.main.shake(140, 0.005); } catch (e) {} }
       soltarEfimero(st, bola); soltarEfimero(st, sombra);
     }
@@ -1254,7 +1274,7 @@
   function pxRugido(st, m, d) {
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'aullido');
+    sonarAtaque(st, m, 'px:rugido_helado', m.x, m.y, 'aullido', 900);
     marca(st, m.x, m.y, 190, 74, 0xbfefff, 500);
     m.accion = { hasta: t0 + 900, cada: function () {} };
     var ox = m.x, oy = m.y;
@@ -1269,7 +1289,7 @@
 
   function pxPrision(st, m, d) {
     var scene = st.scene, t0 = scene.time.now, cx = d.x, cy = d.y;
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    sonarAtaque(st, m, 'px:prision', m.x, m.y, 'tormenta', 900);
     m.accion = { hasta: t0 + 800, cada: function () {} };
     var puntos = [];
     for (var k = 0; k < 6; k++) { var a = k / 6 * Math.PI * 2; puntos.push([cx + Math.cos(a) * 74, cy + Math.sin(a) * 44]); }
@@ -1291,7 +1311,7 @@
     var scene = st.scene, t0 = scene.time.now, ang = d.a;
     animar(m, 'ataque');
     orientar(m, Math.cos(ang), Math.sin(ang));
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'chillido');
+    sonarAtaque(st, m, 'px:chillido', m.x, m.y, 'chillido', 900);
     m.accion = { hasta: t0 + 700, cada: function () {} };
     var ox = m.x, oy = m.y - (m.def.flota ? 30 : 20);
     [0, 140, 280].forEach(function (retraso) {
@@ -1314,7 +1334,7 @@
   function pxDerrumbe(st, m, d) {
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    sonarAtaque(st, m, 'px:derrumbe', m.x, m.y, 'roca', 900);
     try { if (cercaDeMi(st, m.x, m.y, 700)) scene.cameras.main.shake(300, 0.004); } catch (e) {}
     m.accion = { hasta: t0 + 700, cada: function () {} };
     d.pts.forEach(function (pt, k) {
@@ -1337,7 +1357,7 @@
   function pxEmerger(st, m, d) {
     var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y;
     m.accion = { hasta: t0 + 1300, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    sonarAtaque(st, m, 'px:emerger', m.x, m.y, 'roca', 900);
     onda(st, m.x, m.y, 0.7);
     scene.tweens.add({ targets: m.spr, alpha: 0, duration: 300 });
     m.sombra.setAlpha(0.2);
@@ -1350,7 +1370,7 @@
     scene.time.delayedCall(900, function () {
       if (!st.vivo || !m.vivo) return;
       onda(st, x, y, 1.2);
-      if (cercaDeMi(st, x, y, 600)) { try { scene.cameras.main.shake(260, 0.008); } catch (e) {} sonar(scene, 'roca'); }
+      if (cercaDeMi(st, x, y, 600)) { try { scene.cameras.main.shake(260, 0.008); } catch (e) {} sonarAtaque(st, m, 'px:emerger:sale', x, y, 'roca', 600); }
       animar(m, 'ataque');
       scene.tweens.add({ targets: m.spr, alpha: 1, duration: 200 });
       m.sombra.setAlpha(0.85);
@@ -1364,7 +1384,7 @@
     animar(m, 'ataque');
     orientar(m, Math.cos(ang), Math.sin(ang));
     m.accion = { hasta: scene.time.now + 900, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'px:raices', m.x, m.y, 'siseo', 900);
     var dado = false;
     for (var k = 0; k < 8; k++) {
       (function (k) {
@@ -1390,7 +1410,7 @@
     var scene = st.scene, cx = d.x, cy = d.y;
     animar(m, 'ataque');
     m.accion = { hasta: scene.time.now + 600, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    sonarAtaque(st, m, 'px:petalos', m.x, m.y, 'tormenta', 900);
     marca(st, cx, cy, 80, 34, 0xf4a0bc, 900);
     var petalos = [], dado = false;
     for (var i = 0; i < 12; i++) {
@@ -1457,7 +1477,7 @@
     animar(m, 'ataque');
     orientar(m, Math.cos(ang), Math.sin(ang));
     m.accion = { hasta: t0 + 700, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'ola');
+    sonarAtaque(st, m, 'px:marea', m.x, m.y, 'ola', 900);
     var ux = Math.cos(ang), uy = Math.sin(ang), lado = ux < 0;
     var giro = (lado ? -1 : 1) * Math.asin(Math.max(-1, Math.min(1, uy))) * 0.4;
     var x0 = m.x + ux * 46, y0 = m.y + uy * 34, dado = false, fin = false, LARGO = 560;
@@ -1495,7 +1515,7 @@
     animar(m, 'ataque');
     orientar(m, tx - m.x, ty - m.y);
     m.accion = { hasta: t0 + 1100, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'cadena');
+    sonarAtaque(st, m, 'px:ancla', m.x, m.y, 'cadena', 900);
     marca(st, tx, ty, 30, 12, m.def.color || 0x7ad8c8, 650);
     var x0 = m.x, y0 = m.y - 64;
     var ancla = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_ancla', 'gfm_roca')).setScale(1.3).setDepth(9000));
@@ -1536,7 +1556,7 @@
     animar(m, 'ataque');
     orientar(m, tx - m.x, ty - m.y);
     m.accion = { hasta: t0 + 650, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'croar');
+    sonarAtaque(st, m, 'px:nube_toxica', m.x, m.y, 'croar', 900);
     marca(st, tx, ty, 74, 28, m.def.color || 0x9acd3a, 700);
     var x0 = m.x, y0 = m.y - 30;
     var bola = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_nube_toxica')).setScale(0.35).setDepth(9000));
@@ -1563,7 +1583,7 @@
     var scene = st.scene, cx = d.x, cy = d.y, t0 = scene.time.now;
     animar(m, 'ataque');
     m.accion = { hasta: t0 + 900, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    sonarAtaque(st, m, 'px:maldicion', m.x, m.y, 'tormenta', 900);
     var sello = efimero(st, scene.add.image(cx, cy, texDe(scene, 'gfm_sello')).setDepth(2.9).setScale(0.3).setAlpha(0));
     scene.tweens.add({ targets: sello, scale: 1.55, alpha: 0.95, duration: 380, ease: 'Back.easeOut' });
     var brillo = efimero(st, scene.add.image(cx, cy, 'gfsv_brillo').setDepth(2.95).setScale(2.4, 1.0).setTint(m.def.color || 0x9aff5a).setAlpha(0));
@@ -1590,7 +1610,7 @@
     animar(m, 'ataque');
     orientar(m, ult[0] - m.x, ult[1] - m.y);
     m.accion = { hasta: t0 + 800, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'sol');
+    sonarAtaque(st, m, 'px:rayo_solar', m.x, m.y, 'sol', 900);
     var dado = false;
     d.pts.forEach(function (pt, k) {
       var x = pt[0], y = pt[1], espera = 650 + k * 200;
@@ -1626,7 +1646,7 @@
     var ux = Math.cos(ang), uy = Math.sin(ang), hecho = false;
     animar(m, 'quieto');
     orientar(m, ux, uy);
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'rugido');
+    sonarAtaque(st, m, 'px:zarpazo', m.x, m.y, 'rugido', 900);
     m.accion = { hasta: t0 + 640, cada: function (t, seg) {
       if (t < t0 + 160) return;
       if (t < t0 + 380) {                            // el salto (lo mueve el anfitrión)
@@ -1649,7 +1669,7 @@
     animar(m, 'ataque');
     orientar(m, Math.cos(ang), Math.sin(ang));
     m.accion = { hasta: t0 + 600, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'viento');
+    sonarAtaque(st, m, 'px:vendaval', m.x, m.y, 'viento', 900);
     var ux = Math.cos(ang), uy = Math.sin(ang);
     var x0 = m.x + ux * 40, y0 = m.y + uy * 30, dado = false, fin = false, LARGO = 640;
     var rem = efimero(st, scene.add.image(x0, y0, texDe(scene, 'gfm_viento')).setOrigin(0.6, 0.85).setFlipX(ux < 0).setScale(0.8).setAlpha(0).setDepth(y0 + 2));
@@ -1676,7 +1696,7 @@
   function pxEmboscada(st, m, d) {
     var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y, tx = d.tx, ty = d.ty;
     m.accion = { hasta: t0 + 1000, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'px:emboscada', m.x, m.y, 'siseo', 900);
     animar(m, 'quieto');
     // Las hojas se mueven donde estaba (rayas verdes que suben).
     for (var k = 0; k < 5; k++) {
@@ -1698,7 +1718,7 @@
       animar(m, 'ataque');
       scene.tweens.add({ targets: m.spr, alpha: 1, duration: 140 });
       m.sombra.setAlpha(0.85);
-      if (cercaDeMi(st, x, y, 900)) sonar(scene, 'rugido');
+      sonarAtaque(st, m, 'px:emboscada:sale', x, y, 'rugido', 900);
       var fx = x + ux * 48, fy = y + uy * 32;
       tajos(st, fx, fy, y + 3, ux < 0);
       var p = pies(scene);
@@ -1711,7 +1731,7 @@
     animar(m, 'ataque');
     orientar(m, Math.cos(base), Math.sin(base));
     m.accion = { hasta: t0 + 560, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'px:dardos', m.x, m.y, 'siseo', 900);
     scene.time.delayedCall(260, function () {
       if (!st.vivo || !m.vivo) return;
       for (var i = -2; i <= 2; i++) {
@@ -1727,7 +1747,7 @@
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
     m.accion = { hasta: t0 + 700, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    sonarAtaque(st, m, 'px:erupcion', m.x, m.y, 'roca', 900);
     try { if (cercaDeMi(st, m.x, m.y, 700)) scene.cameras.main.shake(260, 0.004); } catch (e) {}
     var dado = false;
     d.pts.forEach(function (pt, k) {
@@ -1755,7 +1775,7 @@
     var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y;
     animar(m, 'ataque');
     m.accion = { hasta: t0 + 800, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    var conWav = sonarAtaque(st, m, 'px:meteoro', m.x, m.y, 'tormenta', 900);
     marca(st, x, y, 62, 24, 0xff5a1a, 1150);
     var luz = efimero(st, scene.add.image(x, y, 'gfsv_brillo').setDepth(2.95).setScale(1.2, 0.5).setTint(0xff8a3a).setAlpha(0.2));
     luz.setBlendMode(Phaser.BlendModes.ADD);
@@ -1767,7 +1787,7 @@
       soltarEfimero(st, roca);
       scene.tweens.add({ targets: luz, alpha: 0, duration: 380, onComplete: function () { soltarEfimero(st, luz); } });
       onda(st, x, y, 1.5);
-      if (cercaDeMi(st, x, y, 700)) { sonar(scene, 'roca'); try { scene.cameras.main.shake(320, 0.012); } catch (e) {} }
+      if (cercaDeMi(st, x, y, 700)) { if (!conWav) sonarAtaque(st, m, 'cae', x, y, 'roca', 700); try { scene.cameras.main.shake(320, 0.012); } catch (e) {} }
       for (var c = 0; c < 8; c++) {
         var a = -Math.PI + c / 7 * Math.PI, v = 60 + (c % 3) * 30;
         var r = efimero(st, scene.add.image(x, y - 6, 'gfsv_raya_lava').setDepth(y + 3).setRotation(a + Math.PI / 2).setScale(1.2, 1.4));
@@ -1783,7 +1803,7 @@
     var scene = st.scene, t0 = scene.time.now, ox = m.x, oy = m.y;
     animar(m, 'ataque');
     m.accion = { hasta: t0 + 900, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'px:esporas', m.x, m.y, 'siseo', 900);
     marca(st, ox, oy, 170, 66, m.def.color || 0xa87aff, 480);
     scene.time.delayedCall(480, function () {
       if (!st.vivo) return;
@@ -1806,7 +1826,7 @@
     var scene = st.scene, t0 = scene.time.now;
     animar(m, 'ataque');
     m.accion = { hasta: t0 + 700, cada: function () {} };
-    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    sonarAtaque(st, m, 'px:brote', m.x, m.y, 'siseo', 900);
     var dado = false;
     d.pts.forEach(function (pt, k) {
       var x = pt[0], y = pt[1];
@@ -2004,9 +2024,9 @@
     var scene = st.scene;
     if (m.def.molde === 'lobo') { loboAullido(st, m); return; }
     if (!cercaDeMi(st, m.x, m.y, 900)) return;
-    if (m.def.molde === 'golem') { sonar(scene, 'roca'); try { scene.cameras.main.shake(300, 0.004); } catch (e) {} }
-    else if (m.def.molde === 'arana') sonar(scene, 'siseo');
-    else sonar(scene, 'tormenta');
+    var respaldo = m.def.molde === 'golem' ? 'roca' : m.def.molde === 'arana' ? 'siseo' : 'tormenta';
+    sonarAtaque(st, m, 'grito', m.x, m.y, respaldo, 900, { unico: 'grito:' + m.id });
+    if (m.def.molde === 'golem') { try { scene.cameras.main.shake(300, 0.004); } catch (e) {} }
   }
 
   function empezarCaza(st, m) {
@@ -3038,7 +3058,7 @@
     // (2026-10-18) Solo el arte de las especies que tiene ESTE mapa (el
     // salvaje pide lo de siempre) y sus proyectiles.
     var capaM = scene.map.getObjectLayer('monstruos');
-    var artes = {}, texs = { gfm_cartel: true };
+    var artes = {}, texs = { gfm_cartel: true }, tiposSon = {};
     // (2026-10-20) El jefe de este mapa (gf-jefes.js): su guarida, igual en todos.
     var jefe = null;
     try { jefe = window.GFJefes ? window.GFJefes.puesto(scene) : null; } catch (e) { jefe = null; }
@@ -3046,6 +3066,7 @@
       var d = ESPECIES[o.name];
       if (!d) return;
       artes[d.arte] = true;
+      tiposSon[o.name] = true;
       ({ golem: ['roca'], lobo: [], arana: ['espina', 'savia'], brujo: ['rayo'] }[d.molde] || []).forEach(function (q) {
         texs[(d.tex && d.tex[q]) || TEX_BASE[q]] = true;
       });
@@ -3055,6 +3076,8 @@
         (PODER_SUELTAS[pd] || []).forEach(function (k) { texs[k] = true; });     // (2026-11-21) los de los reinos
       });
     });
+    // (2026-11-24) Y los sonidos de sus ataques (gf-sonidos-ataque.js): solo los de estas especies.
+    if (window.GFSonAtaque) { try { window.GFSonAtaque.precargarEspecies(scene, Object.keys(tiposSon), ESPECIES); } catch (e) { console.warn('[salvaje] sonidos:', e); } }
     var arte = A ? A.cargar(scene, Object.keys(artes), Object.keys(texs)) : Promise.resolve(false);
     arte.then(function (ok) {
       if (!st.vivo || scene.__gfSalvaje !== st) return;

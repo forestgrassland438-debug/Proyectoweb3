@@ -16,7 +16,9 @@
   let estado = null, sondeo = null;
 
   const NOMBRES = { tutorial: 'Tutorial', habilidades: 'Skills (experience)', misiones: 'Missions completed', ranking: 'Ranking',
-    amigos: 'Friends', invitados: 'Invites', lands: 'Lands buildings', respaldo: 'Encrypted anchor (head)' };
+    amigos: 'Friends', invitados: 'Invites', lands: 'Lands buildings', respaldo: 'Encrypted anchor (head)',
+    // (2026-11-25) Las cuentas creadas y las tx minadas, en una factura del relayer (ver el centro de control).
+    contadores: 'Contract counters' };
   const nombre = (k) => t(NOMBRES[k] || k);
   const fecha = (v) => v ? new Date(v).toLocaleString() : '—';
   const minutos = (ms) => Math.round((Number(ms) || 0) / 60000);

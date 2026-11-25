@@ -40,12 +40,22 @@
 // economía circular y el 3,5 % del tesoro del juego."
 const MARKET_FEE_BPS = 500; // 5% de comisión → 1,5 % tesoro circular + 3,5 % tesoro del juego
 
+// (2026-11-25) EL BRONCE EN EL MERCADO. "Al market le falta el bronce, no lo
+// tiene ni para comercializar." Las tres monedas son la MISMA en tres tamaños
+// (1 oro = 1.000 plata = 1.000.000 de bronce) y en la cadena cada una es una
+// factura con un número ENTERO. Por eso el dinero se mueve aquí en bronce, sin
+// decimales: un precio de 2,5 de oro se paga con 2 de oro y 500 de plata (o con
+// 3 de oro y la vuelta), y al vendedor le llega lo justo en monedas enteras.
+// Antes el mercado dejaba 9,95 de oro en Mongo y la cadena guardaba 10.
+const MONEDAS = ['oro', 'plata', 'bronce'];               // de la grande a la pequeña
+const BRONCE_POR = Object.freeze({ oro: 1000000, plata: 1000, bronce: 1 });
+
 // ── Catálogo de ítems (nombre para mostrar, categoría, ícono, stack máximo) ─
 // Debe mantenerse en sincronía con `this.ItemDefinitions` en GameScene.js.
 // Los paths de ícono son relativos a la raíz del juego (ver ASSET BASE en
 // market.html) — por eso empiezan con "/Game/...".
 const ITEM_CATALOG = {
-  ...Object.fromEntries(Object.entries((()=>{try{return require('./gf-items-v2').fusionar(require('./gf-crop-catalog'));}catch(_){return require('./gf-crop-catalog');}})().items).map(([id,d])=>[id,{name:d.name,category:d.kind==='seed'?'semillas':({arma:'herramientas',cana:'herramientas',montura:'otros',obra:'construccion'})[d.kind]||'cultivos',icon:d.src.replace(/^\./,''),maxStack:d.maxStack}])),
+  ...Object.fromEntries(Object.entries((()=>{try{return require('./gf-items-v2').fusionar(require('./gf-crop-catalog'));}catch(_){return require('./gf-crop-catalog');}})().items).map(([id,d])=>[id,{name:d.name,category:d.kind==='seed'?'semillas':({arma:'herramientas',cana:'herramientas',montura:'monturas',obra:'construccion',pez:'pesca',pan:'comida',torta:'comida',ingrediente:'comida'})[d.kind]||'cultivos',icon:d.src.replace(/^\./,''),maxStack:d.maxStack}])),
   Semillax:  { name: 'Semillas de Zanahoria', category: 'semillas', icon: '/Game/Objetos/Plantas/planta_zanahorias/item_saco.png', maxStack: 50 },
   Semillax1: { name: 'Semillas de Tomate',    category: 'semillas', icon: '/Game/Objetos/Plantas/planta_tomates/semillas_tomate.png', maxStack: 50 },
   Semillax4: { name: 'Strawberry Seed',      category: 'semillas', icon: '/Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png', maxStack: 50 },
@@ -126,7 +136,32 @@ const ITEM_CATALOG = {
   // (2026-10-21) El bote y las dos armas a distancia.
   bote:           { name: 'Boat',         category: 'herramientas', icon: '/Game/Objetos/bote/bote.png',             maxStack: 1 },
   arco:           { name: 'Bow',          category: 'herramientas', icon: '/Game/Objetos/armas/arco.png',            maxStack: 1 },
-  baston_mago:    { name: 'Wizard Staff', category: 'herramientas', icon: '/Game/Objetos/armas/baston_mago.png',     maxStack: 1 }
+  baston_mago:    { name: 'Wizard Staff', category: 'herramientas', icon: '/Game/Objetos/armas/baston_mago.png',     maxStack: 1 },
+
+  // (2026-11-25) "En el inventario del market no se ven algunos iconos": las
+  // pociones del alquimista y los 14 peces del río no estaban aquí y salían con
+  // la caja gris y el id por nombre (y con pila de 20 aunque el juego apile 10 o
+  // 5). Iconos, pilas y nombres son los del juego (ItemDefinitions de GameScene,
+  // tienda_sistema.js). Que se puedan vender ya se podía: esto solo los nombra.
+  pocion_vida:           { name: 'Life Potion',      category: 'pociones', icon: '/Game/newpro/pociones/pocion_vida.png',           maxStack: 20 },
+  pocion_antidoto:       { name: 'Antidote Potion',  category: 'pociones', icon: '/Game/newpro/pociones/pocion_energia.png',        maxStack: 20 },
+  pocion_mascota:        { name: 'Pet Potion',       category: 'pociones', icon: '/Game/Objetos/pociones/pocion_mascota.png',        maxStack: 20 },
+  pocion_mascota_grande: { name: 'Great Pet Potion', category: 'pociones', icon: '/Game/Objetos/pociones/pocion_mascota_grande.png', maxStack: 10 },
+  elixir_revivir:        { name: 'Revival Elixir',   category: 'pociones', icon: '/Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5 },
+  pes1:  { name: 'Brown Trout',  category: 'pesca', icon: '/Game/Objetos/pesca/pes1.png',  maxStack: 20 },
+  pes2:  { name: 'Common Carp',  category: 'pesca', icon: '/Game/Objetos/pesca/pes2.png',  maxStack: 20 },
+  pes3:  { name: 'Golden Trout', category: 'pesca', icon: '/Game/Objetos/pesca/pes3.png',  maxStack: 20 },
+  pes4:  { name: 'River Perch',  category: 'pesca', icon: '/Game/Objetos/pesca/pes4.png',  maxStack: 20 },
+  pes5:  { name: 'Bream',        category: 'pesca', icon: '/Game/Objetos/pesca/pes5.png',  maxStack: 20 },
+  pes6:  { name: 'Sturgeon',     category: 'pesca', icon: '/Game/Objetos/pesca/pes6.png',  maxStack: 20 },
+  pes7:  { name: 'Poison Eel',   category: 'pesca', icon: '/Game/Objetos/pesca/pes7.png',  maxStack: 20 },
+  pes8:  { name: 'Lionfish',     category: 'pesca', icon: '/Game/Objetos/pesca/pes8.png',  maxStack: 20 },
+  pes9:  { name: 'Silver Pike',  category: 'pesca', icon: '/Game/Objetos/pesca/pes9.png',  maxStack: 20 },
+  pes10: { name: 'Zander',       category: 'pesca', icon: '/Game/Objetos/pesca/pes10.png', maxStack: 20 },
+  pes11: { name: 'Ice Trout',    category: 'pesca', icon: '/Game/Objetos/pesca/pes11.png', maxStack: 20 },
+  pes12: { name: 'Rainbow Fish', category: 'pesca', icon: '/Game/Objetos/pesca/pes12.png', maxStack: 20 },
+  pes13: { name: 'King Salmon',  category: 'pesca', icon: '/Game/Objetos/pesca/pes13.png', maxStack: 20 },
+  pes14: { name: 'Pufferfish',   category: 'pesca', icon: '/Game/Objetos/pesca/pes14.png', maxStack: 20 }
 };
 
 const CATEGORIES = [
@@ -135,9 +170,24 @@ const CATEGORIES = [
   { id: 'minerales',    label: 'Minerales' },
   { id: 'madera',       label: 'Madera' },
   { id: 'cultivos',     label: 'Cultivos' },
+  // (2026-11-25) Los panes y tortas, los peces, las pociones y las 100 monturas
+  // ya no se mezclan con los cultivos y con "Otros".
+  { id: 'comida',       label: 'Comida' },
+  { id: 'pesca',        label: 'Pesca' },
+  { id: 'pociones',     label: 'Pociones' },
+  { id: 'monturas',     label: 'Monturas' },
   { id: 'construccion', label: 'Construcción' },
   { id: 'otros',        label: 'Otros' }
 ];
+
+/* La categoría manda el CATÁLOGO de hoy, no la que se guardó al publicar: una
+   publicación de pan de antes de 2026-11-25 dice 'cultivos' y debe salir en
+   'comida'. Las de objetos que el catálogo no conoce siguen con lo guardado. */
+function filtroDeCategoria(categoria) {
+  const ids = Object.keys(ITEM_CATALOG).filter(id => ITEM_CATALOG[id].category === categoria);
+  const conocidos = Object.keys(ITEM_CATALOG);
+  return { $or: [{ itemId: { $in: ids } }, { category: categoria, itemId: { $nin: conocidos } }] };
+}
 
 function catalogMeta(itemId) {
   return Object.prototype.hasOwnProperty.call(ITEM_CATALOG, itemId) ? ITEM_CATALOG[itemId]
@@ -150,6 +200,96 @@ function round2(n) {
 
 function validMarketAmount(n) {
   return Number.isFinite(n) && n > 0 && Number.isSafeInteger(Math.round(n * 100));
+}
+
+// ── El dinero, en bronce y sin decimales (2026-11-25) ─────────────────────
+
+/** Una cantidad de una moneda, en bronce (entero: oro y plata llevan como mucho dos decimales). */
+function aBronce(cantidad, moneda) {
+  return Object.prototype.hasOwnProperty.call(BRONCE_POR, moneda) ? Math.round(Number(cantidad) * BRONCE_POR[moneda]) : NaN;
+}
+
+/** El precio por unidad como se guarda: con dos decimales en oro y plata; en bronce, tal cual (tiene que ser entero). */
+function leerPrecio(valor, moneda) {
+  const n = Number(valor);
+  return moneda === 'bronce' ? n : round2(n);
+}
+
+/** ¿Vale como precio por unidad? En bronce, un entero: no hay moneda más pequeña. */
+function precioValido(precio, moneda) {
+  if (moneda === 'bronce') return Number.isSafeInteger(precio) && precio >= 1;
+  return Object.prototype.hasOwnProperty.call(BRONCE_POR, moneda) && validMarketAmount(precio) && Number.isSafeInteger(aBronce(precio, moneda));
+}
+
+/** El reparto de un importe: el 5 % de comisión (con dos decimales en oro y
+    plata, como siempre; en bronce, redondeado a entero) y lo que le llega al
+    vendedor, con sus equivalentes en bronce. null si no cuadra. */
+function repartoVenta(total, moneda) {
+  if (!Object.prototype.hasOwnProperty.call(BRONCE_POR, moneda) || !(Number(total) > 0)) return null;
+  const enBronce = moneda === 'bronce';
+  const fee = enBronce ? Math.round(total * MARKET_FEE_BPS / 10000) : round2(total * MARKET_FEE_BPS / 10000);
+  const sellerReceives = enBronce ? total - fee : round2(total - fee);
+  const totalB = aBronce(total, moneda), feeB = aBronce(fee, moneda);
+  if (!Number.isSafeInteger(totalB) || totalB < 1 || !Number.isSafeInteger(feeB) || feeB < 0 || feeB > totalB) return null;
+  return { total, fee, sellerReceives, totalB, feeB, sellerB: totalB - feeB };
+}
+
+/** Lo que cuestan `qty` unidades a `precio` (null si el precio no vale). */
+function importeDe(qty, precio, moneda) {
+  if (!Number.isSafeInteger(qty) || qty < 1 || !precioValido(precio, moneda)) return null;
+  return repartoVenta(moneda === 'bronce' ? qty * precio : round2(qty * precio), moneda);
+}
+
+/** El saldo en monedas ENTERAS. Lo fraccionario que dejaba el mercado viejo
+    (9,95 de oro) baja a la moneda menor sin perder valor: 9 de oro y 950 de plata. */
+function saldoEntero(st) {
+  const n = (v) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? x : 0; };
+  const oro = n(st && st.oro), plata = n(st && st.plata), bronce = n(st && st.bronce);
+  const o = Math.floor(oro), restoOro = Math.round((oro - o) * BRONCE_POR.oro);
+  const p = Math.floor(plata), restoPlata = Math.round((plata - p) * BRONCE_POR.plata);
+  return { oro: o, plata: p + Math.floor(restoOro / BRONCE_POR.plata),
+           bronce: Math.floor(bronce) + restoOro % BRONCE_POR.plata + restoPlata };
+}
+
+/** Suma `cuanto` bronce a `r` en monedas enteras, de la moneda `desde` hacia las pequeñas. */
+function sumarEnMonedas(r, cuanto, desde) {
+  for (let i = Math.max(0, desde); i < MONEDAS.length; i++) {
+    const k = MONEDAS[i], n = Math.floor(cuanto / BRONCE_POR[k]);
+    r[k] += n; cuanto -= n * BRONCE_POR[k];
+  }
+  return r;
+}
+
+/** COBRAR `cuanto` bronce de un saldo entero. Primero monedas enteras de la
+    moneda de la publicación y de las menores sin pasarse; lo que falte, con la
+    moneda más pequeña que quede y la vuelta en monedas menores (como paga
+    cualquiera con monedas en la mano). null si no llega. */
+function planPago(cuanto, saldo, moneda) {
+  if (!Number.isSafeInteger(cuanto) || cuanto < 0) return null;
+  const r = { oro: saldo.oro, plata: saldo.plata, bronce: saldo.bronce };
+  const total = r.oro * BRONCE_POR.oro + r.plata * BRONCE_POR.plata + r.bronce;
+  if (!Number.isSafeInteger(total) || total < cuanto) return null;
+  let falta = cuanto;
+  for (let i = Math.max(0, MONEDAS.indexOf(moneda)); i < MONEDAS.length && falta > 0; i++) {
+    const k = MONEDAS[i], usa = Math.min(r[k], Math.floor(falta / BRONCE_POR[k]));
+    r[k] -= usa; falta -= usa * BRONCE_POR[k];
+  }
+  for (let i = MONEDAS.length - 1; i >= 0 && falta > 0; i--) {
+    const k = MONEDAS[i];
+    if (r[k] <= 0) continue;
+    const usa = Math.min(r[k], Math.ceil(falta / BRONCE_POR[k]));
+    r[k] -= usa;
+    const pagado = usa * BRONCE_POR[k];
+    if (pagado >= falta) { sumarEnMonedas(r, pagado - falta, i + 1); falta = 0; } else falta -= pagado;
+  }
+  return falta > 0 ? null : r;
+}
+
+/** ABONAR `cuanto` bronce: monedas enteras de la moneda de la publicación y lo
+    que no llegue a una, en las menores (1,9 de oro = 1 de oro y 900 de plata). */
+function planAbono(cuanto, saldo, moneda) {
+  if (!Number.isSafeInteger(cuanto) || cuanto < 0) return null;
+  return sumarEnMonedas({ oro: saldo.oro, plata: saldo.plata, bronce: saldo.bronce }, cuanto, Math.max(0, MONEDAS.indexOf(moneda)));
 }
 
 function escapeRegex(str) {
@@ -273,10 +413,12 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
 
   /* La comisión de una venta al tesoro, EN BRONCE (1 plata = 1.000, 1 oro =
      1.000.000; el mercado cobra con dos decimales). Va dentro de la
-     transacción del que llama: si la venta se deshace, esto también. */
+     transacción del que llama: si la venta se deshace, esto también.
+     (2026-11-25) Con el bronce como tercera moneda: antes todo lo que no era
+     plata contaba como oro, y 50 de bronce habrían entrado como 50 de oro. */
   async function ingresarAlTesoro(currency, fee, sellerName, itemId, qty) {
     if (!Tesoro || !(fee > 0)) return;
-    const bronce = Math.round(fee * (currency === 'plata' ? 1000 : 1000000));
+    const bronce = Math.round(fee * (BRONCE_POR[currency] || 0));
     if (!(bronce > 0)) return;
     // (2026-10-26) Del 5 %, el 1,5 % al tesoro circular y lo demás (3,5 %) al del juego.
     // Sin tesoro del juego (servidor viejo), todo al circular, como antes.
@@ -329,8 +471,37 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
     return stats;
   }
 
-  function currencyField(currency) {
-    return currency === 'plata' ? 'plata' : 'oro';
+  /* MOVER MONEDAS DE UN JUGADOR (2026-11-25). Lee su saldo, lo pasa a monedas
+     enteras, cobra o abona un importe en bronce y lo escribe SOLO si nadie lo
+     cambió entre medias (además va dentro de la transacción de Mongo de quien
+     llama). Cada moneda que cambia queda pendiente de la cadena (chainPending),
+     como en la tienda (eco2CobrarBronce): antes el mercado hacía un $inc sin esa
+     marca y el siguiente /sync daba la razón a la factura vieja, así que la
+     compra o la venta se deshacía al volver al juego.
+     → { ok:true, doc } con el saldo nuevo, o { ok:false, motivo:'saldo'|'sin_stats' }. */
+  async function moverSaldo(filtro, { cobrar = 0, abonar = 0, moneda }) {
+    for (let intento = 0; intento < 4; intento++) {
+      const st = await PlayerStats.findOne(filtro).lean().exec();
+      if (!st) return { ok: false, motivo: 'sin_stats' };
+      const despues = cobrar > 0 ? planPago(cobrar, saldoEntero(st), moneda) : planAbono(abonar, saldoEntero(st), moneda);
+      if (!despues) return { ok: false, motivo: 'saldo' };
+      const cambian = MONEDAS.filter(k => despues[k] !== (st[k] == null ? 0 : st[k]));
+      if (!cambian.length) return { ok: true, doc: st };
+      const mismo = { _id: st._id }, set = {};
+      for (const k of MONEDAS) if (st[k] !== undefined) mismo[k] = st[k];
+      for (const k of cambian) set[k] = despues[k];
+      const hecho = await PlayerStats.updateOne(mismo, { $set: set, $addToSet: { chainPending: { $each: cambian } } }).exec();
+      if (hecho.matchedCount === 1) {
+        await PlayerStats.updateOne({ _id: st._id, chainPendingSince: null }, { $set: { chainPendingSince: new Date() } }).exec();
+        return { ok: true, doc: { ...st, ...set } };
+      }
+    }
+    throw new Error('market_balance_busy');
+  }
+
+  /** Las tres monedas para las respuestas (null si no hay saldo que enseñar). */
+  function monedasDe(st) {
+    return { oro: st ? st.oro : null, plata: st ? st.plata : null, bronce: st ? (st.bronce || 0) : null };
   }
 
   // FIX "faltan objetos en el market": antes solo se serializaba gp.inventory
@@ -424,7 +595,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       mine: !!myAddress && doc.owner === myAddress,
       itemId: doc.itemId,
       name: doc.name,
-      category: doc.category,
+      category: Object.prototype.hasOwnProperty.call(ITEM_CATALOG, doc.itemId) ? ITEM_CATALOG[doc.itemId].category : doc.category,
       icon: catalogMeta(doc.itemId).icon,
       qty: doc.qty,
       pricePerUnit: doc.pricePerUnit,
@@ -529,8 +700,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       return res.json({
         address,
         playerName: gp.playerName,
-        oro: stats.oro,
-        plata: stats.plata,
+        ...monedasDe(stats),
         inventory: serializeInventory(gp)
       });
     } catch (err) {
@@ -565,8 +735,8 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const filter = {};
       const categoriaTxt = (typeof category === 'string') ? category : '';
       const buscarTxt = (typeof search === 'string') ? search.slice(0, 80) : '';
-      if (categoriaTxt && categoriaTxt !== 'todos') filter.category = categoriaTxt;
-      if (currency && ['oro', 'plata'].includes(currency)) filter.currency = currency;
+      if (categoriaTxt && categoriaTxt !== 'todos') Object.assign(filter, filtroDeCategoria(categoriaTxt));
+      if (typeof currency === 'string' && MONEDAS.includes(currency)) filter.currency = currency;
       if (buscarTxt) filter.name = new RegExp(escapeRegex(buscarTxt), 'i');
 
       let sortOpt = { createdAt: -1 };
@@ -576,7 +746,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const page=Math.min(10000,Math.max(1,parseInt(req.query.page,10)||1)), pageSize=48;
       let listings;
       if(sort==='price_asc' || sort==='price_desc'){
-        listings=await RawListing.aggregate([{$match:filter},{$addFields:{_sortPrice:{$multiply:['$pricePerUnit',{$cond:[{$eq:['$currency','oro']},1000,1]}]}}},
+        listings=await RawListing.aggregate([{$match:filter},{$addFields:{_sortPrice:{$multiply:['$pricePerUnit',{$switch:{branches:[{case:{$eq:['$currency','oro']},then:BRONCE_POR.oro},{case:{$eq:['$currency','plata']},then:BRONCE_POR.plata}],default:BRONCE_POR.bronce}}]}}},
           {$sort:{_sortPrice:sort==='price_asc'?1:-1,_id:1}},{$skip:(page-1)*pageSize},{$limit:pageSize+1}]).option({maxTimeMS:5000});
       }else listings=await Listing.find(filter).sort({...sortOpt,_id:-1}).skip((page-1)*pageSize).limit(pageSize+1).maxTimeMS(5000).exec();
       const hasMore=listings.length>pageSize;if(hasMore)listings.pop();
@@ -610,7 +780,11 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
 
       slotId = Number(slotId);
       qty = Math.floor(Number(qty));
-      pricePerUnit = round2(Number(pricePerUnit));
+      // La moneda primero: el precio se lee según ella (el bronce, entero).
+      if (typeof currency !== 'string' || !MONEDAS.includes(currency)) {
+        return res.status(400).json({ error: 'invalid_currency' });
+      }
+      pricePerUnit = leerPrecio(pricePerUnit, currency);
       // FIX inventario completo: el objeto puede venir del bolso principal
       // ('inventory') o de la barra rápida ('chest'). Se descuenta del array
       // correcto; por defecto 'inventory' para compatibilidad.
@@ -627,11 +801,8 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       if (!Number.isSafeInteger(qty) || qty < 1) {
         return res.status(400).json({ error: 'invalid_qty' });
       }
-      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) {
+      if (!importeDe(qty, pricePerUnit, currency)) {
         return res.status(400).json({ error: 'invalid_price' });
-      }
-      if (!['oro', 'plata'].includes(currency)) {
-        return res.status(400).json({ error: 'invalid_currency' });
       }
 
       const gp = await getGamePlayerByAddress(address);
@@ -817,25 +988,20 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
         return res.status(400).json({ error: 'inventory_full', message: 'Tu inventario está lleno' });
       }
 
-      const totalPrice = round2(qty * listing.pricePerUnit);
-      if (!validMarketAmount(totalPrice)) return res.status(400).json({ error: 'invalid_price' });
-      const fee = round2(totalPrice * MARKET_FEE_BPS / 10000);
-      const sellerReceives = round2(totalPrice - fee);
-      const field = currencyField(listing.currency);
+      const imp = importeDe(qty, listing.pricePerUnit, listing.currency);
+      if (!imp) return res.status(400).json({ error: 'invalid_price' });
+      const { total: totalPrice, fee, sellerReceives } = imp;
 
-      const buyerStats = await getOrCreateStats(buyerGP.playerName, address, buyerGP);
+      await getOrCreateStats(buyerGP.playerName, address, buyerGP);
 
-      // 2) Cobrar al comprador de forma atómica (guard >= totalPrice evita saldo negativo)
-      const debited = await PlayerStats.findOneAndUpdate(
-        { playerName: buyerGP.playerName, [field]: { $gte: totalPrice } },
-        { $inc: { [field]: -totalPrice } },
-        { new: true }
-      ).exec();
-
-      if (!debited) {
+      // 2) Cobrar al comprador (2026-11-25): por VALOR, en bronce entero. Paga con
+      //    la moneda de la publicación y, si no le llega, con las otras y su vuelta
+      //    (como en la tienda). Nunca deja saldo negativo.
+      const cobro = await moverSaldo({ playerName: buyerGP.playerName }, { cobrar: imp.totalB, moneda: listing.currency });
+      if (!cobro.ok) {
         return res.status(402).json({
           error: 'insufficient_funds',
-          message: `No tienes suficiente ${listing.currency === 'oro' ? 'oro' : 'plata'} para esta compra`
+          message: 'No tienes suficiente dinero (oro, plata y bronce) para esta compra'
         });
       }
 
@@ -847,11 +1013,8 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       ).exec();
 
       if (!listingUpdated) {
-        // Alguien más compró primero — devolver el dinero al comprador
-        await PlayerStats.updateOne(
-          { playerName: buyerGP.playerName },
-          { $inc: { [field]: totalPrice } }
-        ).exec();
+        // Alguien más compró primero. El 409 deshace la transacción entera, cobro
+        // incluido: no hace falta (ni conviene) devolver el dinero a mano.
         return res.status(409).json({
           error: 'listing_changed',
           message: 'Esa publicación cambió (alguien más compró primero). Intenta de nuevo.'
@@ -863,11 +1026,8 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       }
 
       // 4) Pagar al vendedor (95 % — el 5 % de comisión va a los dos tesoros)
-      const sellerPaid = await PlayerStats.updateOne(
-        { address: listing.owner },
-        { $inc: { [field]: sellerReceives } }
-      ).exec();
-      if (sellerPaid.matchedCount !== 1) throw new Error('market_seller_stats_missing');
+      const sellerPaid = await moverSaldo({ address: listing.owner }, { abonar: imp.sellerB, moneda: listing.currency });
+      if (!sellerPaid.ok) throw new Error('market_seller_stats_missing');
       await ingresarAlTesoro(listing.currency, fee, listing.ownerName, listing.itemId, qty);
 
       const receiptId=ctx.assetTransfer ? await ctx.assetTransfer.claim({listing,wallet:address,qty,op:'deliver',ref:buyRef},atomic.session()) : null;
@@ -929,8 +1089,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
         receiptId,
         fee,
         currency: listing.currency,
-        oro: freshStats.oro,
-        plata: freshStats.plata,
+        ...monedasDe(freshStats),
         inventory: serializeInventory(freshGP)
       });
     } catch (err) {
@@ -1057,7 +1216,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
     qty:          { type: Number, required: true, min: 1 },
     pricePerUnit: { type: Number, required: true, min: 0 },
     total:        { type: Number, required: true, min: 0 },
-    currency:     { type: String, enum: ['oro', 'plata'], required: true },
+    currency:     { type: String, enum: MONEDAS, required: true },
 
     buyer:        { type: String, required: true, lowercase: true, index: true },
     buyerName:    String,
@@ -1109,12 +1268,13 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
         { _id: offer._id, status: 'pending' },
         { $set: { status: resolution, resolvedAt: new Date() } }, { new: true }).exec();
       if (!claimed) return false;
-      const field = currencyField(claimed.currency);
       const gp = await GamePlayer.findOne({ address: claimed.buyer }).lean();
       if (!gp) throw new Error('market_refund_player_missing');
-      const refunded = await PlayerStats.updateOne(
-        { playerName: gp.playerName }, { $inc: { [field]: claimed.total } }).exec();
-      if (refunded.matchedCount !== 1) throw new Error('market_refund_stats_missing');
+      // Vuelve el mismo VALOR que se retuvo, en monedas enteras desde la de la oferta.
+      const vuelve = aBronce(claimed.total, claimed.currency);
+      if (!Number.isSafeInteger(vuelve) || vuelve < 0) throw new Error('market_refund_amount_invalid');
+      const refunded = await moverSaldo({ playerName: gp.playerName }, { abonar: vuelve, moneda: claimed.currency });
+      if (!refunded.ok) throw new Error('market_refund_stats_missing');
       return true;
     });
   }
@@ -1159,13 +1319,15 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       }
 
       const qty = Math.floor(Number(req.body && req.body.qty));
-      const pricePerUnit = round2(Number(req.body && req.body.pricePerUnit));
+      // La oferta va en la moneda de la publicación (en bronce, precio entero).
+      const pricePerUnit = leerPrecio(req.body && req.body.pricePerUnit, listing.currency);
       const message = String((req.body && req.body.message) || '').replace(/<[^>]*>/g, '').trim().slice(0, 140);
 
       if (!Number.isSafeInteger(qty) || qty < 1 || qty > listing.qty) {
         return res.status(400).json({ error: 'invalid_qty' });
       }
-      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) {
+      const imp = importeDe(qty, pricePerUnit, listing.currency);
+      if (!imp) {
         return res.status(400).json({ error: 'invalid_price' });
       }
 
@@ -1181,24 +1343,20 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
         await devolverRetencion(previa);
       }
 
-      const total = round2(qty * pricePerUnit);
-      const field = currencyField(listing.currency);
+      const total = imp.total;
       await getOrCreateStats(gp.playerName, address, gp);
 
-      // RETENCIÓN atómica: la condición $gte impide dejar el saldo en negativo
-      // aunque lleguen dos ofertas a la vez.
-      const retenido = await PlayerStats.findOneAndUpdate(
-        { playerName: gp.playerName, [field]: { $gte: total } },
-        { $inc: { [field]: -total } },
-        { new: true }
-      ).exec();
+      // RETENCIÓN: se cobra el valor de la oferta (con las otras monedas si hace
+      // falta) y nunca deja el saldo en negativo aunque lleguen dos ofertas a la vez.
+      const retencion = await moverSaldo({ playerName: gp.playerName }, { cobrar: imp.totalB, moneda: listing.currency });
 
-      if (!retenido) {
+      if (!retencion.ok) {
         return res.status(402).json({
           error: 'insufficient_funds',
-          message: `No tienes suficiente ${listing.currency} para respaldar esta oferta`
+          message: 'No tienes suficiente dinero (oro, plata y bronce) para respaldar esta oferta'
         });
       }
+      const retenido = retencion.doc;
 
       const oferta = await MarketOffer.create({
         listingId: String(listing._id),
@@ -1218,8 +1376,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       return res.json({
         success: true,
         offer: serializeOffer(oferta, listing),
-        oro: retenido.oro,
-        plata: retenido.plata
+        ...monedasDe(retenido)
       });
     } catch (err) {
       console.error('❌ POST /api/marketplace/offer:', err);
@@ -1309,15 +1466,12 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
 
       // El dinero YA estaba retenido al comprador: aquí solo se le paga al
       // vendedor (menos comisión) y se entrega el ítem.
-      const fee = round2(offer.total * MARKET_FEE_BPS / 10000);
-      const sellerReceives = round2(offer.total - fee);
-      const field = currencyField(offer.currency);
+      const reparto = repartoVenta(offer.total, offer.currency);
+      if (!reparto) throw new Error('market_offer_amount_invalid');
+      const { fee, sellerReceives } = reparto;
 
-      const sellerPaid = await PlayerStats.updateOne(
-        { address: offer.seller },
-        { $inc: { [field]: sellerReceives } }
-      ).exec();
-      if (sellerPaid.matchedCount !== 1) throw new Error('market_seller_stats_missing');
+      const sellerPaid = await moverSaldo({ address: offer.seller }, { abonar: reparto.sellerB, moneda: offer.currency });
+      if (!sellerPaid.ok) throw new Error('market_seller_stats_missing');
       await ingresarAlTesoro(offer.currency, fee, offer.sellerName, offer.itemId, offer.qty);
 
       const receiptId=ctx.assetTransfer ? await ctx.assetTransfer.claim({listing,wallet:offer.buyer,qty:offer.qty,op:'deliver',ref:'offer_'+String(offer._id)},atomic.session()) : null;
@@ -1352,7 +1506,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const stats = await PlayerStats.findOne({ address: offer.seller }).lean();
       return res.json({
         success: true, received: sellerReceives, fee, receiptId,
-        oro: stats ? stats.oro : null, plata: stats ? stats.plata : null
+        ...monedasDe(stats)
       });
     } catch (err) {
       if(err.status===409 && err.code)return res.status(409).json({error:err.code});
@@ -1385,7 +1539,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const stats = gp ? await PlayerStats.findOne({ playerName: gp.playerName }).lean() : null;
       return res.json({
         success: true, status: offer.status,
-        oro: stats ? stats.oro : null, plata: stats ? stats.plata : null
+        ...monedasDe(stats)
       });
     } catch (err) {
       console.error('❌ resolver oferta:', err);
@@ -1412,7 +1566,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
     qty:          { type: Number, required: true, min: 1 },   // stock inicial
     remaining:    { type: Number, required: true, min: 0 },   // lo que queda
     pricePerUnit: { type: Number, required: true, min: 0 },
-    currency:     { type: String, enum: ['oro', 'plata'], default: 'oro' },
+    currency:     { type: String, enum: MONEDAS, default: 'oro' },
     perPlayerLimit: { type: Number, default: 0 },             // 0 = sin tope
     startsAt:     { type: Date, default: Date.now },
     endsAt:       { type: Date, required: true },
@@ -1503,14 +1657,14 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       if (!itemId) return res.status(400).json({ error: 'invalid_item' });
 
       const qty = Math.floor(Number(b.qty));
-      const pricePerUnit = round2(Number(b.pricePerUnit));
-      const currency = b.currency === 'plata' ? 'plata' : 'oro';
+      const currency = MONEDAS.includes(b.currency) ? b.currency : 'oro';
+      const pricePerUnit = leerPrecio(b.pricePerUnit, currency);
       const perPlayerLimit = Math.max(0, Math.floor(Number(b.perPlayerLimit) || 0));
       const horas = Math.max(1, Math.min(24 * 60, Math.floor(Number(b.hours) || 24)));
       const note = String(b.note || '').replace(/<[^>]*>/g, '').trim().slice(0, 160);
 
       if (!Number.isInteger(qty) || qty < 1 || qty > 1000000) return res.status(400).json({ error: 'invalid_qty' });
-      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) return res.status(400).json({ error: 'invalid_price' });
+      if (!importeDe(qty, pricePerUnit, currency)) return res.status(400).json({ error: 'invalid_price' });
 
       const meta = catalogMeta(itemId);
       const doc = await LimitedListing.create({
@@ -1545,8 +1699,8 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const b = req.body || {};
       if (b.active !== undefined) doc.active = !!b.active;
       if (b.pricePerUnit !== undefined) {
-        const p = round2(Number(b.pricePerUnit));
-        if (!validMarketAmount(p)) return res.status(400).json({ error: 'invalid_price' });
+        const p = leerPrecio(b.pricePerUnit, doc.currency);
+        if (!precioValido(p, doc.currency)) return res.status(400).json({ error: 'invalid_price' });
         doc.pricePerUnit = p;
       }
       if (b.addQty !== undefined) {
@@ -1626,20 +1780,18 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const plan = computeInsertPlan(gp.inventory, doc.itemId, qty, meta.maxStack);
       if (!plan) return res.status(400).json({ error: 'inventory_full', message: 'Tu inventario está lleno' });
 
-      const total = round2(qty * doc.pricePerUnit);
-      if (!validMarketAmount(total)) return res.status(400).json({ error: 'invalid_price' });
-      const field = currencyField(doc.currency);
+      const imp = importeDe(qty, doc.pricePerUnit, doc.currency);
+      if (!imp) return res.status(400).json({ error: 'invalid_price' });
+      const total = imp.total;
       await getOrCreateStats(gp.playerName, address, gp);
 
-      // 1) Cobrar (atómico)
-      const cobrado = await PlayerStats.findOneAndUpdate(
-        { playerName: gp.playerName, [field]: { $gte: total } },
-        { $inc: { [field]: -total } },
-        { new: true }
-      ).exec();
-      if (!cobrado) return res.status(402).json({ error: 'insufficient_funds', message: `No tienes suficiente ${doc.currency}` });
+      // 1) Cobrar por valor (las otras monedas pagan si falta de la del lote).
+      const cobro = await moverSaldo({ playerName: gp.playerName }, { cobrar: imp.totalB, moneda: doc.currency });
+      if (!cobro.ok) return res.status(402).json({ error: 'insufficient_funds', message: 'No tienes suficiente dinero (oro, plata y bronce)' });
+      const cobrado = cobro.doc;
 
-      // 2) Descontar stock (atómico). Si otro se adelantó, se devuelve el dinero.
+      // 2) Descontar stock (atómico). Si otro se adelantó, el 409 deshace la
+      //    transacción entera y con ella el cobro.
       const stockOk = await LimitedListing.findOneAndUpdate(
         { _id: doc._id, remaining: { $gte: qty } },
         { $inc: { remaining: -qty } },
@@ -1647,7 +1799,6 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       ).exec();
 
       if (!stockOk) {
-        await PlayerStats.updateOne({ playerName: gp.playerName }, { $inc: { [field]: total } }).exec();
         return res.status(409).json({ error: 'not_enough_stock', message: 'Se agotó mientras comprabas' });
       }
 
@@ -1673,7 +1824,7 @@ module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
       const freshGP = await getGamePlayerByAddress(address);
       return res.json({
         success: true, paid: total, currency: doc.currency,
-        oro: cobrado.oro, plata: cobrado.plata,
+        ...monedasDe(cobrado),
         remaining: stockOk.remaining,
         inventory: serializeInventory(freshGP)
       });

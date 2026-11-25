@@ -77,8 +77,9 @@
     selva:   { mundo: 17, escena: 'SelvaScene',   sala: 'selva',   nombre: 'The Emerald Jungle',         llegada: { x: 2000, y: 2620 } },
     volcan:  { mundo: 18, escena: 'VolcanScene',  sala: 'volcan',  nombre: 'The Emberfall Caldera',      llegada: { x: 2600, y: 2700 } },
     hongos:  { mundo: 19, escena: 'HongosScene',  sala: 'hongos',  nombre: 'Glowcap Hollow',             llegada: { x: 2700, y: 2644 } },
-    // El ferri de vuelta: al pueblo, donde deja el mapa del mundo.
-    pueblo_desde_puerto:   { mundo: 1,  escena: 'GameScene',    sala: 'game',    nombre: 'Grassland Village',          llegada: { x: 2097, y: 2359 } },
+    // El ferri de vuelta: al muelle de madera del pueblo, junto al ferri amarrado en la
+    // boca del canal (gf-ferri.js; la pasarela se pisa: tools/canal-del-pueblo.py --muelle).
+    pueblo_desde_puerto:   { mundo: 1,  escena: 'GameScene',    sala: 'game',    nombre: 'Grassland Village',          llegada: { x: 4470, y: 2762 } },
     pantano_desde_puerto:  { mundo: 14, escena: 'PantanoScene', sala: 'pantano', nombre: 'Mirefen Bog',                llegada: { x: 250,  y: 2480 } },
     colinas_desde_puerto:  { mundo: 16, escena: 'ColinasScene', sala: 'colinas', nombre: 'The Amberleaf Highlands',    llegada: { x: 2504, y: 4722 } },
     aldor_desde_puerto:    { mundo: 15, escena: 'AldorScene',   sala: 'aldor',   nombre: 'The Sunken Ruins of Aldor',  llegada: { x: 2504, y: 230 } },

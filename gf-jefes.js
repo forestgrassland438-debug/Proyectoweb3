@@ -180,6 +180,21 @@
     } catch (e) { if (liberar) liberar(); }
   }
 
+  /* (2026-11-24) El grabado (gf-sonidos-ataque.js): para presentarse, el grito
+     de su especie; lo demás, jefe_<tipo>. Si aún no ha llegado, el sintetizado
+     de arriba. `x`, `y`: de dónde viene (si no, del jefe); la distancia ya la
+     pone `fuerza`, como siempre. */
+  function sonidoJefe(st, m, tipo, fuerza, x, y) {
+    var S = window.GFSonAtaque;
+    if (S && m) {
+      var id = tipo === 'rugido' ? S.de(m.tipo, m.def, 'grito') : 'jefe_' + tipo;
+      var op = { fuerza: fuerza, radio: 100000 };
+      if (tipo === 'rugido' && fuerza >= 1) op.unico = 'grito:' + m.id;     // el mismo que gf-salvaje al empezar a cazar
+      if (id && S.sonar(st.scene, id, x === undefined ? m.x : x, y === undefined ? m.y : y, op)) return;
+    }
+    sonido(st.scene, tipo, fuerza);
+  }
+
   // ── LA GUARIDA (igual en todos: azar con semilla) ──────────────────────
   var cachePuestos=new Map();
   function puesto(scene) {
@@ -268,7 +283,7 @@
     }
     var p = scene.player, cerca = p && Math.hypot(p.x - m.x, p.y + 45 - m.y) < 1000;
     var ver = !!(vivo && cerca && (m.estado === 'caza' || scene.time.now - m.heridoEn < 6000));
-    if (ver && !j.rugio) { j.rugio = true; sonido(scene, 'rugido', 1); try { scene.cameras.main.shake(500, 0.008); } catch (e) {} }
+    if (ver && !j.rugio) { j.rugio = true; sonidoJefe(st, m, 'rugido', 1); try { scene.cameras.main.shake(500, 0.008); } catch (e) {} }
     if (!ver && m.estado !== 'caza') j.rugio = false;
     if (ver !== !!j.barraVista || ver) { j.barraVista = ver; barra(st, j, ver); }
   }
@@ -292,7 +307,7 @@
   function nova(st, m, A) {
     var scene = st.scene, tema = st.jefe.cfg.tema, t0 = scene.time.now;
     A.animar(m, 'ataque');
-    sonido(scene, 'nova', A.cercaDeMi(st, m.x, m.y, 900) ? 1 : 0.2);
+    sonidoJefe(st, m, 'nova', A.cercaDeMi(st, m.x, m.y, 900) ? 1 : 0.2);
     try { if (A.cercaDeMi(st, m.x, m.y, 700)) scene.cameras.main.shake(420, 0.01); } catch (e) {}
     var ox = m.x, oy = m.y, dado = false;
     [0, 160].forEach(function (retraso, k) {
@@ -326,7 +341,7 @@
           demorar(st, 380, function () {
             A.soltarEfimero(st, av);
             if (!st.vivo) return;
-            sonido(scene, 'pincho', A.cercaDeMi(st, x, y, 600) ? 0.8 : 0.15);
+            sonidoJefe(st, m, 'pincho', A.cercaDeMi(st, x, y, 600) ? 0.8 : 0.15, x, y);
             var p = efimero(st, A, scene.add.image(x, y + 4, 'gfj_pincho_' + tema).setOrigin(0.5, 1).setDepth(y + 2).setScale(1.3, 0.1));
             scene.tweens.add({ targets: p, scaleY: 1.4, duration: 110, ease: 'Back.easeOut' });
             scene.tweens.add({ targets: p, scaleY: 0.1, alpha: 0, delay: 650, duration: 260, onComplete: function () { A.soltarEfimero(st, p); } });
@@ -342,7 +357,7 @@
     var scene = st.scene, tema = st.jefe.cfg.tema;
     A.animar(m, 'ataque');
     m.accion = { hasta: scene.time.now + 700, cada: function () {} };
-    sonido(scene, 'rugido', A.cercaDeMi(st, m.x, m.y, 900) ? 0.5 : 0.1);
+    sonidoJefe(st, m, 'rugido', A.cercaDeMi(st, m.x, m.y, 900) ? 0.5 : 0.1);
     puntos.forEach(function (pt, k) {
       var x = pt[0], y = pt[1];
       demorar(st, k * 120, function () {
@@ -355,7 +370,7 @@
         scene.tweens.add({ targets: [cae, halo], x: x, y: '+=520', duration: 900, ease: 'Quad.easeIn', onComplete: function () {
           A.soltarEfimero(st, av); A.soltarEfimero(st, cae); A.soltarEfimero(st, halo);
           if (!st.vivo) return;
-          sonido(scene, 'impacto', A.cercaDeMi(st, x, y, 600) ? 0.7 : 0.1);
+          sonidoJefe(st, m, 'impacto', A.cercaDeMi(st, x, y, 600) ? 0.7 : 0.1, x, y);
           var o = efimero(st, A, scene.add.image(x, y, 'gfj_anillo_' + tema).setDepth(2.95).setScale(0.1).setBlendMode(Phaser.BlendModes.ADD));
           scene.tweens.add({ targets: o, scale: 0.55, alpha: 0, duration: 420, onComplete: function () { A.soltarEfimero(st, o); } });
           for (var c = 0; c < 6; c++) {
@@ -375,7 +390,7 @@
     var scene = st.scene, jefe = st.jefe, tema = jefe.cfg.tema, r = azar(semilla >>> 0);
     A.animar(m, 'ataque');
     m.accion = { hasta: scene.time.now + 600, cada: function () {} };
-    sonido(scene, 'orbes', A.cercaDeMi(st, m.x, m.y, 900) ? 1 : 0.2);
+    sonidoJefe(st, m, 'orbes', A.cercaDeMi(st, m.x, m.y, 900) ? 1 : 0.2);
     var lista = [];
     for (var i = 0; i < 4; i++) {
       var a = i / 4 * Math.PI * 2 + r(), o = efimero(st, A, scene.add.image(m.x + Math.cos(a) * 60, m.y - 40 + Math.sin(a) * 40, 'gfj_orbe_' + tema)

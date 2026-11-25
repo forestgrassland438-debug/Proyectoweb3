@@ -242,14 +242,20 @@
   }
   document.addEventListener('visibilitychange',armPresence);
   function renderMetrics() {
-    const d = snapshot?.overview, metrics = [ ['Total accounts',d?.totalCuentas,'players','Live backend data'],['Active in 24 hours',d?.activos24h,'overview','Activity snapshot'],['Online now',d?.conectados,'weather',d?.presencia ? 'Game connections · this instance' : 'Presence unavailable'],['New in 7 days',d?.nuevas7d,'collections','Live backend data'] ];
+    /* (2026-11-25) "Las cuentas creadas en total" salen del CONTRATO (la factura de los
+       contadores), no de la base de datos; mientras no exista, la base de datos y lo dice. */
+    const d = snapshot?.overview, c = contadores && contadores.existe && contadores.enCadena ? contadores : null;
+    const pendientes = c && c.pendiente ? Number(c.pendiente.cuentas) || 0 : 0;
+    const total = c ? ['Total accounts',c.enCadena.cuentas,'players','On the contract',pendientes ? ' · +'+pendientes.toLocaleString(ui.language)+' '+t('in the next batch') : '']
+      : ['Total accounts',d?.totalCuentas,'players',contadores && contadores.ok !== false && !contadores.existe ? 'Database · not on the contract yet' : 'Live backend data'];
+    const metrics = [ total,['Active in 24 hours',d?.activos24h,'overview','Activity snapshot'],['Online now',d?.conectados,'weather',d?.presencia ? 'Game connections · this instance' : 'Presence unavailable'],['New in 7 days',d?.nuevas7d,'collections','Live backend data'] ];
     const container = $('cc-metrics'); container.replaceChildren();
-    metrics.forEach(([label,value,icon,caption]) => {
+    metrics.forEach(([label,value,icon,caption,extra]) => {
       const article = document.createElement('article'); article.className = 'cc-metric';
       article.innerHTML = '<div class="cc-metric-head"><span></span>'+svg(icon)+'</div><div class="cc-metric-value"></div><div class="cc-metric-foot"></div>';
       article.querySelector('.cc-metric-head>span').textContent = t(label);
       article.querySelector('.cc-metric-value').textContent = value == null ? '—' : Number(value).toLocaleString(ui.language);
-      article.querySelector('.cc-metric-foot').textContent = t(caption); container.append(article);
+      article.querySelector('.cc-metric-foot').textContent = t(caption)+(extra || ''); container.append(article);
     });
     const chart = $('cc-chart'); chart.replaceChildren();
     if (!d) { text(chart,t('No data loaded')); return; }
@@ -285,6 +291,7 @@
     } finally { dataLoading = false; $('cc-refresh').disabled = false; }
     loadRpc();
     loadCuenta();
+    loadContadores();
   }
   /* (2026-11-19) EL RESPALDO DE LAS CUENTAS EN LA CADENA, de un vistazo. Va aparte de
      las métricas, como la lectura de la cadena: un servidor sin la ruta (404) no es
@@ -303,6 +310,87 @@
       text($('cc-cuenta-state'),'—');
       text($('cc-cuenta-note'),t(e.status === 404 ? 'The game server does not have this module yet: upload the new server2.js and cuenta-en-cadena.js.' : 'The state could not be read.'));
     }
+  }
+  /* (2026-11-25) LOS CONTADORES DEL CONTRATO. "Las tx minadas deben guardarse en el contrato
+     mismo, no en la base de datos; así mismo las cuentas creadas en total." El servidor los
+     escribe por lotes (cada 10 minutos) en una factura suya: cta_contadores · ct:contrato.
+     Aquí se leen, se ve lo que espera al próximo lote y se puede escribir el lote ya. */
+  const NOTA_CONTADORES = 'Accounts created and mined transactions are written to the contract itself, in batches every 10 minutes, so a database wipe does not lose them.';
+  let contadores = null, contadoresBusy = false, contadoresMsg = null;
+  const numero = v => v == null || v === '' || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString(ui.language);
+  const fechaHora = v => { const f = v ? new Date(v) : null; return f && !isNaN(f) ? f.toLocaleString(ui.language,{ dateStyle:'short', timeStyle:'short' }) : '—'; };
+  function enlaceLote(c) {
+    const hash = c && c.ultimoLote && c.ultimoLote.hash;
+    if (!hash || !/^0x[0-9a-f]{64}$/i.test(hash) || !c.explorador) return null;
+    try {
+      const u = new URL(String(c.explorador));
+      if (u.protocol !== 'https:' && !(u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname))) return null;
+      return u.href.replace(/\/+$/,'')+'/tx/'+hash;
+    } catch (_) { return null; }
+  }
+  function mensajeContadores(e) {
+    if (e.status === 404) return 'The game server does not have the counters yet: upload the new server2.js and cuenta-en-cadena.js.';
+    if (e.code === 'contadores_factura_rota' || e.code === 'contadores_factura_ajena') return 'The counters invoice on the contract is damaged; nothing is written over it.';
+    return null;
+  }
+  function renderContadores() {
+    const c = contadores, e = c && c.existe ? c.enCadena : null, p = c && c.pendiente;
+    const values = $('cc-contadores-values'); values.replaceChildren();
+    [['Accounts created',e?.cuentas],['Mined transactions',e?.txMinadas],['Successful',e?.txExito],['Reverted',e?.txRevertidas],['Batches written',e?.lotes]].forEach(([label,value]) => {
+      const item = document.createElement('div'), strong = document.createElement('strong'), span = document.createElement('span');
+      strong.textContent = numero(value); span.textContent = t(label); item.append(strong,span); values.append(item);
+    });
+    const cada = Math.max(1,Math.round((Number(c && c.cadaMs) || 600000)/60000));
+    text($('cc-contadores-state'),!c || c.ok === false ? '—' : (c.activo ? t('Batches every')+' '+cada+' min' : t('Batches paused'))+(c.activo && c.proximoEn ? ' · '+t('Next batch')+' '+fechaHora(c.proximoEn) : ''));
+    const parts = [];
+    if (c && c.existe) {
+      parts.push(t('Invoice')+' #'+c.factura);
+      if (e && e.bloque) parts.push(t('Counted up to block')+' '+numero(e.bloque));
+      if (c.ultimoLote && c.ultimoLote.en) parts.push(t('Last batch')+' '+fechaHora(c.ultimoLote.en));
+    } else if (c && c.ok !== false) parts.push(t('Not written yet')+' — '+t('The first batch creates the counters invoice on the contract.'));
+    if (p) {
+      const tx = (Number(p.txExito) || 0)+(Number(p.txRevertidas) || 0);
+      if (p.cuentas || tx) parts.push(t('Waiting for the next batch')+': +'+numero(p.cuentas || 0)+' '+t('accounts')+', +'+numero(tx)+' '+t('transactions'));
+      if (p.esperandoRecibos) parts.push(t('Waiting for receipts')+': '+numero(p.esperandoRecibos));
+    }
+    text($('cc-contadores-detail'),parts.join(' · '));
+    const link = enlaceLote(c), a = $('cc-contadores-lote');
+    a.hidden = !link; if (link) a.href = link;
+    $('cc-contadores-escribir').disabled = contadoresBusy || !c || c.ok === false;
+    text($('cc-contadores-escribir-texto'),t(contadoresBusy ? 'Writing…' : 'Write now'));
+    text($('cc-contadores-note'),t(contadoresMsg || NOTA_CONTADORES));
+  }
+  async function loadContadores(keepMessage) {
+    if (!verified) return;
+    const revision = requestRevision;
+    if (!keepMessage) contadoresMsg = null;
+    try {
+      const c = await session.request('/api/admin/contadores');
+      if (destroyed || !verified || revision !== requestRevision) return;
+      contadores = c && typeof c === 'object' ? c : null;
+      if (contadores && contadores.ok === false) contadoresMsg = contadores.motivo === 'sin_contrato' ? 'The contract is not configured on the server.' : 'The counters could not be read.';
+    } catch (e) {
+      if (e?.name === 'AbortError' || destroyed || !verified) return;
+      contadores = null;
+      contadoresMsg = mensajeContadores(e) || 'The counters could not be read.';
+    } finally { $('cc-contadores').setAttribute('aria-busy','false'); }
+    renderContadores(); renderMetrics();
+  }
+  async function writeContadores() {
+    if (!verified || contadoresBusy) return;
+    const revision = requestRevision;
+    contadoresBusy = true; renderContadores();
+    try {
+      const r = await session.request('/api/admin/contadores/escribir',{ method:'POST', body:'{}' });
+      if (destroyed || !verified || revision !== requestRevision) return;
+      contadoresMsg = r && r.escrito ? 'Written to the contract.' : r && r.nada ? 'Nothing new to write.'
+        : r && r.motivo === 'ocupado' ? 'Another server is writing the counters right now.'
+        : r && r.motivo === 'sin_contrato' ? 'The contract is not configured on the server.' : 'The counters could not be written.';
+    } catch (e) {
+      if (e?.name === 'AbortError' || destroyed || !verified) return;
+      contadoresMsg = mensajeContadores(e) || 'The counters could not be written.';
+    } finally { contadoresBusy = false; }
+    await loadContadores(true);
   }
   /* (2026-10-26) PAUSAR / REANUDAR LA LECTURA DE LA CADENA. El escaneo
      histórico gasta el mismo cupo de RPC que el juego. Va aparte de las
@@ -352,7 +440,7 @@
     document.querySelectorAll('[data-cc-theme]').forEach(button => { button.textContent = ui.theme === 'dark' ? '☼':'☾'; });
     $('cc-today').textContent = new Intl.DateTimeFormat(ui.language === 'es' ? 'es-EC':'en-US',{dateStyle:'medium',timeZone:'UTC'}).format(new Date())+' · UTC';
     const actual = tools.find(x=>x.id===active);
-    renderNavigation(); renderTools(); renderMetrics(); renderTabs(actual); text($('cc-breadcrumb'),breadcrumb(actual));
+    renderNavigation(); renderTools(); renderMetrics(); renderContadores(); renderTabs(actual); text($('cc-breadcrumb'),breadcrumb(actual));
     if (frame) {
       const tool = actual; text($('cc-tool-name'),t(tool.name)); frame.title = t((tool.tabs[activeTab] || tool.tabs[0]).name);
       try { frame.contentWindow.GFAdminUI?.preferences({language:ui.language,theme:ui.theme}); } catch (_) {}
@@ -362,6 +450,7 @@
   $('cc-connect').addEventListener('click',() => verify(true)); $('cc-retry').addEventListener('click',() => verify());
   $('cc-refresh').addEventListener('click',refreshData); $('cc-tool-close').addEventListener('click',() => activate('overview'));
   $('cc-rpc-pause').addEventListener('click',() => setRpc(false)); $('cc-rpc-resume').addEventListener('click',() => setRpc(true));
+  $('cc-contadores-escribir').addEventListener('click',writeContadores);
   $('cc-logout').addEventListener('click',async () => {
     if (!canLeave()) return; $('cc-logout').disabled = true;
     try { await session.logout(); gate('Signed out.'); }

@@ -26,6 +26,37 @@ Accounts are kept on the contract. The encrypted anchor has no key yet (GF_RESPA
 The game server does not have this module yet: upload the new server2.js and cuenta-en-cadena.js.|El servidor del juego aún no tiene este módulo: sube el nuevo server2.js y cuenta-en-cadena.js.
 The game server does not have this module yet.|El servidor del juego aún no tiene este módulo.
 Upload the new server2.js and cuenta-en-cadena.js to the backend and restart it.|Sube el nuevo server2.js y cuenta-en-cadena.js al backend y reinícialo.
+Blockchain · Counters|Blockchain · Contadores
+Contract counters|Contadores del contrato
+Accounts created and mined transactions are written to the contract itself, in batches every 10 minutes, so a database wipe does not lose them.|Las cuentas creadas y las transacciones minadas se escriben en el propio contrato, por lotes cada 10 minutos, así que un borrado de la base de datos no las pierde.
+Accounts created|Cuentas creadas
+Mined transactions|Transacciones minadas
+Successful|Exitosas
+Reverted|Revertidas
+Batches written|Lotes escritos
+Batches every|Lotes cada
+Batches paused|Lotes en pausa
+Write now|Escribir ahora
+Writing…|Escribiendo…
+View the last batch|Ver el último lote
+Invoice|Factura
+Counted up to block|Contado hasta el bloque
+Next batch|Próximo lote
+in the next batch|en el próximo lote
+Waiting for the next batch|Esperando al próximo lote
+Waiting for receipts|Esperando recibos
+accounts|cuentas
+Not written yet|Aún sin escribir
+The first batch creates the counters invoice on the contract.|El primer lote crea la factura de los contadores en el contrato.
+Database · not on the contract yet|Base de datos · aún no está en el contrato
+Written to the contract.|Escrito en el contrato.
+Nothing new to write.|No hay nada nuevo que escribir.
+Another server is writing the counters right now.|Otro servidor está escribiendo los contadores ahora mismo.
+The contract is not configured on the server.|El contrato no está configurado en el servidor.
+The counters invoice on the contract is damaged; nothing is written over it.|La factura de los contadores del contrato está dañada; no se escribe encima.
+The game server does not have the counters yet: upload the new server2.js and cuenta-en-cadena.js.|El servidor del juego aún no tiene los contadores: sube el nuevo server2.js y cuenta-en-cadena.js.
+The counters could not be read.|No se pudieron leer los contadores.
+The counters could not be written.|No se pudieron escribir los contadores.
 Grassland Forest · Administration|Grassland Forest · Administración
 This section requires an administrator session verified by the server.|Este apartado exige una sesión de administrador verificada por el servidor.
 Connect administrator|Conectar administrador
