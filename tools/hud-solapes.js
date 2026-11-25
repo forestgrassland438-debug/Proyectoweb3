@@ -17,7 +17,7 @@
 
   var SELECTOR = [
     'button', '[role="button"]', 'input', 'select', 'textarea',
-    '.quick-slot', '.inv-slot', '#quick-slots-bar', '#gf-espada-poderes', '.gf-tajo-btn',
+    '.quick-slot', '.inv-slot', '#quick-slots-bar', '#gf-espada-poderes', '#gf-poderes-libres', '.gf-tajo-btn',
     '[id$="-btn"]', '[class*="hud-btn"]', '#gf-jefe-mina', '#gf-serpiente-barra'
   ].join(',');
 

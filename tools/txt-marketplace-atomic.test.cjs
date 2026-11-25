@@ -10,7 +10,7 @@ const declaration = acorn.parse(source, { ecmaVersion: 'latest' }).body.find(n =
 const quiet = { log() {}, warn() {}, error() {} };
 const createAtomic = vm.runInNewContext('(' + source.slice(declaration.start, declaration.end) + ')', { require, console: quiet });
 const loadRoutes = () => {
-  const c = vm.createContext({ module: { exports: {} }, require, console: quiet, setTimeout() {}, setInterval() {} });
+  const c = vm.createContext({ module: { exports: {} }, require: require('node:module').createRequire(require('node:path').resolve(__dirname,'../marketplace-routes.js')), console: quiet, setTimeout() {}, setInterval() {} });
   vm.runInContext(source, c); return c.module.exports;
 };
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }

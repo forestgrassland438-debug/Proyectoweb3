@@ -291,7 +291,7 @@ test('collections browser: identity, XSS, batch validation, privacy and responsi
     assert.equal(f.data.royaltyPayments.find(p => p.txHash === royaltyHash).amountWei, '42900000000000000');
     assert.equal(await page.locator('#royalty-chart svg').count(), 1);
     assert.match(await page.locator('#royalty-chart').textContent(), /0\.0429/);
-    assert.equal(await page.locator('#royalty-payments a').getAttribute('href'), 'https://liteforge.explorer.caldera.xyz/tx/' + royaltyHash);
+    assert.equal(await page.locator('#royalty-payments a').getAttribute('href'), 'https://explorer.testnet.liteforge.zeeve.net/tx/' + royaltyHash);
     assert.deepEqual(await page.evaluate(() => window.__walletRequests), walletBeforePayment);
     await page.screenshot({ path: path.join(evidenceDir, 'collections-royalties.png'), fullPage: true });
     checks.push('Registering a native payment sends exact price wei, previews 4.29% of 1 as 0.0429, shows only a verified receipt in table/chart, handles the same hash idempotently and never requests a wallet signature or transaction.');

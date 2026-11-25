@@ -85,7 +85,7 @@ function bloque(op = {}) {
   class Schema { constructor(def) { this.def = def; } index() {} }
   Schema.Types = { Mixed: Object };
   const nada = (req, res, next) => next && next();
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ GF_CROP_CATALOG: require('../gf-crop-catalog'),
     resourceSnapshot: async () => ({rows: op.resourceRows || []}),
     resourcePurchaseBatch: async () => null,
     console: { log() {}, warn() {}, error() {} },
@@ -110,14 +110,18 @@ function bloque(op = {}) {
     TiendaOp: { aggregate: async () => op.ops || [], updateOne: async () => ({ matchedCount: 1 }) }, UserDailyProgress: { aggregate: async () => [] },
     gfNivelDeObjeto: () => 1, PlayerStats: stats,
     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
-    apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
-    jugadorDeLaSesion: async () => ({ playerName: 'Ana', address: '0xa' }),
+    apiLimiter: nada, strictLimiter: nada, gameplayLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+    jugadorDeLaSesion: async () => ({ _id: 'gp-ana', playerName: 'Ana', address: '0xa' }),
+    // (2026-11-25) El paso del tutorial GUARDADO: una cuenta de antes del tutorial no tiene el campo.
+    GamePlayer: modelo([{ _id: 'gp-ana', playerName: 'Ana', ...('tutorial' in op ? { tutorial: op.tutorial } : {}) }]),
+    authoritativeCrafts: { tutorialRestante: async () => op.crafteosGratis || 0 },
     enColaDelJugador: async (k, fn) => fn(),
     buildStatsResponse: (d) => ({ oro: d.oro, plata: d.plata, bronce: d.bronce }),
     gfDevolverStat: async (n, s, c) => { devueltos.push([n, s, c]); const d = stats._t[0]; d[s] += c; return { ...d }; },
     tesoroJuegoIngresar: async (origen, bronce, playerName, detalle) => { juego.push([origen, bronce]); }
   });
   require('./economy-mock-transactions.cjs')(ctx, [...Object.values(M), Tesoro, TesoroJuego, TesoroMov, stats]);
+  vm.runInContext(trozo('function isTutorialCompleted(value) {', '// Mantiene el primer instante'), ctx);
   vm.runInContext(trozo('const TIENDA_PRECIOS = ', ';\n') + ';', ctx);
   const fin = "console.log('✅ Economía (2.ª parte)";
   vm.runInContext(trozo('// LA ECONOMÍA, 2.ª PARTE: QUEMAS, FONDO DE RESERVA', fin) +
@@ -125,7 +129,8 @@ function bloque(op = {}) {
     ' eco2BaseDe, eco2PrecioTienda, eco2ValorUnidad, eco2PrecioServicio, eco2RecalcularPrecios, eco2PreciosActuales, eco2PrecioAnteriorValido,' +
     ' gfMonstruoDaObjetos, eco2QuemarObjetos, tesoroQuemarCaducado, tesoroReservaIngresar, eco2Catalogo, eco2Config, eco2MigrarReserva, ecoQuemarSeguro, ecoTransferirCircular, ecoSaldoDisponible, ecoTransaccion };' +
     '\nthis.ponerIndice = (v) => { _eco2Indice = { valor: v, dia: "2026-10-28" }; };' +
-    '\nthis.GF_MISIONES_SOLO_MONEDAS = GF_MISIONES_SOLO_MONEDAS;', ctx);
+    '\nthis.GF_MISIONES_SOLO_MONEDAS = GF_MISIONES_SOLO_MONEDAS;' +
+    '\nthis.servicioCobroSchema = servicioCobroSchema;', ctx);
   const llamar = async (clave, body, query) => {
     let st = 200, out = null;
     const res = { status(c) { st = c; return this; }, json(o) { out = o; return this; }, set() { return this; } };
@@ -195,6 +200,62 @@ test('recalcular: el índice del día mueve la tienda y queda un punto en el his
   assert.equal(b.f.eco2PrecioAnteriorValido('compra', 'Semillax', 11, 'plata'), true);
   assert.equal(b.f.eco2PrecioAnteriorValido('compra', 'Semillax', 11000, 'bronce'), true, 'pagado en bronce');
   assert.equal(b.f.eco2PrecioAnteriorValido('compra', 'Semillax', 7, 'plata'), false);
+});
+
+/* (2026-11-25) "En la tienda los precios según los ítems no bajan ni suben según la inflación o
+   deflación de la economía, pues el gráfico de los precios no se mueve." En producción
+   (api.grasslandforest.com, 15→25 de noviembre) el índice fue 1 → 1,2299 → 1,1225 y las tijeras
+   (200 de plata) lo siguieron día a día, pero las semillas (10) se quedaron en 10 los once días:
+   el tope diario (±3 % del precio de AYER, redondeado hacia dentro) no deja mover ni una moneda a
+   un precio de menos de 34. Las pruebas de arriba no lo veían: su historial de mentira no tiene
+   ancla (aggregate da []). Aquí sí: el último punto de antes de hoy, como el $group de verdad. */
+function conHistorialDeVerdad(b) {
+  b.M.PrecioHist.aggregate = async (pipeline) => {
+    const hasta = pipeline[0].$match.dia.$lt;
+    const ultimo = new Map();
+    for (const h of b.M.PrecioHist._t.filter((x) => x.dia < hasta).sort((x, y) => x.t - y.t)) ultimo.set(h.itemId, h);
+    return [...ultimo.values()].map((h) => ({ _id: h.itemId, compra: h.compra, venta: h.venta, moneda: h.moneda }));
+  };
+  return b;
+}
+/** Un recálculo 'diario' por día, con el índice de cada día; devuelve [compra, venta] por día de cada objeto. */
+async function diasSeguidos(b, indices) {
+  const serie = {};
+  for (let i = 0; i < indices.length; i++) {
+    const dia = new Date(Date.UTC(2026, 10, 15 + i)).toISOString().slice(0, 10);
+    b.ctx._diaUTC = () => dia;
+    b.ctx.ponerIndice(indices[i]);
+    await b.f.eco2RecalcularPrecios('diario');
+    for (const [id, p] of Object.entries(b.f.eco2PreciosActuales().items)) (serie[id] = serie[id] || []).push([p.compra, p.venta]);
+  }
+  return serie;
+}
+const INDICES_DE_PRODUCCION = [1, 1.03, 1.0609, 1.0927, 1.1255, 1.1593, 1.1941, 1.2299, 1.193, 1.1572, 1.1225];
+
+test('lo barato también sigue la inflación y la deflación (las semillas de producción no se movían en 11 días)', { skip: !HAY }, async () => {
+  const b = conHistorialDeVerdad(bloque());
+  const s = await diasSeguidos(b, INDICES_DE_PRODUCCION);
+  // 10 de plata × índice, redondeado: sube con la inflación y vuelve a bajar con la deflación.
+  assert.deepEqual(s.Semillax.map((x) => x[0]), [10, 10, 11, 11, 11, 12, 12, 12, 12, 12, 11], 'compra de Semillax');
+  assert.deepEqual(s.Semillax.map((x) => x[1]), [5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6], 'venta de Semillax');
+  // Lo caro, exactamente como en producción: el tope de ±3 % al día no cambia.
+  assert.deepEqual(s.Tijerasx.slice(0, 8), [[200, 100], [206, 103], [212, 106], [218, 109], [224, 112], [230, 115], [236, 118], [243, 121]]);
+  // El gráfico: un punto por día con el precio de ese día.
+  assert.deepEqual(b.M.PrecioHist._t.filter((h) => h.itemId === 'Semillax' && h.motivo === 'diario').map((h) => h.compra),
+    [10, 10, 11, 11, 11, 12, 12, 12, 12, 12, 11]);
+});
+
+test('lo barato tampoco salta: como mucho una moneda al día hacia el precio que toca', { skip: !HAY }, async () => {
+  const sube = await diasSeguidos(conHistorialDeVerdad(bloque()), [1, 1.5, 1.5, 1.5]);
+  assert.deepEqual(sube.Semillax, [[10, 5], [11, 6], [12, 7], [13, 8]], 'tocaría 15/8: una moneda al día');
+  // Tijerasx con un precio del panel (100/99): compra y venta se topan cada una por su lado.
+  const baja = await diasSeguidos(conHistorialDeVerdad(bloque({ precios: [{ _id: 'Tijerasx', compra: 100, venta: 99, moneda: 'plata' }] })), [1, 0.5, 0.5, 0.5]);
+  assert.deepEqual(baja.Semillax, [[10, 5], [9, 4], [8, 3], [7, 3]], 'tocaría 5/3: una moneda al día y nunca por debajo');
+  assert.deepEqual(baja.Tijerasx, [[100, 99], [97, 96], [95, 94], [93, 92]], 'un 3 % al día y vender sigue por debajo de comprar');
+  // Ningún precio de compra llega a 0 y vender sigue dando menos que comprar, todos los días.
+  for (const serie of [sube, baja]) for (const [id, dias] of Object.entries(serie)) for (const [c, v] of dias) {
+    assert.ok(c === 0 || (c >= 1 && v < c), id + ': ' + c + '/' + v);
+  }
 });
 
 test('el panel cambia el precio por defecto (oro, plata o bronce) y solo ese objeto se rehace', { skip: !HAY }, async () => {
@@ -425,6 +486,47 @@ test('tienda autoritativa: comprar y vender conservan cada bronce y el servidor 
   assert.equal(value(), before, 'vender tampoco crea monedas');
 });
 
+/* (2026-11-25) La compra devuelve las facturas que acuñó: el cliente se las pasa a
+   /api/inventory/reconcile, que espera a que la lectura de la cadena las vea. Una
+   referencia a medias no viaja (la conciliación rechazaría la petición entera). */
+test('tienda: la compra devuelve las facturas completas que acuñó', async () => {
+  const b = bloque();
+  b.TesoroJuego._t[0].saldo = 10000000;
+  let n = 0;
+  b.ctx.mintGatherReward = async (_a, _t, q) => ({ id: 40 + (++n), manualId: 'gSemillax' + n, cantidad: q });
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 2, precioBronce: 10000, ref: 'facturas-0001' });
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.equal(JSON.stringify(r.out.facturas), JSON.stringify([{ id: 41, manualId: 'gSemillax1', cantidad: 2 }]));
+  b.ctx.mintGatherReward = async () => ({ id: 1 });
+  const sinRef = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 1, precioBronce: 10000, ref: 'facturas-0002' });
+  assert.equal(sinRef.st, 200, JSON.stringify(sinRef.out));
+  assert.equal(sinRef.out.facturas, undefined);
+});
+
+/* (2026-11-19) "Your character has not reached the required level" al comprar Semillax y
+   Regaderax: un jugador NUEVO tiene nivel 0 (nivelPorExperiencia(0) = 0) y lo que no tiene
+   nivel en la tabla es de nivel 1. El cliente nunca bloquea los de nivel 1 (_aplicarNiveles
+   solo marca n > 1) y el suelo tampoco (requerido > 1): el tutorial manda comprar justo eso. */
+test('(2026-11-19) un jugador de nivel 0 compra lo de nivel 1; lo de nivel 3 sigue cerrado', async () => {
+  const b = bloque();
+  b.TesoroJuego._t[0].saldo = 10000000;
+  b.stats._t[0].plata = 100;
+  const NIVELES = { Semillax: 1, Regaderax: 1, Semillax1: 3 };          // la tabla GF_NIVEL_OBJETO
+  b.ctx.gfNivelDeObjeto = (id) => (Object.prototype.hasOwnProperty.call(NIVELES, id) ? NIVELES[id] : 1);
+  let nivel = 0;
+  b.ctx.gfNivelDeJugador = async () => nivel;
+  const zanahoria = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 1, precioBronce: 10000, ref: 'nivel-cero-01' });
+  assert.equal(zanahoria.st, 200, 'nivel 0 + objeto de nivel 1: ' + JSON.stringify(zanahoria.out));
+  assert.equal(zanahoria.out.confirmadas, 1);
+  const tomate = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax1', cantidad: 1, precioBronce: 15000, ref: 'nivel-cero-02' });
+  assert.equal(tomate.st, 403); assert.equal(tomate.out.error, 'nivel_bajo');
+  nivel = 2;
+  assert.equal((await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax1', cantidad: 1, precioBronce: 15000, ref: 'nivel-dos-003' })).st, 403);
+  nivel = 3;
+  const ya = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax1', cantidad: 1, precioBronce: 15000, ref: 'nivel-tres-04' });
+  assert.equal(ya.st, 200, JSON.stringify(ya.out));
+});
+
 test('tienda sin liquidez no quema objetos; una confirmación ambigua no se vuelve a ejecutar', async () => {
   const b = bloque(); let burns = 0, mints = 0;
   b.ctx.burnItemOnChain = async () => { burns++; return 1; };
@@ -453,4 +555,163 @@ test('factor de recursos conserva precios manuales fijos y no acumula pasos diar
   assert.equal(b.f.eco2PreciosActuales().items.Semillax.compra,1030);assert.ok(b.f.eco2PreciosActuales().items.Semillax.venta<1030);
   b.M.PrecioBase._t[0].sigueIndice=false;await b.f.eco2RecalcularPrecios('recursos',null,true);
   assert.equal(b.f.eco2PreciosActuales().items.Semillax.compra,1000);assert.equal(b.f.eco2PreciosActuales().items.Semillax.venta,500);
+});
+
+test('(2026-11-02) rechazo seguro de la cadena: se devuelve todo al momento, sin revisión', async () => {
+  const b = bloque();
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = J(b.stats._t[0]), caja = b.TesoroJuego._t[0].saldo;
+  b.ctx.mintGatherReward = async (_a, _t, _q, envio) => { envio.sinEfecto = true; return null; };
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 2, precioBronce: 10000, ref: 'shop-rechazada-1' });
+  assert.equal(r.st, 409); assert.equal(r.out.ok, false); assert.equal(r.out.error, 'cadena_ocupada');
+  assert.notEqual(r.out.revision, true, 'nada que revisar: en la cadena no quedó nada vivo');
+  const s = b.stats._t[0], valor = (x) => x.oro * 1000000 + x.plata * 1000 + x.bronce;
+  assert.equal(valor(s), valor(antes), 'el jugador recupera precio y comisión');
+  assert.equal(b.TesoroJuego._t[0].saldo, caja); assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0);
+  const fila = b.M.ServicioCobro._t.find(x => x.tipo === 'tienda_compra');
+  assert.equal(fila.estado, 'completado'); assert.equal(fila.confirmadas, 0);
+  assert.deepEqual(J(r.out.stats), { oro: s.oro, plata: s.plata, bronce: s.bronce }, 'el cliente pinta el saldo devuelto');
+});
+
+test('(2026-11-02) una venta que la cadena rechaza no paga nada y suelta lo retenido', async () => {
+  const b = bloque();
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = J(b.stats._t[0]);
+  b.ctx.burnItemOnChain = async (_a, _t, _q, envio) => { envio.sinEfecto = true; return 0; };
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'venta', itemId: 'Semillax', cantidad: 2, precioBronce: 5000, ref: 'shop-rechazada-2' });
+  assert.equal(r.st, 409); assert.equal(r.out.error, 'cadena_ocupada');
+  assert.deepEqual([b.stats._t[0].oro, b.stats._t[0].plata, b.stats._t[0].bronce], [antes.oro, antes.plata, antes.bronce]);
+  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0); assert.equal(b.TesoroJuego._t[0].saldo, 10000000);
+});
+
+test('(2026-11-02) a medias: se cobra lo confirmado y se devuelve el resto', async () => {
+  const b = bloque();
+  b.TesoroJuego._t[0].saldo = 10000000;
+  b.stats._t[0].plata = 100;
+  const antes = b.stats._t[0].oro * 1000000 + b.stats._t[0].plata * 1000 + b.stats._t[0].bronce;
+  b.ctx.resourcePurchaseBatch = async () => 1;
+  let n = 0;
+  b.ctx.mintGatherReward = async (_a, _t, _q, envio) => { if (++n === 1) { envio.sinEfecto = false; return { id: 5 }; } envio.sinEfecto = true; return null; };
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 3, precioBronce: 10000, ref: 'shop-parcial-01' });
+  assert.equal(r.st, 200); assert.equal(r.out.ok, true); assert.equal(r.out.confirmadas, 1);
+  const despues = b.stats._t[0].oro * 1000000 + b.stats._t[0].plata * 1000 + b.stats._t[0].bronce;
+  assert.equal(antes - despues, 10000 + 500, 'una unidad y su comisión');
+  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0);
+});
+
+test('(2026-11-02) lo dudoso sigue en revisión y deja el hash para el panel', async () => {
+  const b = bloque();
+  b.ctx.mintGatherReward = async (_a, _t, _q, envio) => { envio.sinEfecto = false; envio.hash = '0xabc'; return null; };
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax', cantidad: 1, precioBronce: 10000, ref: 'shop-dudosa-01' });
+  assert.equal(r.st, 202); assert.equal(r.out.revision, true);
+  const fila = b.M.ServicioCobro._t.find(x => x.tipo === 'tienda_compra');
+  assert.equal(fila.estado, 'revision'); assert.match(fila.revisionMotivo, /0xabc/);
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   (2026-11-25) "Mientras el tutorial esté activo las 4 semillas que le piden que
+   compre deben salirle gratis, solo de las que le piden, no de los demás ítems."
+   El tutorial pide una regadera, unas tijeras y 4 bolsas de semillas de zanahoria
+   (Semillax): solo esas 4 bolsas se regalan, una vez por cuenta, y lo decide el
+   servidor con el paso GUARDADO del tutorial (no con lo que diga el navegador).
+   ───────────────────────────────────────────────────────────────────────────── */
+const saldoDe = (b) => b.stats._t[0].oro * 1000000 + b.stats._t[0].plata * 1000 + b.stats._t[0].bronce;
+const valorDe = (b) => saldoDe(b) + b.TesoroJuego._t[0].saldo + b.Tesoro._t[0].saldo;
+const zanahorias = (cantidad, ref) => ({ op: 'compra', itemId: 'Semillax', cantidad, precioBronce: 10000, ref });
+
+test('(2026-11-25) tutorial: las 4 bolsas de zanahoria que pide salen gratis; la quinta ya se cobra', async () => {
+  const b = bloque({ tutorial: 0 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = saldoDe(b), total = valorDe(b);
+  const r = await b.llamar('POST /api/economia/tienda', zanahorias(4, 'tutorial-semillas-01'));
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.equal(r.out.confirmadas, 4);
+  assert.equal(saldoDe(b), antes, 'las 4 bolsas del tutorial no cuestan nada');
+  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0, 'no queda nada retenido');
+  assert.deepEqual(b.stats._t[0].chainPending, [], 'todo regalado: ninguna moneda que escribir en la cadena');
+  const quinta = await b.llamar('POST /api/economia/tienda', zanahorias(1, 'tutorial-semillas-02'));
+  assert.equal(quinta.st, 200, JSON.stringify(quinta.out));
+  assert.equal(antes - saldoDe(b), 10000 + 500, 'la quinta paga su precio y el 5 %');
+  assert.equal(valorDe(b), total, 'ni el regalo ni la compra crean o pierden monedas');
+});
+
+test('(2026-11-25) tutorial: pidiendo 6 bolsas se regalan 4 y se cobran 2', async () => {
+  const b = bloque({ tutorial: 0 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = saldoDe(b), total = valorDe(b);
+  const r = await b.llamar('POST /api/economia/tienda', zanahorias(6, 'tutorial-semillas-03'));
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.equal(r.out.confirmadas, 6);
+  assert.equal(antes - saldoDe(b), 2 * 10000 + 1000, 'dos bolsas y el 5 % de esas dos');
+  assert.equal(valorDe(b), total);
+});
+
+test('(2026-11-25) tutorial: solo las semillas que pide; la regadera se cobra entera', async () => {
+  const b = bloque({ tutorial: 0 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = saldoDe(b);
+  const r = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Regaderax', cantidad: 1, precioBronce: 120000, ref: 'tutorial-regadera-1' });
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.equal(antes - saldoDe(b), 120000 + 6000);
+  const tomate = await b.llamar('POST /api/economia/tienda', { op: 'compra', itemId: 'Semillax1', cantidad: 1, precioBronce: 15000, ref: 'tutorial-tomate-01' });
+  assert.equal(tomate.st, 200, JSON.stringify(tomate.out));
+  assert.equal(antes - saldoDe(b), 120000 + 6000 + 15000 + 750, 'otras semillas tampoco se regalan');
+});
+
+test('(2026-11-25) tutorial terminado o cuenta de antes del tutorial: las bolsas se cobran', async () => {
+  for (const op of [{ tutorial: 8 }, { tutorial: 22 }, {}, { tutorial: null }]) {
+    const b = bloque(op);
+    b.TesoroJuego._t[0].saldo = 10000000;
+    const antes = saldoDe(b);
+    const r = await b.llamar('POST /api/economia/tienda', zanahorias(4, 'tutorial-fuera-001'));
+    assert.equal(r.st, 200, JSON.stringify(op) + ' ' + JSON.stringify(r.out));
+    assert.equal(antes - saldoDe(b), 4 * 10000 + 2000, 'sin regalo con ' + JSON.stringify(op));
+  }
+});
+
+test('(2026-11-25) tutorial: los pasos 20 y 21 (comer y Farmer Joe) también son del tutorial', async () => {
+  const b = bloque({ tutorial: 21 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = saldoDe(b);
+  assert.equal((await b.llamar('POST /api/economia/tienda', zanahorias(4, 'tutorial-paso21-1'))).st, 200);
+  assert.equal(saldoDe(b), antes);
+});
+
+test('(2026-11-25) tutorial: si la cadena solo confirma 2 de 6, no se cobra nada y quedan 2 de regalo', async () => {
+  const b = bloque({ tutorial: 0 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  const antes = saldoDe(b), total = valorDe(b);
+  b.ctx.resourcePurchaseBatch = async () => 1;
+  let n = 0;
+  b.ctx.mintGatherReward = async (_a, _t, _q, envio) => { if (++n <= 2) { envio.sinEfecto = false; return { id: 10 + n }; } envio.sinEfecto = true; return null; };
+  const r = await b.llamar('POST /api/economia/tienda', zanahorias(6, 'tutorial-medias-01'));
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.equal(r.out.confirmadas, 2);
+  assert.equal(saldoDe(b), antes, 'las 2 que llegaron eran del regalo');
+  assert.equal(valorDe(b), total);
+  assert.equal(b.TesoroJuego._t[0].retenidoServicios, 0);
+  const quedan = await b.llamar('GET /api/tutorial/gratis');
+  assert.equal(quedan.st, 200, JSON.stringify(quedan.out));
+  assert.equal(quedan.out.semillas.Semillax, 2);
+});
+
+test('(2026-11-25) GET /api/tutorial/gratis dice lo que queda del regalo', async () => {
+  const b = bloque({ tutorial: 0, crafteosGratis: 10 });
+  b.TesoroJuego._t[0].saldo = 10000000;
+  let r = await b.llamar('GET /api/tutorial/gratis');
+  assert.equal(r.st, 200, JSON.stringify(r.out));
+  assert.deepEqual(r.out, { ok: true, activo: true, semillas: { Semillax: 4 }, crafteos: 10 });
+  const antes = saldoDe(b);
+  assert.equal((await b.llamar('POST /api/economia/tienda', zanahorias(3, 'tutorial-gratis-01'))).st, 200);
+  assert.equal(saldoDe(b), antes, '3 bolsas con 4 de regalo: no se cobra nada (ni de menos)');
+  r = await b.llamar('GET /api/tutorial/gratis');
+  assert.equal(r.out.semillas.Semillax, 1);
+  const fuera = bloque({ tutorial: 8, crafteosGratis: 10 });
+  r = await fuera.llamar('GET /api/tutorial/gratis');
+  assert.deepEqual(r.out, { ok: true, activo: false, semillas: { Semillax: 0 }, crafteos: 0 });
+});
+
+test('(2026-11-25) el esquema guarda las unidades regaladas (Mongoose tira los campos que no conoce)', () => {
+  const b = bloque();
+  assert.ok(b.ctx.servicioCobroSchema && b.ctx.servicioCobroSchema.def.gratis, 'servicioCobroSchema sin el campo `gratis`');
 });

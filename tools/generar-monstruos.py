@@ -65,12 +65,21 @@ sys.path.insert(0, AQUI)
 from gf_arte import (Mascara, Lienzo, rampa, contorno_de, hex_rgb,  # noqa: E402
                      hoja_contacto)
 from gf_bestias3d import bestia_frames, pivote  # noqa: E402
+import gf_bestias3d  # noqa: E402
+import gf_golems  # noqa: E402
 from gf_serpiente3d import serpiente_frames, monticulo_frame  # noqa: E402
 import gf_humanoides2d as H2  # noqa: E402
 from gf_relieve import relieve_lienzo  # noqa: E402
 
 RAIZ = os.path.dirname(AQUI)
 SALIDA = os.path.join(RAIZ, 'Game', 'Sprites', 'monstruos')
+
+# (2026-11-24) "Quiero otros gólems, no los mismos con diferentes colores": el
+# de la cripta, el de arena, el de hielo, el de cristal y el de musgo tienen
+# cuerpo propio (tools/gf_golems.py). Se apuntan en la tabla de las bestias
+# antes de fotografiar nada.
+gf_bestias3d.BESTIAS3D.update(gf_golems.BESTIAS3D)
+gf_bestias3d.ANGULO_LADO.update(gf_golems.ANGULO_LADO)
 
 
 # ===========================================================================
@@ -122,13 +131,15 @@ def efecto_bola_fuego():
     return li
 
 
-def efecto_orbe(base, borde):
-    """El orbe del mago: núcleo encendido, bandas de luz y UN reflejo."""
+def efecto_orbe(base, borde, sombra='#2a0a3a'):
+    """El orbe del mago: núcleo encendido, bandas de luz y UN reflejo.
+    (2026-11-23) `sombra`: hacia qué color se oscurecen sus bandas de fuera
+    (el morado de siempre para el mago; verde para el chamán de la selva)."""
     W = 26
     li = Lienzo(W, W)
     c = (W - 1) / 2.0
     t = [mezcla_hex(base, '#ffffff', 0.75), mezcla_hex(base, '#ffffff', 0.4), hex_rgb(base),
-         mezcla_hex(base, '#2a0a3a', 0.35), mezcla_hex(base, '#2a0a3a', 0.6)]
+         mezcla_hex(base, sombra, 0.35), mezcla_hex(base, sombra, 0.6)]
     for x, y in Mascara(W, W).disco(c, c, 10.0).puntos():
         d = math.hypot(x - c, y - c)
         k = 0 if d < 2.6 else 1 if d < 4.8 else 2 if d < 7.0 else 3 if d < 8.8 else 4
@@ -350,9 +361,31 @@ def nivel8a10():
     print('listo')
 
 
+def orbe_selva():
+    """(2026-11-23) El orbe del chamán de la selva: la magia verde de su báculo
+    (antes disparaba dardos con plumas, que se leían como flechas). Solo esto:
+    python tools/generar-monstruos.py orbe_selva"""
+    print('->', guardar(efecto_orbe('#9aff5a', '#183a0c', sombra='#0c2a06'), 'efectos', 'orbe_selva.png'))
+
+
+def golems():
+    """(2026-11-24) Solo los cinco gólems con cuerpo propio (tools/gf_golems.py);
+    lo demás no se vuelve a escribir:  python tools/generar-monstruos.py golems"""
+    print('Gólems ->', SALIDA)
+    for tipo in gf_golems.BESTIAS3D:
+        atlas(tipo, bestia_frames(tipo), columnas=9, pivote_=pivote(tipo))
+    print('listo')
+
+
 def main():
+    if 'golems' in sys.argv[1:]:
+        golems()
+        return
     if 'nivel8a10' in sys.argv[1:]:
         nivel8a10()
+        return
+    if 'orbe_selva' in sys.argv[1:]:
+        orbe_selva()
         return
     print('Monstruos ->', SALIDA)
     hojas = []

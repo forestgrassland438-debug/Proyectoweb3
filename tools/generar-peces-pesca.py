@@ -47,6 +47,17 @@ DEL_BANCO = {
     'pes10': ('rio', 'pez_lucioperca.png'),
     'pes11': ('hielo', 'pez_trucha_de_hielo.png'),
     'pes13': ('rio', 'pez_salmon_real.png'),
+    # (2026-11-02) "Agrega 10 peces nuevos en la pesca." Solo lisos, bandas o franjas.
+    'pes15': ('hielo', 'pez_bacalao_polar.png'),
+    'pes16': ('costa', 'pez_dorada.png'),
+    'pes17': ('costa', 'pez_lubina.png'),
+    'pes18': ('costa', 'pez_salmonete.png'),
+    'pes19': ('mar', 'pez_barracuda.png'),
+    'pes20': ('pantano', 'pez_pirana_roja.png'),
+    'pes21': ('mar', 'pez_atun_rojo.png'),
+    'pes22': ('pantano', 'pez_pez_disco.png'),
+    'pes23': ('mar', 'pez_marlin_azul.png'),
+    'pes24': ('mar', 'pez_pez_espada.png'),
 }
 
 

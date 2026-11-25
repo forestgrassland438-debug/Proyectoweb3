@@ -76,7 +76,7 @@ function economia(op = {}) {
     process: { env: op.env || {} }, crypto, setTimeout: () => ({ unref() {} }), setInterval: () => ({ unref() {} }),
     mongoose: { Schema, models: M, connection: { readyState: 0 } },
     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
-    apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+    apiLimiter: nada, strictLimiter: nada, gameplayLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
     jugadorDeLaSesion: async () => ({ ...sesion }),
     enColaDelJugador: async (k, fn) => fn(),
     gfAlertar: (tipo) => alertas.push(tipo),

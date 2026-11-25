@@ -5,7 +5,7 @@ const src = fs.readFileSync('C:/Users/pc/Desktop/server2.js', 'utf8');
 const ast = acorn.parse(src, { ecmaVersion: 'latest' });
 function declaration(name, globals = {}) {
   const n = ast.body.find(x => x.type === 'FunctionDeclaration' && x.id.name === name);
-  assert.ok(n, name); return vm.runInNewContext('(' + src.slice(n.start,n.end) + ')', { console, crypto, ...globals });
+  assert.ok(n, name); return vm.runInNewContext('(' + src.slice(n.start,n.end) + ')', { console, crypto, GF_CROP_CATALOG: require('../gf-crop-catalog'), ...globals });
 }
 const create = declaration('createResourceEconomy');
 const stats = (quantity, limit = 100, perInvoiceLimit = 20) => ({ totalQuantity: quantity, limit, perInvoiceLimit, invoiceCount: 2, totalBurned: 7, exists: true });

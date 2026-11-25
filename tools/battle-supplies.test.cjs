@@ -35,13 +35,29 @@ test('el escudo absorbe daño real de proyectiles antes de reducir la vida', () 
   M.disparar(f.P, f.enemy.id, { a: Math.PI, sup: 0, s: 1 }); f.tick(400);
   assert.equal(f.human.hp, hp); assert.ok(f.human.escudo < shield);
 });
-test('la niebla respeta el porcentaje por segundo incluso para mascotas de poca vida', () => {
-  const f = arena(); f.tick(75000);
+// (2026-11-15) Ya no hay "zona" circular: el gas entra desde los bordes (ver
+// EL GAS en gf-brawl-motor.js). Lo que se vigila es lo mismo: que quite un
+// PORCENTAJE de la vida por segundo, también a una mascota de poca vida
+// (las fracciones se acumulan en vez de redondearse a cero).
+test('el gas respeta el porcentaje por segundo incluso para mascotas de poca vida', () => {
+  const R = M.REGLAS;
+  const f = arena();
+  // Los dos, a salvo en el centro mientras el gas entra (si no, caen antes de medir).
+  f.human.x = 480; f.human.y = 416; f.enemy.x = 520; f.enemy.y = 416;
+  f.tick(75000);
   const h = f.human; h.x = h.r; h.y = h.r; h.maxHp = h.hp = 100;
-  h.fraccionNiebla = 0; f.tick(1000);
-  assert.equal(h.hp, 96);
-  assert.equal(M.REGLAS.ZONA_INICIO_MS, 45000);
-  assert.equal(M.REGLAS.ZONA_FIN_MS, 195000);
+  h.regenDesde = Infinity; h.fraccionNiebla = 0;
+  assert.equal(M.enGas(f.P, h.x, h.y), true);
+  const danoEn = (s) => R.GAS_DANO_S + (R.GAS_DANO_MAX_S - R.GAS_DANO_S) * Math.min(1, s / R.GAS_RAMPA_S);
+  const seg = (75000 - R.GAS_INICIO_MS) / 1000;
+  f.tick(1000);
+  const perdido = 100 - h.hp;
+  assert.ok(perdido >= Math.floor(100 * danoEn(seg)) && perdido <= Math.ceil(100 * danoEn(seg + 1)) + 1, 'perdió ' + perdido);
+  assert.equal(R.GAS_INICIO_MS, 30000);
+  // Lejos de los bordes, nada.
+  const e = f.enemy; e.x = 480; e.y = 416; e.maxHp = e.hp = 100; e.regenDesde = Infinity;
+  f.tick(1000);
+  assert.equal(e.hp, 100);
 });
 test('las cinco arenas añaden suministros sin cajas sobre las apariciones', () => {
   for (const id of Object.keys(M.ARENAS)) {

@@ -77,7 +77,7 @@ function bloque(op = {}) {
     process: { env: {} }, crypto, setTimeout: () => ({ unref() {} }), setInterval: () => ({ unref() {} }),
     mongoose: { Schema, models: M, connection: { readyState: 0 } },
     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
-    apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+    apiLimiter: nada, strictLimiter: nada, gameplayLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
     jugadorDeLaSesion: async () => ({ playerName: 'Ana', address: YO }),
     enColaDelJugador: async (k, fn) => fn(),
     PlayerStats: { aggregate: async () => [{ oro: op.masa ? op.masa.oro : 100, plata: 1000, bronce: 5000, n: 3 }],
@@ -214,8 +214,13 @@ test('lo que va a cada tesoro, y sin monedas gratis', { skip: !HAY }, () => {
   assert.match(SRV, /const TESORO_COMISION_BPS = 500;/);
   assert.match(SRV, /const TESORO_CIRCULAR_BPS = 150;/);
   assert.match(SRV, /await tesoroJuegoIngresar\('tienda', juego, gp\.playerName,/);
-  // Viaje del mapa, VIP y el elixir de revivir: al tesoro del juego.
-  assert.match(SRV, /await tesoroJuegoIngresar\('viajes', e\.precio, gp\.playerName, 'mapa ' \+ id\);/);
+  // (2026-11-21) Los viajes (la M y el botón de amigos), como la tienda y el
+  // P2P: 30 % al circular y 70 % al del juego (tools/reinos.test.cjs prueba el
+  // reparto y su devolución). Nunca enteros al del juego, como antes.
+  assert.match(SRV, /await gfViajeAlTesoro\(e\.precio, gp\.playerName, 'mapa ' \+ id\);/);
+  assert.match(SRV, /await gfViajeAlTesoro\(precio, yo, 'con ' \+ otro\);/);
+  assert.doesNotMatch(SRV, /tesoroJuegoIngresar\('viajes', e\.precio/);
+  // VIP y el elixir de revivir: al tesoro del juego.
   // VIP is now charged and reserved atomically with its durable job, rather
   // than credited to the treasury after an uncertain mint/refund callback.
   assert.match(SRV, /payment:\{stat,amount:r\.precio\[stat\],bronze:r\.precio\[stat\]\*TESORO_BRONCE_POR\[stat\]\}/);

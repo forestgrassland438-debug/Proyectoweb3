@@ -76,10 +76,11 @@ _spec.loader.exec_module(GS)
 import gf_biomas  # noqa: E402
 import gf_props3d  # noqa: E402
 import gf_arboles_zona  # noqa: E402
+import gf_motor_casas as MC  # noqa: E402  (2026-11-25) los faroles 2D del cementerio y la pradera
 
 T, N = GS.T, GS.N
 W = N * T
-VERSION = '20261025a'   # (2026-10-25) los mapas de nivel 8, 9 y 10 y los caminos nuevos (antes 20261020a)
+VERSION = '20261124a'   # (2026-11-24) la caverna con las paredes de la mina (antes 20261025a: nivel 8-10)
 ESCALA_ARBOL = 1.3
 TILESET = GS.TILESET
 # La entrada de cada mapa: el camino que sigue al de la salida del salvaje.
@@ -1029,6 +1030,92 @@ VIDA_AGUA = {'cementerio': 'rio', 'desierto': 'rio', 'tundra': None, 'glaciar': 
 
 
 # ===========================================================================
+# LOS FAROLES A LA VISTA (2026-11-25)
+# ===========================================================================
+# Los faroles 2D (tools/gf_motor_casas.py: FAROLES y el del puerto) miden lo que
+# el poste de GameScene, 220-250 px; los de antes, 70. Un árbol plantado justo
+# delante (con el pie más abajo se pinta encima) los tapaba: en el puerto hasta el
+# 78 % del farol, en el pantano el 44 %. Se quitan, DESPUÉS de plantar, los árboles
+# que más tapan cada farol hasta que quede tapado como mucho un TAPA_MAX; con su
+# choque. Lo demás no se mueve: el azar de la plantación es el mismo de siempre.
+TAPA_MAX = 0.08
+FAROLES_ALTOS = {n for faroles in MC.FAROLES.values() for n in faroles} | {'farol_puerto'}
+_TRONCO_W, _TRONCO_H = 30 * ESCALA_ARBOL, 10 * ESCALA_ARBOL + 4      # el choque de poner_arbol
+
+
+def _mascara(im, k):
+    im = im.convert('RGBA')
+    im = im.resize((max(1, int(round(im.width * k))), max(1, int(round(im.height * k)))), Image.NEAREST)
+    return np.array(im)[:, :, 3] > 0
+
+
+def despejar_faroles(z, fotos, carpeta_arboles):
+    """Quita los árboles que tapan los faroles altos de `z` (lee los PNG de los árboles ya escritos)."""
+    arboles_png = {}
+
+    def arbol(nombre):
+        if nombre not in arboles_png:
+            ruta = os.path.join(carpeta_arboles, nombre + '.png')
+            arboles_png[nombre] = _mascara(Image.open(ruta), ESCALA_ARBOL) if os.path.exists(ruta) else None
+        return arboles_png[nombre]
+
+    quitar = set()
+    for o in z.objetos:
+        f = fotos.get(o['nombre'])
+        if o['nombre'] not in FAROLES_ALTOS or not f or not isinstance(f['foto'], MC.Foto):
+            continue
+        mf = _mascara(f['foto'].imagen(), 2)
+        fx0 = int(round(o['x'] - f['apoyo'][0] * 2))
+        fy0 = int(round(o['y'] - f['apoyo'][1] * 2))
+        total = float(mf.sum()) or 1.0
+        tapas = []
+        for i, a in enumerate(z.arboles):
+            if i in quitar or a['y'] <= o['y']:
+                continue
+            ma = arbol(a['nombre'])
+            if ma is None:
+                continue
+            ax0, ay0 = int(round(a['x'] - ma.shape[1] / 2.0)), int(round(a['y'] - ma.shape[0]))
+            x0, y0 = max(fx0, ax0), max(fy0, ay0)
+            x1, y1 = min(fx0 + mf.shape[1], ax0 + ma.shape[1]), min(fy0 + mf.shape[0], ay0 + ma.shape[0])
+            if x1 <= x0 or y1 <= y0:
+                continue
+            m = np.zeros_like(mf)
+            m[y0 - fy0:y1 - fy0, x0 - fx0:x1 - fx0] = (ma[y0 - ay0:y1 - ay0, x0 - ax0:x1 - ax0]
+                                                         & mf[y0 - fy0:y1 - fy0, x0 - fx0:x1 - fx0])
+            if m.any():
+                tapas.append((int(m.sum()), i, m))
+        tapas.sort(key=lambda t: -t[0])
+        union = np.zeros_like(mf)
+        for (_, _, m) in tapas:
+            union |= m
+        for (_, i, m) in tapas:
+            if union.sum() / total <= TAPA_MAX:
+                break
+            quitar.add(i)
+            union = np.zeros_like(mf)
+            for (_, j, mj) in tapas:
+                if j not in quitar:
+                    union |= mj
+    if not quitar:
+        return 0
+    # El choque del tronco se calculó con la posición SIN redondear (la del árbol se guarda redondeada):
+    # puede estar a 1 px de lo que da recalcularlo. Se busca el más cercano, a 1 px como mucho.
+    fuera = set()
+    for i in quitar:
+        a = z.arboles[i]
+        ex, ey = a['x'] - _TRONCO_W / 2.0, a['y'] - _TRONCO_H
+        cand = [(abs(c['x'] - ex) + abs(c['y'] - ey), k) for k, c in enumerate(z.colisiones)
+                if k not in fuera and c['name'] == 'tronco' and abs(c['x'] - ex) <= 1.01 and abs(c['y'] - ey) <= 1.01]
+        assert cand, 'el choque del árbol quitado en (%s, %s) no aparece' % (a['x'], a['y'])
+        fuera.add(min(cand)[1])
+    z.arboles = [a for i, a in enumerate(z.arboles) if i not in quitar]
+    z.colisiones = [c for k, c in enumerate(z.colisiones) if k not in fuera]
+    print('  faroles a la vista: %d árboles quitados' % len(quitar))
+    return len(quitar)
+
+
+# ===========================================================================
 # EL ATLAS DE OBJETOS (cada fotograma con su punto de apoyo)
 # ===========================================================================
 def atlas_objetos(fotos, ruta_png, ruta_json):
@@ -1356,78 +1443,149 @@ def pintar_grietas(arr, z):
     print('  grietas:', len(z.grietas))
 
 
-def pintar_cueva(arr, z):
-    """(2026-10-25) LA ROCA DE LA CAVERNA, vista desde arriba en 2.5D.
+# (2026-11-24) LAS PAREDES DE LA CAVERNA, COMO LAS DE LA MINA.
+#
+# "Las paredes de la caverna de cristal no son como las de la mina ni de su
+# tamaño: el personaje se ve más grande que las paredes." Eran una franja lisa
+# de 30-48 px (el personaje mide 102) con rayas de estrato. Ahora la roca se
+# pinta con las MISMAS piezas que la mina (Game/MAPAS/Mina/tileset_mina.png,
+# índices de tileset_mina.json): el muro de cinco filas de 32 (remate, tres de
+# cara de sillares y el pie con su cascote) = 160 px, sus extremos, el lomo de
+# la roca y sus cantos, teñidos del violeta frío de la caverna. Y escalonada
+# en casillas como la mina (sin redondear): la colisión es la casilla, y así lo
+# pintado y lo que choca coinciden al píxel.
+TILESET_MINA = os.path.join(BIN, 'Game', 'MAPAS', 'Mina', 'tileset_mina.png')
+ALTO_PARED = 160          # cinco filas de 32, como el muro de la mina
+INF = 1 << 20
 
-    Lo que no es suelo (z.muro) es roca: arriba, el techo de la roca casi
-    negro en dos tonos lisos; en el borde que mira al sur (el que se ve), la
-    PARED: una franja de roca de 30 a 48 px con sus estratos (rayas), más
-    clara abajo; en el borde de arriba, un filo claro. Y el suelo junto a la
-    roca, en penumbra (se oscurece cerca de la pared). El borde va redondeado
-    (media de 15 px), no en escalera de casillas. Por franjas de 512 filas
-    para no llenar la memoria."""
+
+def _tinte_cueva(a):
+    """Del pardo de la mina al violeta frío de la caverna: algo menos color y
+    un velo azulado, sin tocar el dibujo ni el alfa."""
+    rgb = a[..., :3].astype(np.float32)
+    lum = rgb @ np.array([0.3, 0.59, 0.11], np.float32)
+    rgb = lum[..., None] + (rgb - lum[..., None]) * 0.35
+    rgb = rgb * np.array([0.93, 0.88, 1.1], np.float32) + np.array([0, 0, 4], np.float32)
+    out = a.copy()
+    out[..., :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    return out
+
+
+def _piezas_mina():
+    """El muro (160 x 256), sus extremos (160 x 32), el lomo (128 x 128) y los
+    tres cantos (32 x 32) de la mina, teñidos para la caverna."""
+    ts = np.array(Image.open(TILESET_MINA).convert('RGBA'))
+
+    def tile(i):
+        c, r = i % 16, i // 16
+        return ts[r * 32:r * 32 + 32, c * 32:c * 32 + 32]
+    muro = np.concatenate([np.concatenate([tile(304 + f * 8 + c) for c in range(8)], axis=1) for f in range(5)], axis=0)
+    izq = np.concatenate([tile(344 + f) for f in range(5)], axis=0)
+    der = np.concatenate([tile(349 + f) for f in range(5)], axis=0)
+    lomo = np.concatenate([np.concatenate([tile(368 + j * 4 + i) for i in range(4)], axis=1) for j in range(4)], axis=0)
+    cantos = {k: _tinte_cueva(tile(384 + n)) for n, k in enumerate(('N', 'O', 'E'))}
+    return _tinte_cueva(muro), _tinte_cueva(izq), _tinte_cueva(der), _tinte_cueva(lomo), cantos
+
+
+def _corridas(M):
+    """Por casilla: cuántas casillas iguales (roca o suelo) seguidas hay hacia
+    arriba, abajo, la izquierda y la derecha, contando la propia. INF si la
+    corrida llega al borde del mapa."""
+    n0, n1 = M.shape
+    ar, ab = np.zeros(M.shape, np.int64), np.zeros(M.shape, np.int64)
+    iz, de = np.zeros(M.shape, np.int64), np.zeros(M.shape, np.int64)
+    ar[0] = INF
+    for r in range(1, n0):
+        ar[r] = np.where(M[r] == M[r - 1], np.where(ar[r - 1] >= INF, INF, ar[r - 1] + 1), 1)
+    ab[n0 - 1] = INF
+    for r in range(n0 - 2, -1, -1):
+        ab[r] = np.where(M[r] == M[r + 1], np.where(ab[r + 1] >= INF, INF, ab[r + 1] + 1), 1)
+    iz[:, 0] = INF
+    for c in range(1, n1):
+        iz[:, c] = np.where(M[:, c] == M[:, c - 1], np.where(iz[:, c - 1] >= INF, INF, iz[:, c - 1] + 1), 1)
+    de[:, n1 - 1] = INF
+    for c in range(n1 - 2, -1, -1):
+        de[:, c] = np.where(M[:, c] == M[:, c + 1], np.where(de[:, c + 1] >= INF, INF, de[:, c + 1] + 1), 1)
+    return ar, ab, iz, de
+
+
+def pintar_cueva(arr, z):
+    """(2026-10-25; 2026-11-24 con las piezas de la mina) LA ROCA DE LA
+    CAVERNA, vista desde arriba en 2.5D, como la de la mina.
+
+    Lo que no es suelo (z.muro) es roca. Donde la roca mira al sur (lo que se
+    ve de frente) lleva el MURO de la mina, de 160 px: el pie toca el suelo y
+    el remate queda arriba (si la roca es más estrecha, se quitan filas de la
+    cara, nunca el pie ni el remate); en sus puntas, los extremos del muro. El
+    resto es el lomo de la roca, con sus cantos al norte, al oeste y al este.
+    El suelo, en penumbra junto a la roca y con la sombra del muro a sus pies.
+    Por franjas de 512 filas para no llenar la memoria."""
     H, Wd = arr.shape[:2]
     M = np.zeros((N, N), bool)
     for (x, y) in z.muro:
         M[y, x] = True
-    PAD, FRANJA, CARA, AO = 64, 512, 48, 26
-    xs = np.arange(Wd)
-    alto_cara = (39 + 9 * np.sin(xs / 61.0 + 0.4) * np.cos(xs / 143.0)).astype(np.int32)       # 30..48 px
-    desfase = (3 * np.sin(xs / 37.0)).astype(np.int32)
+    ar, ab, iz, de = _corridas(M)
+    MURO, IZQ, DER, LOMO, CANTO = _piezas_mina()
+    PAD, FRANJA, AO, SOMBRA = 64, 512, 26, 26
+    xs = np.arange(Wd)[None, :]
+    C = np.minimum(xs // T, N - 1)
     for y0 in range(0, H, FRANJA):
         y1 = min(H, y0 + FRANJA)
+        ys = np.arange(y0, y1)[:, None]
+        R = np.minimum(ys // T, N - 1)
+        Rb, Cb = np.broadcast_arrays(R, C)
+        roca = M[Rb, Cb]
+        a_, b_, i_, d_ = ar[Rb, Cb], ab[Rb, Cb], iz[Rb, Cb], de[Rb, Cb]
+        # Distancias en px al cambio (roca <-> suelo) hacia cada lado.
+        dS = np.where(b_ >= INF, INF, (Rb + b_) * T - ys)
+        dN = np.where(a_ >= INF, INF, ys - (Rb - a_ + 1) * T + 1)
+        dO = np.where(i_ >= INF, INF, xs - (Cb - i_ + 1) * T + 1)
+        dE = np.where(d_ >= INF, INF, (Cb + d_) * T - xs)
+        corrida = np.where((a_ >= INF) | (b_ >= INF), INF, (a_ + b_ - 1) * T)
+        hf = np.minimum(ALTO_PARED, corrida)
+        cara = roca & (dS <= hf)
+        # La fila del muro que toca: el pie (los 32 de abajo), el remate (los 32
+        # de arriba) y, entre medias, la cara de sillares que se repite.
+        ay = np.where(dS <= 32, ALTO_PARED - dS,
+                      np.where(dS > hf - 32, np.clip(hf - dS, 0, 31), 127 - ((dS - 33) % 96)))
+        ay = np.clip(ay, 0, ALTO_PARED - 1)
+        col = MURO[ay, xs % 256]
+        con_izq = cara & (dO <= 32) & (dO <= dE)
+        con_der = cara & (dE <= 32) & ~con_izq
+        col = np.where(con_izq[..., None], IZQ[ay, np.clip(dO - 1, 0, 31)], col)
+        col = np.where(con_der[..., None], DER[ay, np.clip(32 - dE, 0, 31)], col)
+        # El lomo, con sus cantos (este y oeste primero; el del norte manda).
+        lomo = LOMO[ys % 128, xs % 128]
+        tapa = roca & ~cara
+        lomo = np.where((tapa & (dO <= 32))[..., None], CANTO['O'][ys % 32, np.clip(dO - 1, 0, 31)], lomo)
+        lomo = np.where((tapa & (dE <= 32))[..., None], CANTO['E'][ys % 32, np.clip(32 - dE, 0, 31)], lomo)
+        lomo = np.where((tapa & (dN <= 32))[..., None], CANTO['N'][np.clip(dN - 1, 0, 31), xs % 32], lomo)
+        # Lo transparente del remate (sus festones) deja ver el lomo.
+        col = np.where((col[..., 3] < 128)[..., None], LOMO[ys % 128, xs % 128], col)
+        lomo = np.where((lomo[..., 3] < 128)[..., None], LOMO[ys % 128, xs % 128], lomo)
+        a = arr[y0:y1, :, :3].astype(np.float32)
+        # El suelo: penumbra junto a la roca (la distancia crece de px en px)...
         ya, yb = max(0, y0 - PAD), min(H, y1 + PAD)
-        filas = np.arange(ya, yb) // T
-        Mt = np.repeat(M[filas], T, axis=1)[:, :Wd]
-        W_ = _caja_media(Mt, 12) > 0.5
-        F = ~W_
-        h = yb - ya
-        # La pared: cuántos px hay hasta el suelo, mirando hacia ABAJO.
-        dS = np.zeros((h, Wd), np.int16)
-        for d in range(1, CARA + 1):
-            Fs = np.zeros_like(F)
-            Fs[:-d] = F[d:]
-            nuevo = W_ & Fs & (dS == 0)
-            dS[nuevo] = d
-        cara = (dS > 0) & (dS <= alto_cara[None, :])
-        # El filo de arriba: la roca con suelo justo encima (a 3 px).
-        filo = np.zeros_like(F)
-        for d in range(1, 4):
-            Fs = np.zeros_like(F)
-            Fs[d:] = F[:-d]
-            filo |= W_ & Fs
-        # La penumbra del suelo: la distancia a la roca (crece de px en px).
-        dW = np.full((h, Wd), AO + 1, np.int16)
-        borde = W_.copy(); visto = W_.copy()
+        Mt = M[np.minimum(np.arange(ya, yb) // T, N - 1)][:, C[0]]
+        dW = np.full(Mt.shape, AO + 1, np.int16)
+        borde, visto = Mt.copy(), Mt.copy()
         for d in range(1, AO + 1):
             g = borde.copy()
             g[1:, :] |= borde[:-1, :]; g[:-1, :] |= borde[1:, :]
             g[:, 1:] |= borde[:, :-1]; g[:, :-1] |= borde[:, 1:]
             nuevo = g & ~visto
             dW[nuevo] = d; visto |= nuevo; borde = nuevo
-        yy = np.arange(ya, yb)[:, None]
-        a = arr[ya:yb, :, :3].astype(np.float32)
-        # El suelo, en penumbra junto a la roca.
+        dW = dW[y0 - ya:y0 - ya + (y1 - y0)]
         k = np.clip(dW.astype(np.float32) / AO, 0, 1)
-        a = np.where((F & (dW <= AO))[..., None], a * (0.62 + 0.38 * k)[..., None], a)
-        # El techo de la roca: dos tonos que se funden (bandas grandes, sin ruido).
-        onda = (np.sin(xs[None, :] / 173.0 + yy / 97.0) + np.sin(xs[None, :] / 311.0 - yy / 229.0)) * 0.25 + 0.5
-        techo = np.array([28, 24, 36], np.float32) + onda[..., None] * np.array([10, 8, 12], np.float32)
-        a = np.where((W_ & ~cara)[..., None], techo, a)
-        # La pared: de la base (más clara) a lo alto, con sus estratos.
-        t = np.clip(dS.astype(np.float32) / np.maximum(1, alto_cara[None, :]), 0, 1)
-        pared = np.array([116, 108, 128], np.float32) * (1 - t[..., None]) + np.array([80, 74, 94], np.float32) * t[..., None]
-        estrato = ((yy + desfase[None, :]) % 9) == 0
-        pared = np.where(estrato[..., None], pared - 18, pared)
-        # El canto de arriba (donde la pared se dobla en techo), claro; y el
-        # pie, oscuro: así la roca se lee de pie.
-        canto = cara & (dS > alto_cara[None, :] - 4)
-        pared = np.where(canto[..., None], np.array([132, 124, 146], np.float32), pared)
-        pared = np.where((dS <= 2)[..., None], np.array([30, 26, 36], np.float32), pared)
-        a = np.where(cara[..., None], pared, a)
-        a = np.where((filo & ~cara)[..., None], np.array([82, 76, 94], np.float32), a)
-        arr[y0:y1, :, :3] = np.clip(a[y0 - ya:y0 - ya + (y1 - y0)], 0, 255).astype(np.uint8)
-    print('  roca de la caverna: %d casillas' % len(z.muro))
+        suelo_ = ~roca
+        a = np.where((suelo_ & (dW <= AO))[..., None], a * (0.66 + 0.34 * k)[..., None], a)
+        # ... y la sombra del muro a sus pies (el muro está al norte).
+        s = np.clip(dN.astype(np.float32) / SOMBRA, 0, 1)
+        a = np.where((suelo_ & (dN <= SOMBRA))[..., None], a * (0.5 + 0.5 * s)[..., None], a)
+        a = np.where(tapa[..., None], lomo[..., :3].astype(np.float32), a)
+        a = np.where(cara[..., None], col[..., :3].astype(np.float32), a)
+        arr[y0:y1, :, :3] = np.clip(a, 0, 255).astype(np.uint8)
+    print('  roca de la caverna: %d casillas (muro de la mina, %d px)' % (len(z.muro), ALTO_PARED))
 
 
 def pintar_pradera(arr, z):
@@ -1498,6 +1656,9 @@ def generar(nombre, con_suelo, carpeta_tmp):
     destino = os.path.join(BIN, 'Game', 'MAPAS', nombre)
     os.makedirs(destino, exist_ok=True)
     fotos = gf_props3d.fotos(nombre)
+    # (2026-11-25) "Los postes del cementerio y de Blossom Meadow son pequeños": el farol 2D del motor
+    # (tools/gf_motor_casas.py FAROLES), a la altura del de GameScene, sustituye a la foto 3D.
+    fotos.update(MC.fotos(nombre))
     atlas_objetos(fotos, os.path.join(destino, 'objetos.png'), os.path.join(destino, 'objetos.json'))
     arboles = gf_arboles_zona.arboles(nombre, PAQUETE, os.path.join(destino, 'arboles'))
     # El tileset del pueblo en el bioma (lo lee el agua que se mueve).
@@ -1506,6 +1667,7 @@ def generar(nombre, con_suelo, carpeta_tmp):
 
     z = Zona(nombre, semilla)
     disenar(z, fotos)
+    despejar_faroles(z, fotos, os.path.join(destino, 'arboles'))
     V = GS.vertices(z.tierra)
     datos = GS.componer(random.Random(semilla), z.agua, set(), z.tierra, z.piedra, V)
     if nombre in ('caverna', 'glaciar'):

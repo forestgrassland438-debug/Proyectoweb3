@@ -31,6 +31,20 @@ La mina y la caverna (bajo tierra) y la isla van en RECUADROS, unidos con una
 línea a su entrada. El pueblo y la pradera se tocan pero no se comunican: los
 separa un canal de mar.
 
+EL CONTINENTE DEL ESTE (2026-11-21): los siete de Scenes/ReinosScenes.js, lejos,
+pasado un brazo de mar (la columna 4). Se llega en el ferri del muelle del
+pueblo (la línea que pasa al sur de la isla) y, dentro, a pie: sus salidas
+casan igual que las de los mapas de antes.
+
+         col 5        col 6
+fila 0   volcán       hongos
+fila 1   colinas      selva
+fila 2   puerto       pantano       <- ferri desde el pueblo
+fila 3   aldor
+
+El dibujo crece hacia la derecha: OX y OY NO se mueven (si se recalculasen con
+el ancho nuevo, todo lo de antes cambiaría de sitio y con ello cada precio).
+
 Sin motas (el dueño tiene tripofobia): ni árboles sueltos en miniatura (un
 bosque de puntitos), ni texturas de ruido, ni líneas de puntos. Los bosques se
 sugieren oscureciendo el suelo con su densidad muy difuminada.
@@ -52,11 +66,11 @@ from PIL import Image, ImageDraw, ImageFilter
 AQUI = os.path.dirname(os.path.abspath(__file__))
 BIN = os.path.dirname(AQUI)
 SALIDA = os.path.join(BIN, 'Game', 'MAPAS', 'mundo')
-VERSION = '20261026a'
+VERSION = '20261121a'
 
 CELDA = 448
-ANCHO, ALTO = 2240, 1888
-OX, OY = (ANCHO - 4 * CELDA) // 2, (ALTO - 4 * CELDA) // 2
+ANCHO, ALTO = 3584, 1888
+OX, OY = 224, 48          # fijos: los de cuando el dibujo medía 2240 (ver arriba)
 
 
 def celda(c, f):
@@ -82,8 +96,21 @@ REGIONES = [
     dict(id='mina', sala='mina', mundo=3, nombre='The Mine', carpeta='recortadas_mina', mapa=(5008, 5008), rect=recuadro(2, 1, 300, 300), recuadro='piedra'),
     dict(id='caverna', sala='caverna', mundo=11, nombre='The Crystal Caverns', carpeta='recortadas_caverna', mapa=(5024, 5024), rect=recuadro(0, 3, 300, 300), recuadro='piedra'),
     dict(id='isla', sala='isla', mundo=4, nombre='Your Island', carpeta='recortadas_lands', mapa=(4096, 3072), rect=recuadro(3, 2, 340, 255), recuadro='arena'),
+    # El continente del este (2026-11-21).
+    dict(id='volcan', sala='volcan', mundo=18, nombre='The Emberfall Caldera', carpeta='recortadas_volcan', mapa=(5008, 5008), rect=celda(5, 0)),
+    dict(id='hongos', sala='hongos', mundo=19, nombre='Glowcap Hollow', carpeta='recortadas_hongos', mapa=(5008, 5008), rect=celda(6, 0)),
+    dict(id='colinas', sala='colinas', mundo=16, nombre='The Amberleaf Highlands', carpeta='recortadas_colinas', mapa=(5008, 5008), rect=celda(5, 1)),
+    dict(id='selva', sala='selva', mundo=17, nombre='The Emerald Jungle', carpeta='recortadas_selva', mapa=(5008, 5008), rect=celda(6, 1)),
+    dict(id='puerto', sala='puerto', mundo=13, nombre='Saltwind Harbor', carpeta='recortadas_puerto', mapa=(5008, 5008), rect=celda(5, 2)),
+    dict(id='pantano', sala='pantano', mundo=14, nombre='Mirefen Bog', carpeta='recortadas_pantano', mapa=(5008, 5008), rect=celda(6, 2)),
+    dict(id='aldor', sala='aldor', mundo=15, nombre='The Sunken Ruins of Aldor', carpeta='recortadas_aldor', mapa=(5008, 5008), rect=celda(5, 3)),
 ]
 POR_ID = {r['id']: r for r in REGIONES}
+# Los siete del este: sus objetos se pintan al doble en el juego (Scenes/ZonasScenes.js).
+REINOS = ('puerto', 'pantano', 'aldor', 'colinas', 'selva', 'volcan', 'hongos')
+# La sombra de bosque de cada uno, del color de su arboleda.
+VERDE_BOSQUE = {'glaciar': (60, 88, 96), 'tundra': (60, 88, 96), 'volcan': (54, 44, 40), 'hongos': (52, 38, 78),
+                'aldor': (58, 72, 38), 'pantano': (30, 58, 38)}
 
 
 def a_mapa(region_id, x, y):
@@ -100,7 +127,7 @@ def a_mapa(region_id, x, y):
 # juego); None = la entrada que ya tiene esa escena (la mina, la isla, la tienda).
 CASAS_PUEBLO = [  # (id, nombre, puerta) — las de gf-casas.js
     ('casa_L', "Farmer Joe's House", (1488, 3253)),
-    ('casa_comida', 'The Inn', (2444, 3230)),
+    ('casa_comida', "Tobias' Pastry Shop", (2444, 3230)),
     ('casa_comida2', 'The Tavern', (2928, 3247)),
     ('casa_posiones', 'Potion Shop', (2452, 1492)),
     ('casa_herreria', 'Smithy', (3137, 1975)),
@@ -112,11 +139,16 @@ CASAS_PUEBLO = [  # (id, nombre, puerta) — las de gf-casas.js
 LUGARES = {
     'cementerio': ['cripta'], 'desierto': ['ruinas'], 'tundra': ['santuario', 'lago'],
     'glaciar': ['ruinas', 'lago'], 'caverna': ['mina', 'lago'], 'pradera': ['circulo', 'granja'],
+    'puerto': ['faro', 'lonja', 'parque'], 'pantano': ['santuario'], 'aldor': ['plaza', 'laguna'],
+    'colinas': ['granja'], 'selva': ['aldea'], 'volcan': ['termas'], 'hongos': ['runas'],
 }
-# La entrada de cada región (las de ENTRADA_DE_MUNDO en gf-lands.js).
+# La entrada de cada región (las de ENTRADA_DE_MUNDO en gf-lands.js). Las de
+# los siete del este son su aparición (la de gf-zonas.js, `llegada`).
 ENTRADAS = {
     'pueblo': (2097, 2359), 'salvaje': (4896, 2208), 'cementerio': (4790, 2208), 'desierto': (3552, 230),
     'tundra': (3552, 4740), 'glaciar': (3552, 4740), 'caverna': (4040, 2250), 'pradera': (234, 2456),
+    'puerto': (2504, 2640), 'pantano': (2752, 2664), 'aldor': (2504, 1200), 'colinas': (2560, 2640),
+    'selva': (2000, 2620), 'volcan': (2600, 2700), 'hongos': (2700, 2644),
 }
 
 
@@ -172,6 +204,9 @@ def destinos():
     # El salvaje: la cabaña del cazador.
     P.append(dict(id='salvaje_cabana', tipo='casa', nombre="Hunter's Lodge", region='salvaje', mundo=6, sala='salvaje',
                   destino=[2804, 1728], px=list(a_mapa('salvaje', 2804, 1668))))
+    # El puerto: la tienda del tendero (gf-npc-tiendas), delante de su puerta.
+    P.append(dict(id='puerto_tienda', tipo='lugar', nombre='Harbor Store', region='puerto', mundo=13, sala='puerto',
+                  destino=list(libre_cerca('puerto', 2270, 2130)), px=list(a_mapa('puerto', 2270, 2100))))
     # El cementerio: la casa de la bruja (su puerta baja a la caverna).
     P.append(dict(id='cementerio_bruja', tipo='lugar', nombre="The Witch's Hut", region='cementerio', mundo=7, sala='cementerio',
                   destino=[250, 2250], px=list(a_mapa('cementerio', 250, 2104))))
@@ -196,6 +231,12 @@ def destinos():
         if p['id'] == 'pueblo_mina':
             p['entrada_px'] = p['px']
             p['px'] = [mx + mw // 2, my + mh // 2]
+    # (2026-11-23) "Los 7 mapas que pusiste deben ser solo para VIP": todo lo que
+    # está en ellos (el mapa, su tienda y sus sitios) pide VIP, como la isla. El
+    # servidor lo mira también al entrar en su sala (gfAccesoSala).
+    for p in P:
+        if p['sala'] in REINOS:
+            p['vip'] = True
     return P
 
 
@@ -253,9 +294,11 @@ def edificios_pueblo(img, escala):
         img.alpha_composite(sp, (round(o['x'] * escala), round((o['y'] - o['height']) * escala)))
 
 
-def objetos_grandes(img, zona, escala):
+def objetos_grandes(img, zona, escala, factor=1, minimo=200):
     """Los objetos grandes de una zona (ruinas, tiendas, arcos, cristales…):
-    los pequeños a esta escala serían puntitos y no se ponen."""
+    los pequeños a esta escala serían puntitos y no se ponen. `factor` = a
+    cuánto los pinta el juego (los siete del este, al doble) y `minimo` = desde
+    qué tamaño en el juego se dibujan."""
     m = json.load(open(os.path.join(BIN, 'Maps', zona + '.json'), encoding='utf-8'))
     capa = next((l for l in m['layers'] if l.get('name') == 'objetos'), None)
     atlas_json = os.path.join(BIN, 'Game', 'MAPAS', zona, 'objetos.json')
@@ -269,10 +312,10 @@ def objetos_grandes(img, zona, escala):
         if not fr:
             continue
         f = fr['frame']
-        if max(f['w'], f['h']) < 200:
+        if max(f['w'], f['h']) * factor < minimo:
             continue
         sp = hoja.crop((f['x'], f['y'], f['x'] + f['w'], f['y'] + f['h']))
-        w, h = max(2, round(f['w'] * escala)), max(2, round(f['h'] * escala))
+        w, h = max(2, round(f['w'] * factor * escala)), max(2, round(f['h'] * factor * escala))
         sp = sp.resize((w, h), Image.LANCZOS)
         piv = fr.get('pivot') or {'x': 0.5, 'y': 1.0}
         img.alpha_composite(sp, (round(o['x'] * escala - w * piv['x']), round(o['y'] * escala - h * piv['y'])))
@@ -350,10 +393,14 @@ def dibujar(P):
             dens = bosque(r['id'], w)
             a = np.asarray(s).astype(np.float32)
             k = (dens * 0.45)[..., None]
-            verde = np.array([34, 70, 40], np.float32) if r['id'] not in ('glaciar', 'tundra') else np.array([60, 88, 96], np.float32)
+            verde = np.array(VERDE_BOSQUE.get(r['id'], (34, 70, 40)), np.float32)
             a[..., :3] = a[..., :3] * (1 - k) + verde * k
             s = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'RGBA')
-            objetos_grandes(s, r['id'], w / r['mapa'][0])
+            if r['id'] in REINOS:
+                # Las casas del puerto (y lo que sea así de grande): al doble, como en el juego.
+                objetos_grandes(s, r['id'], w / r['mapa'][0], factor=2, minimo=180)
+            else:
+                objetos_grandes(s, r['id'], w / r['mapa'][0])
         else:
             edificios_pueblo(s, w / r['mapa'][0])
         if r['id'] == 'cementerio':
@@ -414,7 +461,14 @@ def dibujar(P):
     unir(tuple(bru['px']), (cx + cw // 2, cy), (150, 110, 190, 255))
     ix, iy, iw, ih = POR_ID['isla']['rect']
     px0, py0, pw0, ph0 = POR_ID['pueblo']['rect']
-    unir((px0 + pw0 - 8, py0 + ph0 // 2 + 20), (ix - 10, iy + ih // 2), (226, 214, 180, 255))
+    muelle = (px0 + pw0 - 8, py0 + ph0 // 2 + 20)
+    unir(muelle, (ix - 10, iy + ih // 2), (226, 214, 180, 255))
+    # El ferri al puerto (2026-11-21): sale del mismo muelle, pasa al sur de la
+    # isla y cruza el brazo de mar hasta el muelle del oeste del puerto.
+    fe = a_mapa('puerto', 330, 2444)
+    ruta = [muelle, (ix + iw // 2, iy + ih + 60), (fe[0] - 60, fe[1] + 40), fe]
+    d.line(ruta, fill=(20, 16, 12, 255), width=9, joint='curve')
+    d.line(ruta, fill=(226, 214, 180, 255), width=5, joint='curve')
     return lienzo
 
 

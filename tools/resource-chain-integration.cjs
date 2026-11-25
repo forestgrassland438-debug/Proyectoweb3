@@ -66,7 +66,10 @@ function check(name){report.assertions.push(name);process.stdout.write('PASS '+n
     const block=source.slice(source.indexOf('// RESOURCE_MARKET_START'),source.indexOf('// RESOURCE_MARKET_END')+'// RESOURCE_MARKET_END'.length);
     vm.runInContext(block,sandbox);
     const custody=vm.runInContext('({resourceMarketAdapter,MarketAssetEscrow,MarketAssetClaim,executeMarketAssetClaim})',sandbox);
-    const moduleContext=vm.createContext({module:{exports:{}},require,console:quiet,setInterval:()=>({unref(){}}),setTimeout:()=>({unref(){}})});
+    // The module requires its catalogs next to itself (./gf-crop-catalog), not next to this test:
+    // with this file's own require it stopped at that line from 2026-11-02 on.
+    const moduleRequire=require('node:module').createRequire(path.resolve('marketplace-routes.js'));
+    const moduleContext=vm.createContext({module:{exports:{}},require:moduleRequire,console:quiet,setInterval:()=>({unref(){}}),setTimeout:()=>({unref(){}})});
     vm.runInContext(fs.readFileSync('marketplace-routes.js','utf8'),moduleContext);
     moduleContext.module.exports(app,{mongoose:db,authMiddleware:pass,csrfProtection:pass,apiLimiter:pass,strictLimiter:pass,
       GamePlayer,PlayerStats,Listing,Tesoro,TesoroJuego,TesoroMov,assetTransfer:custody.resourceMarketAdapter});
@@ -106,7 +109,12 @@ function check(name){report.assertions.push(name);process.stdout.write('PASS '+n
     assert.equal(await owned(buyer),4n);assert.equal(await owned(seller),6n);assert.equal(await owned(owner.address),0n);
     check('repeated equal-size purchases and the remaining refund preserve all ten resource units');
     const s=await PlayerStats.findOne({address:seller}),b=await PlayerStats.findOne({address:buyer}),circle=await Tesoro.findById('principal'),game=await TesoroJuego.findById('juego');
-    assert.equal(Math.round((s.oro+b.oro)*1000000)+circle.saldo+game.saldo,20000000);check('buyer, seller and both treasury balances conserve total monetary value');
+    // (2026-11-25) The market now pays in whole coins (1.9 gold = 1 gold + 900 silver)
+    // and marks every changed coin for the chain, so the value is counted across all three.
+    const value=x=>Math.round((x.oro||0)*1000000)+Math.round((x.plata||0)*1000)+(x.bronce||0);
+    assert.equal(value(s)+value(b)+circle.saldo+game.saldo,20000000);
+    assert.deepEqual([s.oro,s.plata,s.bronce],[2,1800,0]);assert.ok([...s.chainPending].includes('oro')&&[...s.chainPending].includes('plata'));
+    assert.ok(s.chainPendingSince instanceof Date);check('buyer, seller and both treasury balances conserve total monetary value');
     // Migration is intentionally privileged in the provided contract. This test
     // records the limitation rather than claiming a cap that the owner can bypass.
     await send('setLimit',['migration-test',10,5]);

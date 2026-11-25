@@ -656,6 +656,7 @@ function onda(i, n, ciclos, fase) {
  *
  * Dando una vuelta en falso, el filtro llega al principio de la vuelta buena
  * con la misma memoria que tendrá al final. El bucle empalma consigo mismo.
+ * (Siempre que el ruido sea el MISMO en las dos vueltas: ruidoEnBucle, debajo.)
  */
 function dosVueltas(n, fn, guardarEn) {
   for (let p = 0; p < 2; p++) {
@@ -664,6 +665,37 @@ function dosVueltas(n, fn, guardarEn) {
       if (p === 1) guardarEn[i] += v;
     }
   }
+}
+
+/**
+ * Ruido que se repite EXACTAMENTE cada `n` muestras: la vuelta entera del bucle.
+ *
+ * EL FALLO QUE ARREGLA (2026-11-21): dosVueltas asienta la memoria del filtro,
+ * pero el registro de crearRuido no se repite hasta 32 767 refrescos después,
+ * así que la vuelta buena oía OTRO ruido que la de calentamiento. Con un filtro
+ * rápido no se nota; con uno lento (la nieve, la caverna, el volcán) la última
+ * muestra acababa lejos de la primera y el bucle chasqueaba en cada vuelta:
+ * hasta 63 niveles de golpe en archivos que por dentro no saltan más de 3 a 9.
+ * Con el mismo ruido en las dos vueltas, la memoria con la que acaba la buena
+ * es la misma con la que empezó, y el empalme es un paso más del filtro.
+ *
+ * El tramo que se repite es el que ya oía la vuelta buena (el segundo): así un
+ * ambiente que ya estaba en el juego sale igual que antes —el mismo volumen, el
+ * mismo ruido— salvo sus primeros milisegundos, que ahora enlazan con el final.
+ *
+ * Pide UNA llamada por muestra, como hacen todas las de dosVueltas. Lo vigila
+ * tools/ambientes-bucle.test.cjs.
+ */
+function ruidoEnBucle(periodo, n) {
+  const r = crearRuido(periodo), tabla = new Float64Array(n);
+  for (let i = 0; i < n; i++) r();
+  for (let i = 0; i < n; i++) tabla[i] = r();
+  let i = 0;
+  return function () {
+    const v = tabla[i];
+    i = i + 1 < n ? i + 1 : 0;
+    return v;
+  };
 }
 
 /** LLUVIA: siseo de ruido con gotas sueltas por encima. */
@@ -797,7 +829,7 @@ function ambienteNoche() {
 function ambienteNieve() {
   const sr = SR_AMBIENTE, seg = 8;
   const buf = lienzo(sr, seg), n = buf.length;
-  const r = crearRuido(4);
+  const r = ruidoEnBucle(4, n);
   let y = 0, y2 = 0, y3 = 0;
   dosVueltas(n, function (i) {
     const respira = 0.55 + 0.45 * (0.5 + 0.5 * onda(i, n, 2, 0.2));
@@ -1402,7 +1434,7 @@ function temaTundra() {
 function ambienteCementerio() {
   const sr = SR_AMBIENTE, seg = 12;
   const buf = lienzo(sr, seg), n = buf.length;
-  const r = crearRuido(4);
+  const r = ruidoEnBucle(4, n);
   let y = 0, y2 = 0;
   dosVueltas(n, function (i) {
     const gime = 0.35 + 0.4 * (0.5 + 0.5 * onda(i, n, 2, 0.1)) + 0.15 * (0.5 + 0.5 * onda(i, n, 5, 0.4));
@@ -1606,7 +1638,7 @@ function temaPrado() {
 function ambienteGlaciar() {
   const sr = SR_AMBIENTE, seg = 12;
   const buf = lienzo(sr, seg), n = buf.length;
-  const r = crearRuido(3);
+  const r = ruidoEnBucle(3, n);
   let y = 0, y2 = 0;
   dosVueltas(n, function (i) {
     const racha = 0.3 + 0.4 * (0.5 + 0.5 * onda(i, n, 2, 0.35)) + 0.2 * (0.5 + 0.5 * onda(i, n, 5, 0.8));
@@ -1625,7 +1657,7 @@ function ambienteGlaciar() {
 function ambienteVentisca() {
   const sr = SR_AMBIENTE, seg = 8;
   const buf = lienzo(sr, seg), n = buf.length;
-  const r1 = crearRuido(2), r2 = crearRuido(1), alto = pasoAlto(0.25);
+  const r1 = ruidoEnBucle(2, n), r2 = ruidoEnBucle(1, n), alto = pasoAlto(0.25);
   let y = 0, y2 = 0, z = 0, fase = 0;
   dosVueltas(n, function (i) {
     const golpe = 0.55 + 0.3 * (0.5 + 0.5 * onda(i, n, 4, 0.1)) + 0.15 * (0.5 + 0.5 * onda(i, n, 9, 0.6));
@@ -1642,7 +1674,7 @@ function ambienteVentisca() {
 function ambienteCaverna() {
   const sr = SR_AMBIENTE, seg = 12;
   const buf = lienzo(sr, seg), n = buf.length;
-  const r = crearRuido(5);
+  const r = ruidoEnBucle(5, n);
   let y = 0, y2 = 0;
   dosVueltas(n, function (i) {
     const k = 0.006 + 0.004 * (0.5 + 0.5 * onda(i, n, 2, 0.2));
@@ -1684,6 +1716,470 @@ function ambientePrado() {
   return { sr, buf, temblor: true };
 }
 
+// ===========================================================================
+// 12c. LOS SIETE REINOS DEL ESTE                                  (2026-11-21)
+// ===========================================================================
+// "Que los sonidos de climas funcionen bien... deben tener sus sonidos
+// originales." Cada reino con su tema y su ambiente propios, que gf-audio.js
+// pide SOLO allí (EXCLUSIVOS) y mezcla con el clima (mezclarAmbiente). Ninguno
+// lleva lluvia ni viento de tormenta: eso lo pone el clima encima.
+
+/** Un compás de 16 pasos con la misma nota (o acorde) sostenida entera. */
+function sostenida(n) { return n + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  '; }
+/** Silencio de `k` compases. */
+function callar(k) { return '-  '.repeat(16 * k); }
+
+/** Tambor de tronco: un golpe de triángulo afinado que cae (la selva). */
+function tambor(buf, sr, t, f, vol) {
+  tocarNota(buf, sr, { onda: 'triangulo', f, ini: t, dur: 0.16, vol, a: 0.001, d: 0.8, s: 0.08, r: 0.2, caida: 10 });
+}
+/** Timbal: un golpe hondo con su retumbo de ruido (la caldera). */
+function timbal(buf, sr, t, vol) {
+  tocarNota(buf, sr, { onda: 'triangulo', f: 72, ini: t, dur: 0.7, vol, a: 0.001, d: 0.5, s: 0.25, r: 0.5, caida: 7 });
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 10, f: 1, ini: t, dur: 0.5, vol: vol * 0.45, a: 0.001, d: 0.5, s: 0.2, r: 0.5, filtro: 0.06 });
+}
+
+/**
+ * PUERTO DE SALTWIND — re mayor con el do natural de las salomas, 104 pulsos,
+ * dieciséis compases. Melodía de acordeón (pulso cuadrado) con su ritmo de
+ * balanceo (tres, tres, dos...), el bajo que hace "um-pa" y, en la segunda
+ * vuelta, un violín que sostiene las notas del acorde.
+ */
+function temaPuerto() {
+  const sr = SR_MUSICA, bpm = 104;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 16);
+  const frase =
+    'A4 .  .  D5 .  .  F#5 .  E5 .  D5 .  .  .  A4 .  ' +
+    'B4 .  .  D5 .  .  G5 .  F#5 .  E5 .  .  .  -  -  ' +
+    'A4 .  .  D5 .  .  F#5 .  A5 .  G5 .  F#5 .  E5 .  ' +
+    'D5 .  .  .  .  .  C5 .  .  .  A4 .  .  .  -  -  ' +
+    'F#5 .  .  A5 .  .  B5 .  A5 .  F#5 .  .  .  D5 .  ' +
+    'G5 .  .  F#5 .  .  E5 .  D5 .  C#5 .  .  .  -  -  ' +
+    'B4 .  .  D5 .  .  E5 .  F#5 .  G5 .  E5 .  C#5 .  ' +
+    'D5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const acordes = [['D2', 'A2', 'D4,F#4,A4'], ['G2', 'D3', 'G3,B3,D4'], ['D2', 'A2', 'D4,F#4,A4'], ['C2', 'G2', 'C4,E4,G4'],
+                   ['D2', 'A2', 'D4,F#4,A4'], ['G2', 'D3', 'G3,B3,D4'], ['A2', 'E3', 'A3,C#4,E4'], ['D2', 'A2', 'D4,F#4,A4']];
+  const bajo = acordes.map(([r, q]) => r + ' .  .  -  ' + q + ' .  -  -  ' + r + ' .  .  -  ' + q + ' .  -  -  ').join('').repeat(2);
+  const pa = acordes.map(([, , c]) => '-  -  -  -  ' + c + ' .  -  -  -  -  -  -  ' + c + ' .  -  -  ').join('').repeat(2);
+  const violin =
+    'F#4 .  .  .  .  .  .  .  A4 .  .  .  .  .  .  .  ' + 'G4 .  .  .  .  .  .  .  B4 .  .  .  .  .  .  .  ' +
+    'A4 .  .  .  .  .  .  .  D5 .  .  .  .  .  .  .  ' + 'E4 .  .  .  .  .  .  .  G4 .  .  .  .  .  .  .  ' +
+    'A4 .  .  .  .  .  .  .  F#4 .  .  .  .  .  .  .  ' + 'B4 .  .  .  .  .  .  .  A4 .  .  .  .  .  .  .  ' +
+    'G4 .  .  .  .  .  .  .  E4 .  .  .  .  .  .  .  ' + 'F#4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  canal(buf, sr, bpm, frase + frase, { onda: 'pulso', ciclo: 0.5, vol: 0.18, a: 0.006, d: 0.12, s: 0.7, r: 0.2 });
+  canal(buf, sr, bpm, callar(8) + violin, { onda: 'triangulo', vol: 0.12, a: 0.08, d: 0.2, s: 0.8, r: 0.3, vibrato: 0.006, vibratoHz: 5 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.30, a: 0.004, d: 0.25, s: 0.6, r: 0.2 });
+  canal(buf, sr, bpm, pa, { onda: 'pulso', ciclo: 0.25, vol: 0.05, a: 0.004, d: 0.3, s: 0.4, r: 0.3 });
+  const golpe = 'B  -  -  -  h  -  -  -  B  -  -  -  h  -  c  -  ';
+  for (let c = 0; c < 16; c++) {
+    const trozo = lienzo(sr, compas);
+    ritmo(trozo, sr, bpm, golpe, 0.16);
+    for (let i = 0; i < trozo.length; i++) sumar(buf, Math.round(c * compas * sr) + i, trozo[i]);
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * CIÉNAGA DE MIREFEN — mi menor con el fa natural (frigio), 66 pulsos, ocho
+ * compases. Una melodía que ondula (triángulo con vibrato lento), un bordón
+ * de mi y si que no se mueve, el bajo en redondas y burbujas que suben.
+ */
+function temaPantano() {
+  const sr = SR_MUSICA, bpm = 66;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 8);
+  const mel =
+    'E4 .  .  .  .  .  G4 .  .  .  F4 .  .  .  E4 .  ' +
+    'D4 .  .  .  .  .  .  .  E4 .  .  .  -  -  -  -  ' +
+    'B4 .  .  .  .  .  A4 .  .  .  G4 .  .  .  F4 .  ' +
+    'E4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'G4 .  .  .  A4 .  .  .  B4 .  .  .  C5 .  .  .  ' +
+    'B4 .  .  .  .  .  A4 .  .  .  .  .  -  -  -  -  ' +
+    'G4 .  .  .  F4 .  .  .  E4 .  .  .  D4 .  .  .  ' +
+    'E4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.26, a: 0.03, d: 0.3, s: 0.6, r: 0.4, vibrato: 0.012, vibratoHz: 3.2 });
+  canal(buf, sr, bpm, mel.replace(/([A-G]#?)(\d)/g, (m, n, o) => n + (parseInt(o, 10) - 1)),
+        { onda: 'pulso', ciclo: 0.125, vol: 0.04, a: 0.05, d: 0.3, s: 0.5, r: 0.4, desfase: 0.3 });
+  canal(buf, sr, bpm, sostenida('E2,B2').repeat(8), { onda: 'pulso', ciclo: 0.125, vol: 0.04, a: 0.6, d: 0.2, s: 0.9, r: 0.4 });
+  const raices = ['E2', 'D2', 'G2', 'E2', 'C2', 'D2', 'A1', 'E2'];
+  canal(buf, sr, bpm, raices.map(sostenida).join(''), { onda: 'triangulo', vol: 0.24, a: 0.1, d: 0.2, s: 0.8, r: 0.35 });
+  const az = azarDe(1401);
+  for (let k = 0; k < 12; k++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 120 + az() * 90, ini: az() * compas * 8, dur: 0.09, vol: 0.08,
+                         a: 0.002, d: 0.5, s: 0.2, r: 0.4, caida: -9 });
+  }
+  return { sr, buf, rms: NIVEL_MUSICA * 0.95 };
+}
+
+/**
+ * RUINAS DE ALDOR — la menor dórico, 72 pulsos, doce compases. Un arpa que
+ * arpegia (pulso fino y picado), una melodía de notas largas como de templo
+ * y, cada cuatro compases, un gong hondo.
+ */
+function temaAldor() {
+  const sr = SR_MUSICA, bpm = 72;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const acordes = [['A3', 'C4', 'E4', 'A4'], ['G3', 'B3', 'D4', 'G4'], ['D4', 'F#4', 'A4', 'D5'], ['A3', 'C4', 'E4', 'A4'],
+                   ['E3', 'G3', 'B3', 'E4'], ['A3', 'C4', 'E4', 'A4'], ['D4', 'F#4', 'A4', 'D5'], ['G3', 'B3', 'D4', 'G4'],
+                   ['C4', 'E4', 'G4', 'C5'], ['G3', 'B3', 'D4', 'G4'], ['E3', 'G3', 'B3', 'E4'], ['A3', 'C4', 'E4', 'A4']];
+  const orden = [0, 1, 2, 3, 2, 1, 2, 3, 0, 1, 2, 3, 2, 1, 0, 1];
+  const arpa = acordes.map(a => orden.map(k => a[k] + ' ').join('')).join('');
+  const mel =
+    'E5 .  .  .  .  .  .  .  A5 .  .  .  .  .  .  .  ' + 'G5 .  .  .  .  .  .  .  D5 .  .  .  .  .  .  .  ' +
+    'F#5 .  .  .  .  .  A5 .  .  .  .  .  .  .  .  .  ' + 'E5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'B4 .  .  .  .  .  .  .  E5 .  .  .  .  .  .  .  ' + 'C5 .  .  .  .  .  B4 .  .  .  A4 .  .  .  .  .  ' +
+    'D5 .  .  .  .  .  .  .  F#5 .  .  .  .  .  .  .  ' + 'G5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'E5 .  .  .  G5 .  .  .  C6 .  .  .  .  .  .  .  ' + 'B5 .  .  .  .  .  .  .  D5 .  .  .  .  .  .  .  ' +
+    'E5 .  .  .  .  .  G5 .  .  .  F#5 .  .  .  .  .  ' + 'A4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const raices = ['A1', 'G1', 'D2', 'A1', 'E1', 'A1', 'D2', 'G1', 'C2', 'G1', 'E1', 'A1'];
+  canal(buf, sr, bpm, arpa, { onda: 'pulso', ciclo: 0.125, vol: 0.09, a: 0.002, d: 0.5, s: 0.15, r: 0.4, picado: 0.9 });
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.26, a: 0.02, d: 0.3, s: 0.6, r: 0.5 });
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.06, a: 0.02, d: 0.3, s: 0.6, r: 0.5, desfase: 0.36 });
+  canal(buf, sr, bpm, raices.map(sostenida).join(''), { onda: 'triangulo', vol: 0.22, a: 0.15, d: 0.2, s: 0.8, r: 0.35 });
+  for (let c = 0; c < 12; c += 4) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 55, ini: c * compas, dur: 2.4, vol: 0.16, a: 0.002, d: 0.2, s: 0.5, r: 0.7, caida: 1 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: 82.5, ini: c * compas, dur: 1.8, vol: 0.06, a: 0.002, d: 0.3, s: 0.4, r: 0.7 });
+  }
+  return { sr, buf, rms: NIVEL_MUSICA * 0.95 };
+}
+
+/**
+ * TIERRAS ALTAS DE AMBERLEAF — fa mayor, 88 pulsos, dieciséis compases. Una
+ * flauta (triángulo con un vibrato suave) que canta una tonada de otoño, el
+ * bajo que camina a negras y, la segunda vez, un pulso que la acompaña.
+ */
+function temaColinas() {
+  const sr = SR_MUSICA, bpm = 88;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 16);
+  const frase =
+    'C5 .  .  .  F5 .  .  .  A5 .  G5 .  F5 .  .  .  ' +
+    'D5 .  .  .  .  .  F5 .  E5 .  .  .  C5 .  .  .  ' +
+    'A#4 .  .  .  D5 .  .  .  F5 .  E5 .  D5 .  .  .  ' +
+    'C5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'F5 .  .  .  A5 .  .  .  C6 .  A#5 .  A5 .  .  .  ' +
+    'G5 .  .  .  .  .  A5 .  G5 .  .  .  E5 .  .  .  ' +
+    'D5 .  .  .  E5 .  .  .  F5 .  G5 .  E5 .  .  .  ' +
+    'F5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const paseos = { F: ['F2', 'A2', 'C3', 'A2'], Dm: ['D2', 'F2', 'A2', 'F2'], Bb: ['A#1', 'D2', 'F2', 'D2'], C: ['C2', 'E2', 'G2', 'E2'] };
+  const grados = ['F', 'Dm', 'Bb', 'C', 'F', 'C', 'C', 'F'];
+  const bajo = grados.map(g => paseos[g].map(n => n + ' .  .  .  ').join('')).join('').repeat(2);
+  const coro = { F: 'A4,C5', Dm: 'F4,A4', Bb: 'F4,A#4', C: 'E4,G4' };
+  const acomp = callar(8) + grados.map(g => coro[g] + ' .  .  .  .  .  -  -  ' + coro[g] + ' .  .  .  -  -  -  -  ').join('');
+  canal(buf, sr, bpm, frase + frase, { onda: 'triangulo', vol: 0.28, a: 0.01, d: 0.2, s: 0.7, r: 0.3, vibrato: 0.005, vibratoHz: 5.5 });
+  canal(buf, sr, bpm, acomp, { onda: 'pulso', ciclo: 0.25, vol: 0.06, a: 0.01, d: 0.3, s: 0.5, r: 0.3 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.26, a: 0.004, d: 0.3, s: 0.6, r: 0.2 });
+  const golpe = 'B  -  -  -  -  -  h  -  c  -  -  -  -  -  h  -  ';
+  for (let c = 0; c < 16; c++) {
+    const trozo = lienzo(sr, compas);
+    ritmo(trozo, sr, bpm, golpe, 0.13);
+    for (let i = 0; i < trozo.length; i++) sumar(buf, Math.round(c * compas * sr) + i, trozo[i]);
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * SELVA ESMERALDA — sol menor pentatónico, 112 pulsos, dieciséis compases.
+ * Una marimba que no para (triángulo picado), tambores de tronco, la maraca
+ * y, a ratos, la llamada de una flauta de caña.
+ */
+function temaSelva() {
+  const sr = SR_MUSICA, bpm = 112;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 16);
+  const M = { A: 'G4 -  D5 -  A#4 -  D5 -  C5 -  D5 -  F5 -  D5 -  ',
+              B: 'F4 -  C5 -  A4 -  C5 -  A#4 -  C5 -  D5 -  C5 -  ',
+              C: 'D#4 -  A#4 -  G4 -  A#4 -  D5 -  A#4 -  C5 -  A#4 -  ' };
+  const R = { A: 'G2', B: 'F2', C: 'D#2' };
+  const orden = 'AABAAABBCCBBAABA'.split('');
+  const marimba = orden.map(k => M[k]).join('');
+  const bajo = orden.map(k => R[k] + ' .  .  .  -  -  ' + R[k] + ' .  -  -  ' + R[k] + ' .  .  .  -  -  ').join('');
+  const llamada =
+    'D6 .  .  .  A#5 .  C6 .  D6 .  .  .  -  -  -  -  ' + 'F6 .  .  .  D6 .  .  .  C6 .  A#5 .  G5 .  .  .  ' +
+    'A#5 .  .  .  C6 .  .  .  D6 .  .  .  .  .  .  .  ' + 'G5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  canal(buf, sr, bpm, marimba, { onda: 'triangulo', vol: 0.20, a: 0.001, d: 0.6, s: 0.1, r: 0.3, picado: 0.9 });
+  canal(buf, sr, bpm, callar(4) + llamada + callar(4) + llamada,
+        { onda: 'triangulo', vol: 0.17, a: 0.02, d: 0.2, s: 0.7, r: 0.3, vibrato: 0.01, vibratoHz: 6 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.26, a: 0.004, d: 0.3, s: 0.6, r: 0.2 });
+  const paso = 60 / bpm / 4;
+  for (let c = 0; c < 16; c++) {
+    const t0 = c * compas;
+    for (const s of [0, 6, 10]) tambor(buf, sr, t0 + s * paso, 130, 0.20);
+    for (const s of [3, 12, 14]) tambor(buf, sr, t0 + s * paso, 210, 0.13);
+    for (let s = 0; s < 16; s += 2) charles(buf, sr, t0 + s * paso, 0.11);
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * CALDERA DE EMBERFALL — do menor (con el re bemol que inquieta), 76 pulsos,
+ * doce compases. Un bajo que martillea, una melodía grave de metal (pulso
+ * nasal), timbales que retumban y un colchón de quintas.
+ */
+function temaVolcan() {
+  const sr = SR_MUSICA, bpm = 76;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const martillo = (r, a, b) => r + ' .  ' + r + ' .  -  -  ' + r + ' .  ' + a + ' .  -  -  ' + r + ' .  ' + b + ' .  ';
+  const fDo = martillo('C2', 'D#2', 'C#2'), fSol = martillo('G1', 'A#1', 'G#1'), fLab = martillo('G#1', 'C2', 'A#1');
+  const bajo = [fDo, fDo, fDo, fDo, fSol, fSol, fLab, fLab, fDo, fDo, fSol, fDo].join('');
+  const mel =
+    'C4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' + 'D#4 .  .  .  .  .  D4 .  .  .  C4 .  .  .  .  .  ' +
+    'G4 .  .  .  .  .  .  .  F4 .  .  .  D#4 .  .  .  ' + 'D4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'G4 .  .  .  A#4 .  .  .  G4 .  .  .  F4 .  .  .  ' + 'D4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'G#4 .  .  .  .  .  G4 .  .  .  F4 .  .  .  .  .  ' + 'G4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'C5 .  .  .  .  .  A#4 .  .  .  G#4 .  .  .  G4 .  ' + 'F4 .  .  .  .  .  .  .  D#4 .  .  .  D4 .  .  .  ' +
+    'D#4 .  .  .  D4 .  .  .  C4 .  .  .  B3 .  .  .  ' + 'C4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const quintas = ['C3,G3', 'C3,G3', 'C3,G3', 'C3,G3', 'G2,D3', 'G2,D3', 'G#2,D#3', 'G#2,D#3', 'C3,G3', 'C3,G3', 'G2,D3', 'C3,G3'];
+  canal(buf, sr, bpm, bajo, { onda: 'pulso', ciclo: 0.5, vol: 0.12, a: 0.002, d: 0.3, s: 0.5, r: 0.2, picado: 0.8 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.22, a: 0.002, d: 0.3, s: 0.6, r: 0.2, picado: 0.8 });
+  canal(buf, sr, bpm, mel, { onda: 'pulso', ciclo: 0.25, vol: 0.17, a: 0.03, d: 0.3, s: 0.7, r: 0.3, vibrato: 0.004, vibratoHz: 4.5 });
+  canal(buf, sr, bpm, quintas.map(sostenida).join(''), { onda: 'pulso', ciclo: 0.125, vol: 0.04, a: 0.5, d: 0.2, s: 0.85, r: 0.4 });
+  const paso = 60 / bpm / 4;
+  for (let c = 0; c < 12; c++) {
+    timbal(buf, sr, c * compas, 0.22);
+    if (c % 4 === 3) for (let s = 8; s < 16; s++) timbal(buf, sr, c * compas + s * paso, 0.05 + 0.012 * (s - 8));
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * HONDONADA DE GLOWCAP — fa lidio (el si natural que flota), 70 pulsos, doce
+ * compases. Una celesta que sube y baja por cada acorde (pulso fino en lo
+ * alto), una melodía de notas largas con vibrato y el bajo en blancas.
+ */
+function temaHongos() {
+  const sr = SR_MUSICA, bpm = 70;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const acordes = [['F5', 'A5', 'C6', 'E6'], ['G5', 'B5', 'D6', 'G6'], ['E5', 'G5', 'B5', 'D6'], ['F5', 'A5', 'C6', 'E6'],
+                   ['D5', 'F5', 'A5', 'C6'], ['G5', 'B5', 'D6', 'G6'], ['A5', 'C6', 'E6', 'G6'], ['F5', 'A5', 'C6', 'E6'],
+                   ['F5', 'A5', 'C6', 'E6'], ['G5', 'B5', 'D6', 'G6'], ['C5', 'E5', 'G5', 'B5'], ['F5', 'A5', 'C6', 'E6']];
+  const celesta = acordes.map(a => [0, 1, 2, 3, 2, 1, 2, 3].map(k => a[k] + ' -  ').join('')).join('');
+  const mel =
+    'A5 .  .  .  .  .  .  .  B5 .  .  .  C6 .  .  .  ' + 'D6 .  .  .  .  .  .  .  B5 .  .  .  .  .  .  .  ' +
+    'G5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' + 'E5 .  .  .  F5 .  .  .  G5 .  .  .  A5 .  .  .  ' +
+    'F5 .  .  .  .  .  .  .  A5 .  .  .  .  .  .  .  ' + 'B5 .  .  .  .  .  .  .  D6 .  .  .  .  .  .  .  ' +
+    'C6 .  .  .  .  .  B5 .  .  .  A5 .  .  .  .  .  ' + 'A5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'C6 .  .  .  .  .  .  .  E6 .  .  .  .  .  .  .  ' + 'D6 .  .  .  .  .  B5 .  .  .  G5 .  .  .  .  .  ' +
+    'E5 .  .  .  G5 .  .  .  B5 .  .  .  .  .  .  .  ' + 'A5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const raices = ['F2', 'G2', 'E2', 'F2', 'D2', 'G2', 'A2', 'F2', 'F2', 'G2', 'C2', 'F2'];
+  const bajo = raices.map(r => r + ' .  .  .  .  .  .  .  ' + r + ' .  .  .  .  .  .  .  ').join('');
+  canal(buf, sr, bpm, celesta, { onda: 'pulso', ciclo: 0.125, vol: 0.07, a: 0.001, d: 0.5, s: 0.12, r: 0.5 });
+  canal(buf, sr, bpm, mel.replace(/([A-G]#?)(\d)/g, (m, n, o) => n + (parseInt(o, 10) - 1)),
+        { onda: 'triangulo', vol: 0.25, a: 0.04, d: 0.3, s: 0.65, r: 0.5, vibrato: 0.008, vibratoHz: 4 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.22, a: 0.08, d: 0.2, s: 0.75, r: 0.35 });
+  return { sr, buf, rms: NIVEL_MUSICA * 0.9 };
+}
+
+/** PUERTO (ambiente): las olas que van y vienen, las gaviotas, la campana de un barco y la madera del muelle. */
+function ambientePuerto() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(2, n), alto = pasoAlto(0.05);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const ola = Math.pow(0.5 + 0.5 * onda(i, n, 3, 0.1), 2) * 0.7 + Math.pow(0.5 + 0.5 * onda(i, n, 5, 0.55), 3) * 0.3;
+    const k = 0.04 + 0.16 * ola;
+    y += k * (r() - y); y2 += k * (y - y2);
+    return alto(y2) * 2.4 * (0.2 + ola);
+  }, buf);
+  const az = azarDe(1301);
+  for (let g = 0; g < 4; g++) {
+    let t = 0.6 + az() * (seg - 2.5);
+    const f = 1300 + az() * 500, veces = 2 + Math.floor(az() * 2);
+    for (let k = 0; k < veces; k++) {
+      tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: f * (1 - 0.06 * k), ini: t, dur: 0.22, vol: 0.05,
+                           a: 0.01, d: 0.4, s: 0.5, r: 0.4, caida: 6, vibrato: 0.01, vibratoHz: 18 });
+      t += 0.27;
+    }
+  }
+  for (const t of [3.1, 9.4]) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 880, ini: t, dur: 1.6, vol: 0.06, a: 0.001, d: 0.3, s: 0.3, r: 0.65 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: 1318.5, ini: t, dur: 1.2, vol: 0.025, a: 0.001, d: 0.3, s: 0.3, r: 0.65 });
+  }
+  for (const t of [1.7, 6.6, 10.8]) {
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.125, f: 95, ini: t, dur: 0.5, vol: 0.035, a: 0.1, d: 0.3, s: 0.6, r: 0.3,
+                         vibrato: 0.04, vibratoHz: 9, caida: -2 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** CIÉNAGA (ambiente): el agua quieta que zumba, las ranas a coro, burbujas que suben y los insectos. */
+function ambientePantano() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(6, n);
+  let y = 0, y2 = 0, fase = 0;
+  dosVueltas(n, function (i) {
+    const k = 0.008 + 0.004 * (0.5 + 0.5 * onda(i, n, 2, 0.3));
+    y += k * (r() - y); y2 += k * (y - y2);
+    fase += 2900 / sr;
+    const zumbido = pulso(fase, 0.125) * 0.012 * (0.4 + 0.6 * (0.5 + 0.5 * onda(i, n, 6, 0.2))) * (0.5 + 0.5 * Math.sin(2 * Math.PI * 34 * i / sr));
+    return y2 * 5.0 + zumbido;
+  }, buf);
+  const az = azarDe(1402);
+  for (let g = 0; g < 7; g++) {
+    let t = 0.3 + az() * (seg - 1.5);
+    const f = 150 + az() * 80, veces = 2 + Math.floor(az() * 2);
+    for (let k = 0; k < veces; k++) {
+      tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f, ini: t, dur: 0.13, vol: 0.08, a: 0.005, d: 0.4, s: 0.5, r: 0.3,
+                           vibrato: 0.3, vibratoHz: 26 });
+      t += 0.19;
+    }
+  }
+  for (let b = 0; b < 10; b++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 280 + az() * 220, ini: 0.2 + az() * (seg - 0.6), dur: 0.06, vol: 0.05,
+                         a: 0.002, d: 0.5, s: 0.2, r: 0.4, caida: -9 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** RUINAS (ambiente): el viento que silba entre la piedra, el agua de la laguna y unas campanillas lejanas. */
+function ambienteAldor() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(2, n), r2 = ruidoEnBucle(7, n), alto = pasoAlto(0.12);
+  let y = 0, y2 = 0, z = 0, z2 = 0;
+  dosVueltas(n, function (i) {
+    const racha = 0.3 + 0.5 * (0.5 + 0.5 * onda(i, n, 2, 0.15)) + 0.2 * (0.5 + 0.5 * onda(i, n, 7, 0.4));
+    y += 0.06 * (r() - y); y2 += 0.06 * (y - y2);
+    const silbo = alto(y2) * 3.2 * racha;
+    const lame = 0.5 + 0.5 * onda(i, n, 4, 0.7);
+    z += 0.02 * (r2() - z); z2 += 0.02 * (z - z2);
+    return silbo + z2 * 2.6 * lame;
+  }, buf);
+  const az = azarDe(1501);
+  for (let c = 0; c < 6; c++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 1800 + az() * 800, ini: 0.4 + az() * (seg - 2), dur: 1.4, vol: 0.035,
+                         a: 0.001, d: 0.2, s: 0.35, r: 0.7 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** TIERRAS ALTAS (ambiente): la brisa de otoño, las hojas secas que crujen, pájaros y un pájaro carpintero. */
+function ambienteColinas() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(3, n), alto = pasoAlto(0.06);
+  let y = 0;
+  dosVueltas(n, function (i) {
+    const brisa = 0.3 + 0.3 * (0.5 + 0.5 * onda(i, n, 3, 0.25)) + 0.15 * (0.5 + 0.5 * onda(i, n, 8, 0.6));
+    y += (0.03 + 0.05 * brisa) * (r() - y);
+    return alto(y) * 1.9 * brisa;
+  }, buf);
+  const az = azarDe(1601);
+  for (let h = 0; h < 5; h++) {
+    let t = 0.4 + az() * (seg - 1.5);
+    for (let k = 0; k < 6; k++) {
+      tocarNota(buf, sr, { onda: 'ruido', ruidoP: 1, f: 1, ini: t, dur: 0.03, vol: 0.05, a: 0.001, d: 0.6, s: 0.1, r: 0.4, filtroAlto: 0.5 });
+      t += 0.04 + az() * 0.06;
+    }
+  }
+  for (let p = 0; p < 4; p++) {
+    const t = 0.8 + az() * (seg - 2), base = 1500 + az() * 700;
+    tocarNota(buf, sr, { onda: 'triangulo', f: base, ini: t, dur: 0.12, vol: 0.05, a: 0.004, d: 0.3, s: 0.5, r: 0.3, caida: -3 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: base * 0.84, ini: t + 0.16, dur: 0.16, vol: 0.05, a: 0.004, d: 0.3, s: 0.5, r: 0.3 });
+  }
+  let t = 7.3;
+  for (let k = 0; k < 7; k++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 950, ini: t, dur: 0.03, vol: 0.06, a: 0.001, d: 0.8, s: 0.05, r: 0.2, caida: 12 });
+    t += 0.075;
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** SELVA (ambiente): las chicharras que no callan, pájaros que llaman de lejos, un loro y gotas de las hojas. */
+function ambienteSelva() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(4, n);
+  let y = 0, y2 = 0, fase = 0;
+  dosVueltas(n, function (i) {
+    y += 0.02 * (r() - y); y2 += 0.02 * (y - y2);
+    fase += 3900 / sr;
+    const canto = 0.5 + 0.5 * onda(i, n, 4, 0.1);
+    const chicharra = pulso(fase, 0.125) * 0.02 * canto * (0.5 + 0.5 * Math.sin(2 * Math.PI * 42 * i / sr));
+    return y2 * 2.8 + chicharra;
+  }, buf);
+  const az = azarDe(1701);
+  for (let p = 0; p < 6; p++) {
+    const t = 0.4 + az() * (seg - 1.6), f = 520 + az() * 300;
+    tocarNota(buf, sr, { onda: 'triangulo', f, ini: t, dur: 0.32, vol: 0.06, a: 0.02, d: 0.3, s: 0.6, r: 0.3, caida: -12 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: f * 1.9, ini: t + 0.36, dur: 0.24, vol: 0.05, a: 0.02, d: 0.3, s: 0.6, r: 0.3, caida: 9 });
+  }
+  for (const t of [4.2, 10.1]) {
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: 1150, ini: t, dur: 0.14, vol: 0.05, a: 0.003, d: 0.4, s: 0.4, r: 0.3, caida: 5, vibrato: 0.05, vibratoHz: 40 });
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: 1000, ini: t + 0.2, dur: 0.14, vol: 0.045, a: 0.003, d: 0.4, s: 0.4, r: 0.3, caida: 5, vibrato: 0.05, vibratoHz: 40 });
+  }
+  for (let g = 0; g < 8; g++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 1100 + az() * 500, ini: 0.2 + az() * (seg - 0.5), dur: 0.05, vol: 0.05,
+                         a: 0.001, d: 0.4, s: 0.2, r: 0.5, caida: -3 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** CALDERA (ambiente): el retumbo hondo de la montaña, la lava que borbotea, el vapor que silba y chasquidos. */
+function ambienteVolcan() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(8, n);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const k = 0.004 + 0.003 * (0.5 + 0.5 * onda(i, n, 3, 0.45));
+    y += k * (r() - y); y2 += k * (y - y2);
+    return y2 * 8.0;
+  }, buf);
+  const az = azarDe(1801);
+  for (let g = 0; g < 6; g++) {
+    let t = 0.3 + az() * (seg - 1.4);
+    const veces = 2 + Math.floor(az() * 3);
+    for (let k = 0; k < veces; k++) {
+      tocarNota(buf, sr, { onda: 'triangulo', f: 70 + az() * 60, ini: t, dur: 0.12, vol: 0.10, a: 0.003, d: 0.5, s: 0.3, r: 0.4, caida: -6 });
+      t += 0.1 + az() * 0.12;
+    }
+  }
+  for (const t of [2.2, 6.9, 10.3]) {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 1, f: 1, ini: t, dur: 1.1, vol: 0.05, a: 0.25, d: 0.2, s: 0.7, r: 0.5, filtroAlto: 0.4 });
+  }
+  for (let c = 0; c < 18; c++) {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 2, f: 1, ini: az() * (seg - 0.1), dur: 0.015, vol: 0.06, a: 0.001, d: 0.7, s: 0.05, r: 0.3 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** HONDONADA (ambiente): un zumbido suave de cueva viva, esporas que tintinean, un silbo extraño y gotas. */
+function ambienteHongos() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = ruidoEnBucle(5, n);
+  let y = 0, y2 = 0, fase = 0;
+  dosVueltas(n, function (i) {
+    const k = 0.007 + 0.003 * (0.5 + 0.5 * onda(i, n, 2, 0.6));
+    y += k * (r() - y); y2 += k * (y - y2);
+    fase += 110 / sr;
+    return y2 * 4.2 + triangulo(fase) * 0.025 * (0.6 + 0.4 * onda(i, n, 3, 0.2));
+  }, buf);
+  const az = azarDe(1901);
+  for (let s = 0; s < 10; s++) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 2000 + az() * 1100, ini: 0.3 + az() * (seg - 1.2), dur: 0.5, vol: 0.03,
+                         a: 0.002, d: 0.3, s: 0.3, r: 0.7, vibrato: 0.01, vibratoHz: 7 });
+  }
+  for (const [t, sube] of [[3.6, -5], [8.8, 4]]) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: 680, ini: t, dur: 1.5, vol: 0.035, a: 0.3, d: 0.2, s: 0.7, r: 0.4,
+                         vibrato: 0.02, vibratoHz: 3, caida: sube });
+  }
+  for (let g = 0; g < 6; g++) {
+    const t = 0.4 + az() * (seg - 1.2), f = 1000 + az() * 600;
+    for (let e = 0; e < 2; e++) {
+      tocarNota(buf, sr, { onda: 'triangulo', f, ini: t + e * 0.2, dur: 0.14, vol: 0.06 / (1 + e * 1.6), a: 0.001, d: 0.3, s: 0.2, r: 0.6, caida: -3 });
+    }
+  }
+  return { sr, buf, temblor: true };
+}
+
 const CATALOGO = [
   // --- música ---
   ['gf_pradera.wav',  temaPradera],
@@ -1716,6 +2212,22 @@ const CATALOGO = [
   ['amb_ventisca.wav',  ambienteVentisca],
   ['amb_caverna.wav',   ambienteCaverna],
   ['amb_prado.wav',     ambientePrado],
+
+  // --- los siete reinos del este (2026-11-21) ---
+  ['gf_puerto.wav',     temaPuerto],
+  ['gf_pantano.wav',    temaPantano],
+  ['gf_aldor.wav',      temaAldor],
+  ['gf_colinas.wav',    temaColinas],
+  ['gf_selva.wav',      temaSelva],
+  ['gf_volcan.wav',     temaVolcan],
+  ['gf_hongos.wav',     temaHongos],
+  ['amb_puerto.wav',    ambientePuerto],
+  ['amb_pantano.wav',   ambientePantano],
+  ['amb_aldor.wav',     ambienteAldor],
+  ['amb_colinas.wav',   ambienteColinas],
+  ['amb_selva.wav',     ambienteSelva],
+  ['amb_volcan.wav',    ambienteVolcan],
+  ['amb_hongos.wav',    ambienteHongos],
 
   // --- rayos ---
   ['rayo_1.wav',      () => trueno(11, true)],

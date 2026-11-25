@@ -116,6 +116,7 @@ function seccion({ tesoro = null, vips = [], stats = {}, devolver = true } = {})
   const Tesoro = tesoroFalso(tesoro), TesoroMov = movimientosFalsos();
   const nada = (req, res, next) => next && next();
   const c = {
+    GF_CROP_CATALOG: require('../gf-crop-catalog'),
     console: quiet, Tesoro, TesoroMov,
     ecoError: (code, status) => Object.assign(new Error(code), { code, status }),
     ecoTransaccion: async fn => {
@@ -133,7 +134,7 @@ function seccion({ tesoro = null, vips = [], stats = {}, devolver = true } = {})
     // (2026-10-26) El tesoro del juego: aquí solo se apunta lo que le llega.
     tesoroJuegoIngresar: async (origen, bronce, playerName, detalle) => { juego.push({ origen, bronce, playerName, detalle }); },
     app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
-    apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+    apiLimiter: nada, strictLimiter: nada, gameplayLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
     azar: () => 0
   };
   vm.createContext(c);
@@ -416,9 +417,12 @@ test('el panel: configurar normaliza y guarda; meter y sacar exigen motivo y sal
 test('los mapas por nivel: misma tabla y misma curva en el servidor y en el cliente', async () => {
   const s = seccion({ stats: { Ana: 1600, Leo: 10 } });
   const cli = nivelesCliente();
-  const salaDeMundo = { 3: 'mina', 6: 'salvaje', 7: 'cementerio', 8: 'desierto', 9: 'tundra', 10: 'glaciar', 11: 'caverna', 12: 'pradera' };
+  const salaDeMundo = { 3: 'mina', 6: 'salvaje', 7: 'cementerio', 8: 'desierto', 9: 'tundra', 10: 'glaciar', 11: 'caverna', 12: 'pradera',
+                        // (2026-11-21) Los siete reinos del este.
+                        13: 'puerto', 14: 'pantano', 15: 'aldor', 16: 'colinas', 17: 'selva', 18: 'volcan', 19: 'hongos' };
   assert.deepEqual(clone(s.GF_NIVEL_MAPA), { mina: 2, salvaje: 4, desierto: 5, cementerio: 6, tundra: 7,
-                                             glaciar: 8, caverna: 9, pradera: 10 }, 'lo que pidió el usuario');
+                                             glaciar: 8, caverna: 9, pradera: 10,
+                                             puerto: 11, pantano: 12, aldor: 13, colinas: 14, selva: 15, volcan: 16, hongos: 17 }, 'lo que pidió el usuario');
   for (const [mundo, sala] of Object.entries(salaDeMundo)) {
     assert.equal(cli.minimo(mundo), s.GF_NIVEL_MAPA[sala], 'mundo ' + mundo);
     assert.equal(s.gfNivelMinimoSala(sala + '#c3'), s.GF_NIVEL_MAPA[sala], 'el canal no cambia el nivel');
@@ -446,7 +450,9 @@ test('el mercado P2P cobra el 5 % y lo reparte: 1,5 % al tesoro circular y 3,5 %
   const Tesoro = tesoroFalso(), TesoroMov = movimientosFalsos(), Juego = tesoroFalso();
   const c = { Tesoro: { updateOne: (f, u, o) => ({ exec: () => Tesoro.updateOne(f, u, o).exec() }) }, TesoroMov, TESORO_ID: 'principal', Math, Date,
               TesoroJuego: { updateOne: (f, u, o) => ({ exec: () => Juego.updateOne(f, u, o).exec() }) }, TESORO_JUEGO_ID: 'principal',
-              TESORO_CIRCULAR_BPS: 150, MARKET_FEE_BPS: 500 };
+              TESORO_CIRCULAR_BPS: 150, MARKET_FEE_BPS: 500,
+              // (2026-11-25) ingresarAlTesoro pasa la comisión a bronce con la tabla del módulo.
+              BRONCE_POR: { oro: 1000000, plata: 1000, bronce: 1 } };
   vm.createContext(c);
   vm.runInContext(src.slice(n.start, n.end) + '\nthis.f = ingresarAlTesoro;', c);
   await c.f('plata', 4.5, 'Vendedor', 'espada_hierro', 3);

@@ -51,3 +51,20 @@ test('un disconnect fallido no retiene proveedor ni cliente móvil', async () =>
   await sdk.prepare(); await assert.rejects(sdk.disconnect(), /offline/);
   assert.equal(sdk.getProvider(), null); await sdk.prepare(); assert.equal(created, 2);
 });
+
+test('el RPC del móvil sale de la red en marcha, no de Caldera', async () => {
+  const pedidas = [];
+  const crear = async (cfg) => { pedidas.push(cfg.api.supportedNetworks); return { getProvider: () => ({ request() {} }) }; };
+  const origen = { origin: 'https://game.grasslandforest.com' };
+  await createMetaMaskAdapter(crear, { location: origen }).prepare();
+  await createMetaMaskAdapter(crear, { location: origen, GFRed: { actual: () => ({ chainIdHex: '0x2A', rpcUrls: ['http://inseguro', 'https://rpc.mainnet.example/'] }) } }).prepare();
+  await createMetaMaskAdapter(crear, { location: origen, GF_RED_ACTUAL: { chainIdHex: '0x1159', rpcUrls: ['https://rpc.login.example/'] } }).prepare();
+  await createMetaMaskAdapter(crear, { location: origen, GFRed: { actual: () => { throw new Error('roto'); } } }).prepare();
+  assert.deepEqual(pedidas, [
+    { '0x1159': 'https://rpc.testnet.liteforge.zeeve.net/' },
+    { '0x2a': 'https://rpc.mainnet.example/' },
+    { '0x1159': 'https://rpc.login.example/' },
+    { '0x1159': 'https://rpc.testnet.liteforge.zeeve.net/' }
+  ]);
+  assert.ok(!JSON.stringify(pedidas).includes('caldera'));
+});

@@ -230,7 +230,9 @@ function findNode(predicate, tree = ast) {
 }
 function joinFixture() {
   const callbacks = [], rooms = Object.create(null);
-  const c = { gfNivelMinimoSala:()=>0, rooms, console: quiet, salaBase: r => r, salaConCanal: (r, channel) => r + '#c' + channel,
+  // (2026-11-23) La puerta de las salas (nivel, isla y los siete del este con VIP) va en
+  // gfAccesoSala: aquí, salas sin puerta (lo prueba tools/viajes-vip-muerte.test.cjs).
+  const c = { gfNivelMinimoSala:()=>0, gfAccesoSala: async () => null, gfSalirDeSala() {}, rooms, console: quiet, salaBase: r => r, salaConCanal: (r, channel) => r + '#c' + channel,
     islaDeSala: () => null, anotarCambioDeSala() {}, purgarFantasmas() {},
     NOMBRE_SOULBOUND_VALIDO: /^[A-Za-z0-9_-]{1,40}$/,
     PlayerAuth: { findOne() { return { lean() { return new Promise(resolve => callbacks.push(resolve)); } }; } },

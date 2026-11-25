@@ -62,8 +62,11 @@ test('el JSON del dibujo: cada destino cae en su mapa y en un mundo al que se pu
     }
   }
   // Están todos los mapas, las minas y la tienda.
-  for (const m of [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12]) assert.ok(MAPA.destinos.some((d) => d.mundo === m), 'falta el mundo ' + m);
-  assert.equal(MAPA.destinos.filter((d) => d.vip).map((d) => d.id).join(), 'isla', 'solo la isla pide VIP');
+  for (const m of [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) assert.ok(MAPA.destinos.some((d) => d.mundo === m), 'falta el mundo ' + m);
+  // (2026-11-23) "Los 7 mapas que pusiste deben ser solo para VIP": la isla y todo lo
+  // de los siete del este (tools/viajes-vip-muerte.test.cjs lo prueba sitio a sitio).
+  const REINOS = ['puerto', 'pantano', 'aldor', 'colinas', 'selva', 'volcan', 'hongos'];
+  for (const d of MAPA.destinos) assert.equal(!!d.vip, d.id === 'isla' || REINOS.includes(d.sala), d.id + ': VIP');
 });
 
 test('el servidor tiene la MISMA tabla que el JSON (si se regenera el dibujo, hay que regenerarla)', { skip: !HAY }, () => {
@@ -92,7 +95,7 @@ test('los niveles del mapa son los mismos en el panel y en el servidor', { skip:
 function servidor(op = {}) {
   const rutas = {};
   const app = { get: (r, ...h) => { rutas['GET ' + r] = h[h.length - 1]; }, post: (r, ...h) => { rutas['POST ' + r] = h[h.length - 1]; } };
-  const bolsa = { Ana: op.bronce ?? 5000 }, tesoroJuego = [];
+  const bolsa = { Ana: op.bronce ?? 5000 }, tesoro = [];
   const yo = op.donde || { sala: 'game', x: 2097, y: 2359 };
   const ctx = vm.createContext({
     console: { log() {}, error() {}, warn() {} }, Math, Number, String, Date, Map, Object, JSON, Promise, Array,
@@ -104,11 +107,17 @@ function servidor(op = {}) {
     rooms: { [yo.sala]: { s1: { x: yo.x, y: yo.y } } },
     gfNivelDeJugador: async () => op.nivel ?? 6, gfTieneVipPorDireccion: async () => !!op.vip,
     PlayerStats: { findOne: () => ({ select: () => ({ lean: async () => ({ bronce: bolsa.Ana }) }) }) },
-    gfCobrarStat: async (n, s, c) => (bolsa[n] >= c ? (bolsa[n] -= c, { bronce: bolsa[n] }) : null),
+    // (2026-11-02) Paga con cambio de plata u oro: lo prueba viajes-con-cambio.test.cjs.
+    gfCobrarConCambio: async (n, c) => (bolsa[n] >= c ? (bolsa[n] -= c, { bronce: bolsa[n] }) : null),
+    gfValorEnBronce: (st) => Math.floor(Number(st && st.bronce) || 0),
     gfDevolverStat: async (n, s, c) => ((bolsa[n] += c), { bronce: bolsa[n] }),
     buildStatsResponse: (d) => ({ bronce: d.bronce }),
-    // (2026-10-26) El viaje paga al tesoro del juego (y la devolución lo resta).
-    tesoroJuegoIngresar: async (origen, bronce) => { tesoroJuego.push([origen, bronce]); }
+    // (2026-11-21) El viaje se reparte entre los dos tesoros como las demás
+    // comisiones (el reparto lo prueba tools/reinos.test.cjs). Aquí: la ruta
+    // apunta lo cobrado, y la devolución deshace EL MISMO reparto del billete.
+    gfViajeReparto: (b) => ({ circular: 7, juego: b - 7 }),
+    gfViajeAlTesoro: async (b, quien, detalle) => { tesoro.push(['paga', b, quien, detalle]); return { circular: 7, juego: b - 7 }; },
+    gfViajeDevolverTesoro: async (reparto, quien) => { tesoro.push(['devuelve', reparto, quien]); }
   });
   const codigo = trozo(SRV, 'function salaBase(sala) {', '\n}\n') + trozo(SRV, 'const GF_NIVEL_MAPA = ', '\n}\n') +
                  trozo(SRV, 'const GF_MAPA_MUNDO = ', "' destinos)');\n");
@@ -119,7 +128,7 @@ function servidor(op = {}) {
     await rutas[clave]({ body }, res);
     return { st, out: JSON.parse(JSON.stringify(out)) };
   };
-  return { ctx, llamar, bolsa, tesoroJuego };
+  return { ctx, llamar, bolsa, tesoro };
 }
 
 test('el precio: según la distancia en el dibujo, con mínimo, tope y de 10 en 10', { skip: !HAY }, () => {
@@ -179,7 +188,8 @@ test('viajar: pregunta lo que cobra, reconoce nivel y VIP, y devuelve una sola v
   assert.equal(d1.out.devuelto, precio);
   assert.equal(s.bolsa.Ana, 5000);
   assert.equal((await s.llamar('POST /api/viaje/mapa/devolver', { billete: ok.out.billete })).st, 404, 'un billete se devuelve una vez');
-  assert.equal(JSON.stringify(s.tesoroJuego), JSON.stringify([['viajes', precio], ['viajes', -precio]]), 'el viaje, al tesoro del juego; la devolución, fuera');
+  assert.equal(JSON.stringify(s.tesoro), JSON.stringify([['paga', precio, 'Ana', 'mapa salvaje'], ['devuelve', { circular: 7, juego: precio - 7 }, 'Ana']]),
+               'el viaje, a los dos tesoros; la devolución, el mismo reparto');
 
   const pobre = servidor({ nivel: 6, bronce: 50 });
   const p = await pobre.llamar('POST /api/viaje/mapa', { destino: 'desierto' });

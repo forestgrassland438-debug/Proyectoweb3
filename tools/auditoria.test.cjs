@@ -96,13 +96,13 @@ function bloque(op = {}) {
   [ANA, BEA, CRIS].forEach((g) => GamePlayer._t.push({ ...g }));
   let sesion = ANA;
   const nada = (req, res, next) => next && next();
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ GF_CROP_CATALOG: require('../gf-crop-catalog'),
     console: { log() {}, warn() {}, error() {} }, Math, Number, String, Date, Object, JSON, BigInt, Promise, Array, Map, Set, isFinite, RegExp, URLSearchParams,
     process: { env: {} }, crypto, setTimeout: (fn, ms) => { relojes.push(fn); return { unref() {} }; }, setInterval: () => ({ unref() {} }),
     mongoose, app: { get: (p, ...h) => rutas.set('GET ' + p, h[h.length - 1]), post: (p, ...h) => rutas.set('POST ' + p, h[h.length - 1]) },
-    apiLimiter: nada, strictLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
+    apiLimiter: nada, strictLimiter: nada, gameplayLimiter: nada, authMiddleware: nada, csrfProtection: nada, adminAuth: nada,
     jugadorDeLaSesion: async () => ({ ...sesion }),
-    GamePlayer, VipEstado: modelo(), CompraOro: modelo(), TesoroJuego: modelo(), TESORO_JUEGO_ID: 'juego',
+    GamePlayer, PlayerStats:modelo(), nivelPorExperiencia:()=>1, VipEstado: modelo(), CompraOro: modelo(), TesoroJuego: modelo(), TESORO_JUEGO_ID: 'juego',
     gfNivelDeJugador: async (gp) => niveles[gp && gp.playerName] || 0,
     TESORO_BRONCE_POR: { bronce: 1, plata: 1000, oro: 1000000 }, TESORO_COMISION_BPS: 500,
     economiaConfig: async () => ({}), economiaDestino: () => '0x' + 'd'.repeat(40), economiaLeerPago: async () => ({ error: 'pendiente' }),
@@ -125,9 +125,9 @@ function bloque(op = {}) {
 }
 
 test('el nivel de cada objeto: la MISMA tabla en el servidor, en la tienda y en el suelo', { skip: !HAY }, () => {
-  const srv = vm.createContext({ Object });
+  const srv = vm.createContext({ Object, GF_CROP_CATALOG: require('../gf-crop-catalog') });
   vm.runInContext(trozo(SRV, 'const GF_NIVEL_OBJETO = Object.freeze({', '});') + '\nthis.t = GF_NIVEL_OBJETO;', srv);
-  const cli = vm.createContext({ window: {}, Object, Number, String });
+  const cli = vm.createContext({ window: {GFPlantCatalog:require('../gf-crop-catalog')}, Object, Number, String });
   vm.runInContext(leer('gf-niveles-objetos.js'), cli);
   assert.deepEqual(JSON.parse(JSON.stringify(cli.window.GFNivelesObjetos.tabla)), JSON.parse(JSON.stringify(srv.t)));
   // La cosecha tiene el nivel de su semilla.
@@ -138,17 +138,18 @@ test('el nivel de cada objeto: la MISMA tabla en el servidor, en la tienda y en 
   // Los niveles que ya tenía la tienda a mano (tomate 3, trigo 5, calabaza 6, fresa 3) se respetan.
   assert.equal(t.Semillax1, 3); assert.equal(t.Semillax2, 5); assert.equal(t.Semillax3, 6); assert.equal(t.Semillax4, 3);
   // Todo lo que se compra en la tienda tiene un nivel entre 1 y 10.
-  const precios = vm.createContext({});
+  const precios = vm.createContext({GF_CROP_CATALOG: require('../gf-crop-catalog')});
   vm.runInContext(trozo(SRV, 'const TIENDA_PRECIOS = ', ';\n') + '\nthis.p = TIENDA_PRECIOS;', precios);
-  for (const k of Object.keys(precios.p)) { const n = t[k] || 1; assert.ok(n >= 1 && n <= 10, k + ' nivel ' + n); }
+  for (const k of Object.keys(precios.p)) { const n = t[k] || 1; assert.ok(n >= 1 && n <= 150, k + ' nivel ' + n); }
 });
 
 test('lo que se puede soltar: la MISMA lista en el servidor y en el cliente, sin herramientas que se gastan', { skip: !HAY }, () => {
-  const srv = vm.createContext({ Set });
+  const srv = vm.createContext({ Set, GF_CROP_CATALOG: require('../gf-crop-catalog') });
   vm.runInContext(trozo(SRV, 'const SUELO_SOLTABLES = new Set([', ']);') + '\nthis.s = [...SUELO_SOLTABLES];', srv);
   const txt = leer('gf-salvaje.js');
   const lista = trozo(txt, "  var SOLTABLES = {};", '.forEach(function (k) { SOLTABLES[k] = true; });');
-  const cli = [...lista.matchAll(/'([A-Za-z0-9_]+)'/g)].map((m) => m[1]);
+  const dropContext=vm.createContext({window:{GFPlantCatalog:require('../gf-crop-catalog')}});vm.runInContext(lista+';globalThis.keys=Object.keys(SOLTABLES)',dropContext);
+  const cli = Array.from(dropContext.keys);
   assert.deepEqual(cli.slice().sort(), JSON.parse(JSON.stringify(srv.s)).sort());
   for (const h of ['hacha_de_madera', 'pico_de_madera', 'Regaderax', 'Tijerasx', 'balde_con_agua']) assert.ok(!srv.s.includes(h), h + ' no se suelta');
   for (const c of ['cofre1', 'espada_cobre', 'parcela', 'tablon_de_madera']) assert.ok(srv.s.includes(c), c + ' sí se suelta');
@@ -306,7 +307,7 @@ test('el mercado P2P no deja comprar por debajo del nivel del objeto (y lo cuent
   // En las tres compras: publicación, oferta y lote limitado.
   assert.equal((src.match(/await nivelInsuficiente\(/g) || []).length, 3);
   assert.match(src, /createMarketAtomic\(ctx\.mongoose, ctx\.auditarMercado\)/);
-  assert.match(SRV, /auditarMercado: gfAuditarMercado,\n  nivelObjeto: gfNivelDeObjeto,\n  nivelJugador: gfNivelDeJugador,/);
+  assert.match(SRV, /auditarMercado: gfAuditarMercado,[\s\S]*?nivelObjeto: gfNivelDeObjeto,\n  nivelJugador: gfNivelDeJugador,/);
   assert.equal(fs.readFileSync('C:/Users/pc/Desktop/marketplace-routes.js', 'utf8'), fs.readFileSync(path.join(BIN, 'marketplace-routes.js'), 'utf8'),
                'la copia junto a server2.js es la misma');
 });

@@ -287,6 +287,39 @@ def fotografiar(prims, W, H, vista, materiales, retoque=None, contorno=(20, 18, 
                 mejor = max(set(vec), key=vec.count)
                 if vec.count(mejor) >= 3:
                     tono[y * W + x] = mejor
+    # (2026-11-21) Y ENTRE MATERIALES: el ala del dragón vista de canto dejaba
+    # su membrana como una fila de puntitos sobre el hueso. Un píxel (o una
+    # pareja) de un material rodeado de otro toma el material y el tono de sus
+    # vecinos; dos pasadas, para las rayitas de tres. Lo que brilla (ojos,
+    # bocas) se respeta: es pequeño a propósito. El borde de la figura, también
+    # (el fondo no cuenta como vecino).
+    for _pasada in range(2):
+        matg = np.array([mm or '' for mm in mat], dtype=object).reshape(H, W)
+        tonog = tono.reshape(H, W).copy()
+        cambios = []
+        for y in range(1, H - 1):
+            for x in range(1, W - 1):
+                m = matg[y, x]
+                if not m or 'emite' in materiales[m] or color[y * W + x] is not None or tonog[y, x] < 0:
+                    continue
+                iguales, otros = 0, {}
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                    mv = matg[y + dy, x + dx]
+                    if mv == m:
+                        iguales += 1
+                    elif mv and 'emite' not in materiales[mv] and tonog[y + dy, x + dx] >= 0:
+                        otros.setdefault(mv, []).append(tonog[y + dy, x + dx])
+                if iguales > 1 or not otros:
+                    continue
+                otro = max(otros, key=lambda q: len(otros[q]))
+                if len(otros[otro]) >= 5:
+                    ts = otros[otro]
+                    cambios.append((y * W + x, otro, max(set(ts), key=ts.count)))
+        for i, otro, tv in cambios:
+            mat[i] = otro
+            tono[i] = tv
+        if not cambios:
+            break
     # Al lienzo.
     li = Lienzo(W, H)
     prof = np.where(toca, t, np.inf).reshape(H, W)
@@ -311,6 +344,34 @@ def fotografiar(prims, W, H, vista, materiales, retoque=None, contorno=(20, 18, 
                 if 0 <= xx < W and 0 <= yy < H and prof[yy, xx] < prof[y, x] - salto:
                     lineas.append((x, y))
                     break
+    # (2026-11-21) Lo que queda suelto ENTRE esas líneas: un ala vista de canto
+    # es casi toda línea y dejaba puntitos de membrana sueltos en ella. Un píxel
+    # (o una pareja) casi rodeado de línea (y de fondo, que también será línea)
+    # se vuelve línea. Con al menos tres vecinos de línea de dentro: la punta de
+    # un cuerno o de una garra (rodeada solo de fondo) se queda como está.
+    enlinea = set(lineas)
+    ocho = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))
+    for _pasada in range(2):
+        nuevos = []
+        for y in range(1, H - 1):
+            for x in range(1, W - 1):
+                i = y * W + x
+                if (x, y) in enlinea or not np.isfinite(prof[y, x]) or color[i] is not None or tono[i] < 0:
+                    continue
+                dentro = fondo = igual = 0
+                for dx, dy in ocho:
+                    if (x + dx, y + dy) in enlinea:
+                        dentro += 1
+                    elif not np.isfinite(prof[y + dy, x + dx]):
+                        fondo += 1
+                    elif mat[(y + dy) * W + x + dx] == mat[i]:
+                        igual += 1
+                if dentro >= 3 and dentro + fondo >= 6 and igual <= 1:
+                    nuevos.append((x, y))
+        if not nuevos:
+            break
+        enlinea.update(nuevos)
+        lineas.extend(nuevos)
     for x, y in lineas:
         li.set(x, y, contorno)
     # Y por fuera.
@@ -639,32 +700,9 @@ def escorpion(accion, i):
     return pr, retoque
 
 
-# Las variantes de los mapas nuevos (2026-10-18): el MISMO modelo con otros
-# materiales (las claves de material son las del modelo).
-GOLEM_CRIPTA_MAT = {
-    'piedra': {'tonos': rampa(hex_rgb('#6f7178'), 5, arriba=0.32, abajo=0.58)},
-    'piedra_o': {'tonos': rampa(hex_rgb('#55575f'), 5, arriba=0.28, abajo=0.6)},
-    'musgo': {'tonos': rampa(hex_rgb('#4f5e3c'), 5, arriba=0.3, abajo=0.55)},
-    'runa': {'emite': hex_rgb('#7dffb8')},
-    'runa2': {'emite': hex_rgb('#d8ffe8')},
-    'ojo': {'emite': hex_rgb('#9dffcf')},
-}
-GOLEM_ARENA_MAT = {
-    'piedra': {'tonos': rampa(hex_rgb('#c9a46c'), 5, arriba=0.3, abajo=0.58)},
-    'piedra_o': {'tonos': rampa(hex_rgb('#a57f4e'), 5, arriba=0.28, abajo=0.6)},
-    'musgo': {'tonos': rampa(hex_rgb('#e2c78c'), 5, arriba=0.25, abajo=0.5)},
-    'runa': {'emite': hex_rgb('#ff9a3a')},
-    'runa2': {'emite': hex_rgb('#ffe2a0')},
-    'ojo': {'emite': hex_rgb('#ffcf6a')},
-}
-GOLEM_HIELO_MAT = {
-    'piedra': {'tonos': rampa(hex_rgb('#8fc6e6'), 5, arriba=0.42, abajo=0.52)},
-    'piedra_o': {'tonos': rampa(hex_rgb('#5f97c4'), 5, arriba=0.35, abajo=0.55)},
-    'musgo': {'tonos': rampa(hex_rgb('#eef4fb'), 5, arriba=0.4, abajo=0.32)},
-    'runa': {'emite': hex_rgb('#c6f6ff')},
-    'runa2': {'emite': hex_rgb('#ffffff')},
-    'ojo': {'emite': hex_rgb('#e2fbff')},
-}
+# (2026-11-24) El gólem de la cripta, el de arena y el de hielo eran ESTE
+# modelo teñido; ahora cada uno tiene cuerpo propio en tools/gf_golems.py
+# ("quiero otros gólems, no los mismos con diferentes colores").
 LOBO_ESCARCHA_MAT = {
     'pelo': {'tonos': rampa(hex_rgb('#c9d6e6'), 5, arriba=0.34, abajo=0.5)},
     'claro': {'tonos': rampa(hex_rgb('#f2f6fb'), 5, arriba=0.25, abajo=0.36)},
@@ -682,18 +720,15 @@ BESTIAS3D = {
     'arana': (arana, ARANA_MAT, 76, 64, contorno_de(hex_rgb('#574d34')), 1.15),
     # (2026-10-18) Los de los mapas nuevos.
     'escorpion': (escorpion, ESCORPION_MAT, 80, 60, contorno_de(hex_rgb('#5e3a1e')), 1.1),
-    'golem_cripta': (golem, GOLEM_CRIPTA_MAT, 84, 108, contorno_de(hex_rgb('#55575f')), 1.0),
-    'golem_arena': (golem, GOLEM_ARENA_MAT, 84, 108, contorno_de(hex_rgb('#a57f4e')), 1.0),
-    'golem_hielo': (golem, GOLEM_HIELO_MAT, 84, 108, contorno_de(hex_rgb('#3f6f9c')), 1.0),
     'lobo_escarcha': (lobo, LOBO_ESCARCHA_MAT, 68, 58, hex_rgb('#1a2236'), 1.0),
 }
 # ===========================================================================
 # LAS BESTIAS DE LOS MAPAS DE NIVEL 8, 9 Y 10                     (2026-10-25)
 # ===========================================================================
 # El glaciar: el YETI (pelo blanco en bandas, cara azul y ojos encendidos) y
-# el OSO POLAR. La caverna: el MURCIÉLAGO GIGANTE (alas que baten) y el GÓLEM
-# DE CRISTAL. La pradera: el JABALÍ ESPINOSO (crin en raya y púas en fila) y
-# el GÓLEM DE MUSGO (corteza, musgo y flores). Mismas reglas: bandas lisas,
+# el OSO POLAR. La caverna: el MURCIÉLAGO GIGANTE (alas que baten). La
+# pradera: el JABALÍ ESPINOSO (crin en raya y púas en fila). (Sus gólems, en
+# tools/gf_golems.py.) Mismas reglas: bandas lisas,
 # contorno del juego, nada de motas; las púas y los cristales, en fila.
 
 YETI_MAT = {
@@ -929,38 +964,8 @@ def jabali(accion, i):
     return pr, retoque
 
 
-GOLEM_CRISTAL_MAT = {
-    'piedra': {'tonos': rampa(hex_rgb('#5e5866'), 5, arriba=0.32, abajo=0.58)},
-    'piedra_o': {'tonos': rampa(hex_rgb('#45404d'), 5, arriba=0.28, abajo=0.6)},
-    'musgo': {'tonos': rampa(hex_rgb('#a77ae6'), 5, arriba=0.45, abajo=0.5)},
-    'runa': {'emite': hex_rgb('#c79cff')},
-    'runa2': {'emite': hex_rgb('#f2e2ff')},
-    'ojo': {'emite': hex_rgb('#e6c8ff')},
-    'cristal': {'tonos': rampa(hex_rgb('#b48cff'), 5, arriba=0.45, abajo=0.5), 'brillo': True},
-}
-GOLEM_MUSGO_MAT = {
-    'piedra': {'tonos': rampa(hex_rgb('#6e5236'), 5, arriba=0.3, abajo=0.58)},
-    'piedra_o': {'tonos': rampa(hex_rgb('#54402a'), 5, arriba=0.28, abajo=0.6)},
-    'musgo': {'tonos': rampa(hex_rgb('#5f9a3a'), 5, arriba=0.32, abajo=0.55)},
-    'runa': {'emite': hex_rgb('#ffb8d0')},
-    'runa2': {'emite': hex_rgb('#fff0f4')},
-    'ojo': {'emite': hex_rgb('#d8ff8a')},
-    'cristal': {'tonos': rampa(hex_rgb('#e88ab0'), 5, arriba=0.35, abajo=0.45)},
-}
-
-
-def golem_con_puas(accion, i):
-    """El gólem de siempre con una fila de cristales (o de flores) por el lomo
-    y los hombros: el de cristal de la caverna y el de musgo de la pradera."""
-    pr, ret = golem(accion, i)
-    torso = pr[5]
-    c = torso['c']
-    for dx, dy, dz, alto, ra in ((-8, 9, 6, 13, 3.0), (-9, 8, -6, 11, 2.8), (-4, 12, 0, 15, 3.4),
-                                 (-1, 7, 15, 9, 2.4), (-1, 7, -15, 9, 2.4)):
-        base = c + np.array((dx, dy, dz), float)
-        punta = base + np.array((-alto * 0.3, alto, dz * 0.12))
-        pr.append(cono(base, punta, ra, 0.35, 'cristal'))
-    return pr, ret
+# (2026-11-24) El gólem de cristal y el de musgo eran el de piedra con una
+# fila de púas; ahora tienen cuerpo propio en tools/gf_golems.py.
 
 
 def giro_x(a):
@@ -974,8 +979,6 @@ BESTIAS3D.update({
     'oso_polar': (oso, OSO_MAT, 80, 64, contorno_de(hex_rgb('#8a9aaa')), 1.0),
     'murcielago': (murcielago, MURCIELAGO_MAT, 84, 74, hex_rgb('#16101c'), 1.0),
     'jabali': (jabali, JABALI_MAT, 72, 52, contorno_de(hex_rgb('#3a2618')), 1.0),
-    'golem_cristal': (golem_con_puas, GOLEM_CRISTAL_MAT, 84, 112, contorno_de(hex_rgb('#45404d')), 1.0),
-    'golem_musgo': (golem_con_puas, GOLEM_MUSGO_MAT, 84, 112, contorno_de(hex_rgb('#54402a')), 1.0),
 })
 
 VISTAS = (('lado', ''), ('frente', '_abajo'), ('espalda', '_arriba'))

@@ -35,7 +35,7 @@ function fixture(extra = {}) {
   };
   const RefreshToken = {
     async findOne(q) { return copy(tokens.find(t => matches(t, q))); },
-    async create(value) { if (extra.failCreate) throw Error('DB offline'); const doc = { _id: crypto.randomUUID(), ...value }; tokens.push(doc); return copy(doc); },
+    async create(value) { if (extra.failCreate) throw Error('DB offline'); if(extra.duringCreate)await extra.duringCreate(); const doc = { _id: crypto.randomUUID(), ...value }; tokens.push(doc); return copy(doc); },
     async deleteOne(q) { const index = tokens.findIndex(t => matches(t, q)); if (index >= 0) tokens.splice(index, 1); },
     async findOneAndUpdate(q, update) { if (extra.failRotate) throw Error('DB offline'); const doc = tokens.find(t => matches(t, q)); if (!doc) return null; Object.assign(doc, update.$set); return copy(doc); }
   };
@@ -58,11 +58,11 @@ function fixture(extra = {}) {
 }
 test('the same valid signature can claim its nonce once under concurrent login', async () => {
   const f = fixture(), body = await f.loginBody(); const results = await Promise.all(Array.from({ length: 10 }, () => f.run('/api/auth/login', { body })));
-  assert.equal(results.filter(r => r.statusCode === 200).length, 1); assert.equal(f.tokens.length, 1); assert.equal(f.bcryptCalls, 1);
+  assert.equal(results.filter(r => r.statusCode === 200).length, 1, JSON.stringify(results.map(r=>({status:r.statusCode,error:r.body?.error,message:r.body?.message})))); assert.equal(f.tokens.length, 1); assert.equal(f.bcryptCalls, 0); assert.match(f.tokens[0].token,/^[a-f0-9]{64}$/);
   assert.ok(results.filter(r => r.statusCode !== 200).every(r => r.statusCode === 401 && r.cookies.length === 0));
 });
 test('a newly issued nonce survives completion of an earlier successful login', async () => {
-  let f; f = fixture({ duringHash() { f.player.nonce = 'new-nonce'; f.player.nonceTimestamp = new Date(); } });
+  let f; f = fixture({ duringCreate() { f.player.nonce = 'new-nonce'; f.player.nonceTimestamp = new Date(); } });
   const r = await f.run('/api/auth/login', { body: await f.loginBody() }); assert.equal(r.statusCode, 200); assert.equal(f.player.nonce, 'new-nonce');
 });
 test('a blocked account cannot log in with its previously valid signature', async () => {
@@ -80,7 +80,7 @@ test('nonce requests validate types and reuse one read for an existing unblocked
 });
 test('refresh rotation atomically replaces the old token and has one winner', async () => {
   const f = fixture(), raw = f.refresh(); const results = await Promise.all(Array.from({ length: 8 }, () => f.run('/api/auth/refresh', { cookies: { refresh: raw } })));
-  assert.equal(results.filter(r => r.statusCode === 200).length, 1); assert.equal(f.tokens.length, 1);
+  assert.equal(results.filter(r => r.statusCode === 200).length, 1, JSON.stringify(results.map(r=>({status:r.statusCode,error:r.body?.error,message:r.body?.message})))); assert.equal(f.tokens.length, 1);
   const winner = results.find(r => r.statusCode === 200), next = winner.cookies.find(row => row[0] === 'refresh')[1];
   assert.equal(f.tokens[0].token, crypto.createHash('sha256').update(next).digest('hex'));
   assert.equal((await f.run('/api/auth/refresh', { cookies: { refresh: raw } })).statusCode, 401);

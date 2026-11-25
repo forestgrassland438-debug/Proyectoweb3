@@ -144,7 +144,7 @@ function memory(seed=[]){
   };
   const select=q=>{let order=null,offset=0,limit=Infinity;return {sort(value){order=value;return this;},skip(value){offset=value;return this;},limit(value){limit=value;return this;},select(){return this;},lean:async()=>docs.filter(d=>matches(d,q)).sort((a,b)=>{for(const[k,direction]of Object.entries(order||{})){if(a[k]<b[k])return-direction;if(a[k]>b[k])return direction;}return 0;}).slice(offset,offset+limit).map(d=>structuredClone(d))};};
   const change=(q,u,options={})=>{let doc=docs.find(d=>matches(d,q));let fresh=false;if(!doc&&options.upsert){doc=Object.fromEntries(Object.entries(q).filter(([k,v])=>!k.startsWith('$')&&(v===null||typeof v!=='object')));docs.push(doc);fresh=true;}if(doc)apply(doc,u,fresh);return doc;};
-  return {docs,find:select,findOne:q=>({lean:async()=>structuredClone(docs.find(d=>matches(d,q))||null)}),findOneAndUpdate:(q,u,o)=>({lean:async()=>structuredClone(change(q,u,o)||null)}),updateOne:async(q,u,o)=>({matchedCount:change(q,u,o)?1:0}),exists:async q=>docs.some(d=>matches(d,q)),countDocuments:async q=>docs.filter(d=>matches(d,q)).length,create:async d=>{docs.push(structuredClone(d));return d;}};
+  return {docs,bulkWrite:async ops=>{for(const op of ops)change(op.updateOne.filter,op.updateOne.update);return {ok:1}},find:select,findOne:q=>({lean:async()=>structuredClone(docs.find(d=>matches(d,q))||null)}),findOneAndUpdate:(q,u,o)=>({lean:async()=>structuredClone(change(q,u,o)||null)}),updateOne:async(q,u,o)=>({matchedCount:change(q,u,o)?1:0}),exists:async q=>docs.some(d=>matches(d,q)),countDocuments:async q=>docs.filter(d=>matches(d,q)).length,create:async d=>{docs.push(structuredClone(d));return d;}};
 }
 test('mint preparation reserves exactly one persistent operation under concurrency and reuses it',async()=>{
   const Collection=memory([{id:'collection',name:'Art',typeKey:'col:collection',status:'active',limit:'10'}]);
@@ -280,4 +280,12 @@ test('catalog paginates only allowlisted scoped records, caps pages and strips d
 test('catalog rejects model injection, raw filters, invalid offsets and zero limits',async()=>{
   const m=mounting();const handler=m.routes.get('GET /api/admin/collections/catalog');
   for(const query of [{kind:'GFNftImage'},{kind:'__proto__'},{kind:'toString'},{kind:'tokens',offset:'-1'},{kind:'tokens',offset:'1.5'},{kind:'tokens',offset:['1']},{kind:'tokens',offset:'1000000000'},{kind:'tokens',limit:'0'},{kind:'tokens',filter:{$ne:null}},{kind:'tokens',scope:'other'}]){const r=response();await handler({query},r);assert.equal(r.statusCode,400,JSON.stringify(query));}
+});
+
+
+test('bounded collection refresh reads at most eight invoices concurrently and batches its Mongo updates',async()=>{
+ const Token=memory(Array.from({length:200},(_,i)=>({id:'token-'+i,invoiceId:String(i+1),updatedAt:'2026-10-31'}))),Scan=memory([{id:'main',cursor:99,startBlock:99,lockedUntil:new Date(0)}]);let live=0,max=0,writes=0;
+ const bulk=Token.bulkWrite;Token.bulkWrite=async ops=>{writes++;assert.equal(ops.length,200);return bulk(ops)};
+ const m=mounting({models:{GFNftToken:Token,GFNftScan:Scan},contractOverrides:{getInvoice:async id=>{live++;max=Math.max(max,live);await new Promise(r=>setTimeout(r,1));live--;return {owner:OTHER,active:true,cantidad:1n};}},providerOverrides:{getBlockNumber:async()=>103,getLogs:async()=>[],getBlock:async()=>({hash:BLOCK,timestamp:100})}});
+ const res=response();await m.routes.get('POST /api/admin/collections/sync')({body:{}},res);assert.equal(res.body.ok,true);assert.equal(max,8);assert.equal(writes,1);assert.equal(Token.docs.filter(t=>t.owner===OTHER).length,200);
 });

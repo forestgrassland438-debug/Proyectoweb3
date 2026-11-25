@@ -139,3 +139,32 @@ test('determinista', () => {
   R._interno.relieve(b.px, b.w, b.h);
   assert.deepEqual(Array.from(a.px), Array.from(b.px));
 });
+
+/* (2026-11-19) "El poder X empuja pero no se ven los efectos". gf-poderes crea su ráfaga con
+   textures.createCanvas('gfp_rafaga') y DIBUJA después; el relieve (patrón gfp_) la cambiaba por
+   una copia en el aviso 'addtexture', cuando el lienzo aún estaba en blanco: la GPU pintaba la
+   copia vacía. Un lienzo vacío no se toca; uno ya dibujado (soulbound compuestos…) sí. */
+test('un lienzo todavía en blanco no se cambia por su copia en relieve (la ráfaga del poder X)', () => {
+  const R = cargar();
+  assert.equal(R.claveValida('gfp_rafaga'), false, 'la ráfaga no es una pose de pescar');
+  // Un "documento" mínimo para que procesarImagen pueda crear su lienzo.
+  const lienzoFalso = (w, h, lleno) => {
+    const datos = new Uint8ClampedArray(w * h * 4);
+    if (lleno) for (let i = 0; i < datos.length; i += 4) { datos[i] = 200; datos[i + 3] = 255; }
+    const ctx2d = { imageSmoothingEnabled: true, drawImage(img) { if (img._datos) datos.set(img._datos); },
+      getImageData: () => ({ data: new Uint8ClampedArray(datos) }), putImageData() {} };
+    return { width: w, height: h, _datos: datos, getContext: () => ctx2d };
+  };
+  const ctx = { console, Math, Float64Array, Int8Array, Uint8Array, Uint8ClampedArray, WeakSet, setInterval: () => 0, clearInterval: () => {},
+    document: { createElement: () => lienzoFalso(24, 24, false) } };
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'gf-relieve.js'), 'utf8'), ctx);
+  const G = ctx.GFRelieve;
+  const vacio = lienzoFalso(24, 24, false), fuenteVacia = { image: vacio, isCanvas: true };
+  assert.equal(G.procesarTextura({ key: 'gfp_personaje1_down_1', source: [fuenteVacia] }), false);
+  assert.equal(fuenteVacia.image, vacio, 'el lienzo en blanco sigue siendo el suyo: lo que se dibuje después se verá');
+  const dibujado = lienzoFalso(24, 24, true), fuenteLlena = { image: dibujado, isCanvas: true };
+  assert.equal(G.procesarTextura({ key: 'gfp_personaje1_down_1', source: [fuenteLlena] }), true, 'un lienzo con dibujo sí lleva relieve');
+  assert.notEqual(fuenteLlena.image, dibujado);
+});

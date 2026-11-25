@@ -15,7 +15,12 @@
  *     en el del personaje (nadie baja), sube peleando, y un nivel inflado
  *     guardado no se cuela;
  *   · que la arena da EXP al personaje y a la mascota;
- *   · que un perro que intenta teletransportarse es recolocado.
+ *   · que un perro que intenta teletransportarse es recolocado;
+ *   · (2026-11-15) que las diarias van por VENTANA de 24 h desde la primera
+ *     (no por día UTC), que "no sé quién eres" no se contesta como "5 de 5",
+ *     que la habilidad del jugador se lleva en el servidor y de ella sale lo
+ *     listos que son sus rivales, que la sala de espera no hace esperar dos
+ *     minutos y medio, y que pedir el estado en bucle no sirve de nada.
  *
  *   node tools/brawl-prueba-servidor.js  [ruta a server2.js]
  */
@@ -45,6 +50,13 @@ const PIEZAS = [
   sacar('function computePetLevel(wins, battles) {', '\n}'),
   sacar('function nivelMascotaEfectivo(gp) {', '\n}'),
   sacar('const BATTLE_DAILY_MAX = 5;', ';'),
+  // (2026-11-15) La ventana de las diarias y la vida de la mascota que se
+  // recupera sola (la usa construirJugadorDeSocket).
+  sacar('const BATTLE_DAILY_VENTANA_MS = ', ';'),
+  sacar('const BATTLE_DAILY_CLAVE = ', ';'),
+  sacar('const PET_VIDA_MAX      = 100;', ';'),
+  sacar('const PET_REGEN_CADA_MS = ', ';'),
+  sacar('function petSaludCalculada(gp, ahora = Date.now()) {', '\n}'),
   // La experiencia propia de la mascota (bloque de identidad en la cadena).
   sacar('const MAX_LEVEL_MASCOTA = 150;', ';'),
   sacar('function expMascotaParaNivel(n) {', '\n}'),
@@ -122,6 +134,7 @@ const GamePlayer = {
       if (q.petBattles && q.petBattles.$exists === false && gp.petBattles != null) return Promise.resolve({});
       if (q.petExp && q.petExp.$exists === false && gp.petExp != null) return Promise.resolve({});
       if (upd.$set) Object.assign(gp, upd.$set);
+      if (upd.$inc) for (const k in upd.$inc) gp[k] = (gp[k] || 0) + upd.$inc[k];
       if (upd.$max) for (const k in upd.$max) gp[k] = Math.max(gp[k] || 0, upd.$max[k]);
     }
     return Promise.resolve({});
@@ -144,12 +157,26 @@ const BattleScore = {
   }
 };
 const BattleLog = { create(d) { DB.logs.push(d); return Promise.resolve(d); } };
+/* Con lo justo de Mongo para la ventana de las diarias: el filtro por
+   `startedAt` ($gt, o el $or de "sin ventana o caducada"), el alta con
+   `upsert` y el choque del índice único (código 11000) si se intenta dar de
+   alta a quien ya tiene documento. */
 const BattleDaily = {
   findOne(q) { return lean(DB.daily[q.playerName + '|' + q.day] || null); },
-  findOneAndUpdate(q, upd) {
+  findOneAndUpdate(q, upd, op) {
     const k = q.playerName + '|' + q.day;
-    const d = DB.daily[k] || (DB.daily[k] = { playerName: q.playerName, day: q.day, done: 0, wins: 0 });
-    for (const x in upd.$inc) d[x] += upd.$inc[x];
+    let d = DB.daily[k];
+    const t = d && d.startedAt ? new Date(d.startedAt).getTime() : 0;
+    let casa = !!d;
+    if (casa && q.startedAt && q.startedAt.$gt) casa = t > new Date(q.startedAt.$gt).getTime();
+    if (casa && q.$or) casa = !d.startedAt || t <= new Date(q.$or[1].startedAt.$lte).getTime();
+    if (!casa) {
+      if (!(op && op.upsert)) return Promise.resolve(null);
+      if (d) { const e = new Error('E11000 duplicate key'); e.code = 11000; return Promise.reject(e); }
+      d = DB.daily[k] = { playerName: q.playerName, day: q.day, startedAt: null, done: 0, wins: 0 };
+    }
+    for (const x in (upd.$inc || {})) d[x] = (d[x] || 0) + upd.$inc[x];
+    Object.assign(d, upd.$set || {});
     return Promise.resolve({ ...d });
   }
 };
@@ -179,6 +206,8 @@ const vacios = { plantSpamTracker: new Map(), _gatherLastByPlayer: new Map(), _v
   // caché de fantasmas, traductor, NFT): aquí van vacíos, con sus plazos.
   _pescaUltimo: new Map(), _casillasUltimoEnvio: new Map(), _pescaSesiones: new Map(), _pvpEspadas: new Map(),
   _cacheFantasma: new Map(), _tradUso: new Map(), _nftCacheJugador: new Map(),
+  // (2026-11-15) Y otros cuatro que se añadieron después al barrido.
+  _gfResetPuntos: new Map(), _infoTablaCache: new Map(), _falloTabla: new Map(), _motivoTabla: new Map(),
   PESCA_SESION_MS: 90 * 1000, FANTASMA_CACHE_MS: 3000 };
 
 // ── sockets de mentira ─────────────────────────────────────────────────────
@@ -215,7 +244,9 @@ const valores = [io, GamePlayer, BattleScore, BattleLog, BattleDaily, PlayerAuth
   battleTodayKey, consola, FakeDate, falsos.setTimeout, falsos.setInterval, falsos.clearTimeout, falsos.clearInterval]
   .concat(Object.values(vacios));
 const fabrica = new Function(...nombres, PIEZAS + '\n\n' + BLOQUE +
-  '\nreturn { GFBrawlMotor, battleMatches, socketMatch, battleQueue, battleAdmissions, purgarMapasEnMemoria, nivelMascotaEfectivo, nivelPorExperiencia, expDeArena, expMascotaDeArena, expMascotaParaNivel, nivelMascotaPorExp, progresoMascota, brawlBotsDeRelleno, battleStatsForLevel, brawlSalaActual: () => brawlSala };');
+  '\nreturn { GFBrawlMotor, battleMatches, socketMatch, battleQueue, battleAdmissions, purgarMapasEnMemoria, nivelMascotaEfectivo, nivelPorExperiencia, expDeArena, expMascotaDeArena, expMascotaParaNivel, nivelMascotaPorExp, progresoMascota, brawlBotsDeRelleno, battleStatsForLevel, brawlSalaActual: () => brawlSala,' +
+  ' estadoBatallasDiarias, estadoDeDiaria, contarBatallaDiaria, brawlHabilidadDe, brawlActualizarHabilidades, petSaludCalculada, crearBotDeRonda, resolveBattlePlayerName,' +
+  ' BRAWL_BUSQUEDA_MS, BRAWL_SALA_CON_DOS_MS, BRAWL_SOLO_LISTO_MS, BATTLE_DAILY_VENTANA_MS, BRAWL_HABILIDAD_INICIAL, PET_REGEN_CADA_MS };');
 const S = fabrica(...valores);
 const M = S.GFBrawlMotor;
 
@@ -277,6 +308,12 @@ async function main() {
   ok(ana.cuantos('brawl:ya') === 1, 'la cuenta atrás termina una vez');
   ok(ana.cuantos('brawl:snap') > 40, 'recibe instantáneas', ana.cuantos('brawl:snap'));
   ok(fin && fin.daily && fin.daily.done === 1, 'la diaria cuenta 1/5', fin && fin.daily);
+  ok(fin && fin.daily && fin.daily.remaining === 4 && fin.daily.resetsInMs > S.BATTLE_DAILY_VENTANA_MS - 300000 && fin.daily.resetsInMs <= S.BATTLE_DAILY_VENTANA_MS,
+     'y dice cuánto falta para que vuelvan las cinco (24 h desde esta primera)', fin && fin.daily);
+  ok(Number.isFinite(DB.players.Ana.arenaSkill) && DB.players.Ana.arenaGames === 1, 'la habilidad de Ana queda apuntada tras su primera partida', [DB.players.Ana.arenaSkill, DB.players.Ana.arenaGames]);
+  const botAna = ini && ini.luchadores.find((l) => l.bot);
+  const mAna0 = botAna && null;
+  void mAna0;
   ok(fin && fin.puntos === (fin.resultado === 'win' ? 1 : 0), 'puntos de diaria: 1 si gana, 0 si no', fin && [fin.resultado, fin.puntos]);
   ok(!S.socketMatch.has(ana.id) && !S.battleAdmissions.size, 'el candado se suelta al acabar');
   ok(S.battleMatches.size === 0, 'la partida se borra de memoria');
@@ -377,9 +414,11 @@ async function main() {
   ok(!!a.ultimo('brawl:sala') && a.ultimo('brawl:sala').jugadores === 2, 'a los dos se les avisa');
   c.mandar('brawl:cola'); await avanzarAsync(50);
   ok(S.brawlSalaActual() && S.brawlSalaActual().regs.length === 3, 'un tercero entra en la sala');
-  await avanzarAsync(149700);
-  ok(!a.ultimo('brawl:inicio'), 'la búsqueda incompleta continúa antes de los 150 segundos');
-  await avanzarAsync(200);
+  const esperaSala = a.ultimo('brawl:sala').empiezaEnMs;
+  ok(esperaSala > 0 && esperaSala <= S.BRAWL_SALA_CON_DOS_MS, 'con dos o más en la sala la cuenta baja a ' + S.BRAWL_SALA_CON_DOS_MS / 1000 + ' s como mucho', esperaSala);
+  await avanzarAsync(S.BRAWL_SALA_CON_DOS_MS - 600);
+  ok(!a.ultimo('brawl:inicio'), 'sin que nadie diga "listo", se espera esa cuenta');
+  await avanzarAsync(700);
   const iniA = a.ultimo('brawl:inicio'), iniC = c.ultimo('brawl:inicio');
   ok(iniA && iniA.modo === 'pvp' && iniA.luchadores.length === 6 && iniA.luchadores.filter(l => l.bot).length === 3,
     'empieza con tres humanos y completa las otras tres plazas con bots', iniA && iniA.luchadores.length);
@@ -437,7 +476,7 @@ async function main() {
   const salaR = r1.ultimo('brawl:sala');
   ok(salaR && salaR.lista && salaR.lista.length === 2 && salaR.lista.some(x => x.nombre === 'RitaR' && x.yo) &&
      salaR.lista.some(x => x.nombre === 'Raul' && !x.yo), 'cada uno ve a los demás de la sala por su nombre', salaR && salaR.lista);
-  r1.mandar('brawl:listo', { listo: true }); await avanzarAsync(100);
+  r1.mandar('brawl:listo', { listo: true }); await avanzarAsync(200);
   ok(!r1.ultimo('brawl:inicio') && r2.ultimo('brawl:sala').listos === 1, 'con uno listo, se espera al otro');
   r1.mandar('brawl:listo', { listo: false }); await avanzarAsync(50);
   ok(r2.ultimo('brawl:sala').listos === 0, 'y se puede quitar el listo');
@@ -448,30 +487,49 @@ async function main() {
   const matchR = iniR && S.battleMatches.get(iniR.matchId);
   const botsR = matchR ? matchR.P.luchadores.filter(l => l.bot) : [];
   const humR = matchR ? matchR.P.luchadores.find(l => !l.bot) : null;
-  ok(botsR.length && botsR.every(l => l.ia && l.ia.astucia >= 0.28 && l.ia.astucia <= 0.58),
-     'los bots de relleno, ni buenos ni malos (astucia 0,28-0,58)', botsR.map(l => l.ia && l.ia.astucia));
+  ok(botsR.length && botsR.every(l => l.ia && l.ia.astucia >= 0.19 && l.ia.astucia <= 0.41),
+     'los bots de relleno, a la medida de dos novatos (astucia 0,20-0,40)', botsR.map(l => l.ia && l.ia.astucia));
+  ok(humR && Math.abs(humR.habilidad - S.BRAWL_HABILIDAD_INICIAL) < 1e-9, 'y cada humano entra con su habilidad (los nuevos, ' + S.BRAWL_HABILIDAD_INICIAL + ')', humR && humR.habilidad);
   const fichaBot = S.brawlBotsDeRelleno([{ player: { level: 5 } }], 1)[0], statsNivel5 = S.battleStatsForLevel(5);
   ok(fichaBot.maxHp < statsNivel5.maxHp && fichaBot.attack < statsNivel5.attack,
      'y con algo menos de vida y ataque que un jugador de su nivel', [fichaBot, statsNivel5]);
   const media = (l) => l.reduce((t, b) => t + b.astucia, 0) / l.length;
-  ok(media(S.brawlBotsDeRelleno([{ player: { level: 5, record: { wins: 40, battles: 50 } } }], 3)) >=
-     media(S.brawlBotsDeRelleno([{ player: { level: 5, record: { wins: 1, battles: 30 } } }], 3)) + 0.15,
-     'al que gana mucho le tocan bots más listos; al que pierde, más torpes');
+  ok(media(S.brawlBotsDeRelleno([{ player: { level: 5, skill: 0.8 } }], 5)) >=
+     media(S.brawlBotsDeRelleno([{ player: { level: 5, skill: 0.2 } }], 5)) + 0.5,
+     'al que juega bien le tocan bots más listos; al que empieza, más torpes');
+  const mezcla = S.brawlBotsDeRelleno([{ player: { level: 5, skill: 0.5 } }], 5).map((b) => b.astucia);
+  ok(Math.min(...mezcla) < 0.45 && Math.max(...mezcla) > 0.55, 'y en cada sala hay a quién ganar y alguno que cuesta', mezcla);
   r1.mandar('brawl:salir'); r2.mandar('brawl:salir'); await avanzarAsync(250000);
   ok(!S.battleAdmissions.size && !S.socketMatch.size && !S.battleMatches.size, 'todo suelto al acabar');
 
-  console.log('\n=== 4b. UN HUMANO SOLO: 150 SEGUNDOS Y CINCO BOTS ===');
+  console.log('\n=== 4b. UN HUMANO SOLO: 45 SEGUNDOS (8 SI DICE "LISTO") Y CINCO BOTS ===');
   const solo = jugador('Solo', 2000);
   const empezoSolo = RELOJ;
   solo.mandar('brawl:cola'); await avanzarAsync(100);
-  await avanzarAsync(149800);
-  ok(!solo.ultimo('brawl:inicio'), 'un jugador solo sigue buscando a los 149,9 segundos');
+  await avanzarAsync(S.BRAWL_BUSQUEDA_MS - 200);
+  ok(!solo.ultimo('brawl:inicio'), 'un jugador solo sigue buscando hasta el final de su cuenta');
   await avanzarAsync(100);
   const inicioSolo = solo.ultimo('brawl:inicio');
-  ok(inicioSolo && RELOJ - empezoSolo === 150000 && inicioSolo.luchadores.filter(l => l.bot).length === 5,
-    'exactamente a los 150 segundos se completa la arena con cinco bots');
+  ok(inicioSolo && RELOJ - empezoSolo === S.BRAWL_BUSQUEDA_MS && inicioSolo.luchadores.filter(l => l.bot).length === 5,
+    'exactamente a los ' + S.BRAWL_BUSQUEDA_MS / 1000 + ' segundos se completa la arena con cinco bots (eran 150)', RELOJ - empezoSolo);
   solo.mandar('brawl:salir'); await avanzarAsync(250000);
   ok(!S.battleAdmissions.size && !S.socketMatch.size && !S.battleMatches.size, 'la partida de relleno libera admisiones, sockets y memoria');
+  // Solo y "listo": no sale al instante (el amigo que llega un segundo después
+  // caería en otra), pero la cuenta baja a unos segundos.
+  const sola = jugador('Sola', 2000), amiga = jugador('Amiga', 2000);
+  sola.mandar('brawl:cola'); await avanzarAsync(100);
+  sola.mandar('brawl:listo', { listo: true }); await avanzarAsync(200);
+  ok(!sola.ultimo('brawl:inicio'), 'sola y lista: no empieza al instante');
+  ok(sola.ultimo('brawl:sala').empiezaEnMs <= S.BRAWL_SOLO_LISTO_MS, 'pero la cuenta baja a ' + S.BRAWL_SOLO_LISTO_MS / 1000 + ' s', sola.ultimo('brawl:sala').empiezaEnMs);
+  await avanzarAsync(1000);
+  amiga.mandar('brawl:cola'); await avanzarAsync(200);
+  ok(S.brawlSalaActual() && S.brawlSalaActual().regs.length === 2, 'y la amiga que llega un segundo después entra en SU sala');
+  amiga.mandar('brawl:listo', { listo: true }); await avanzarAsync(200);
+  const iniSola = sola.ultimo('brawl:inicio'), iniAmiga = amiga.ultimo('brawl:inicio');
+  ok(iniSola && iniAmiga && iniSola.matchId === iniAmiga.matchId && iniSola.luchadores.filter(l => !l.bot).length === 2,
+     'las dos listas: juegan JUNTAS (dos humanas y cuatro bots)', iniSola && iniSola.luchadores.length);
+  sola.mandar('brawl:salir'); amiga.mandar('brawl:salir'); await avanzarAsync(250000);
+  ok(!S.battleAdmissions.size && !S.socketMatch.size && !S.battleMatches.size, 'todo suelto al acabar');
 
   // ═════════════════════════════════════════════════════════════════════════
   console.log('\n=== 5. CANDADOS Y PAQUETES RAROS ===');
@@ -479,6 +537,7 @@ async function main() {
   f.mandar('brawl:bot'); f.mandar('brawl:bot'); await avanzarAsync(100);
   ok(f.cuantos('brawl:inicio') === 1 && !f.ultimo('brawl:error'),
     'un doble clic pendiente no abre dos batallas ni cancela la primera');
+  await avanzarAsync(700);            // (las peticiones tienen un ritmo mínimo: ver brawlRitmo)
   f.mandar('brawl:bot'); await avanzarAsync(50);
   ok(f.cuantos('brawl:inicio') === 2 && S.battleMatches.size === 1,
     'si se pierde el inicio, repetir la solicitud devuelve la misma partida');
@@ -491,11 +550,17 @@ async function main() {
   const sn = f.ultimo('brawl:snap');
   const yoF = sn && sn.f.find((x) => x[0] === f.ultimo('brawl:inicio').yo);
   ok(yoF && yoF[1] > 0 && yoF[1] < 30 * 32 && yoF[2] > 0 && yoF[2] < 22 * 32, 'y el perro sigue dentro de la arena', yoF);
+  const regF = [...S.battleMatches.values()][0].humanos[0];
   f.desconectar(); await avanzarAsync(300);
   ok(S.battleMatches.size === 1, 'un corte de red NO cierra la partida al instante (se le espera)');
-  await avanzarAsync(21000);
-  ok(S.battleMatches.size === 0 && S.battleAdmissions.size === 0, 'si no vuelve en 20 s, se cierra su diaria y se suelta todo');
-  ok(DB.daily['Fede|2026-10-02'] && DB.daily['Fede|2026-10-02'].done === 1, 'y la diaria abandonada cuenta como jugada');
+  // (2026-11-17) La gracia es de un minuto: a los 30 s el servidor aún no le
+  // ha dado por ido (la partida puede haber acabado sola, con su perro en
+  // piloto automático, pero eso no es "irse").
+  await avanzarAsync(30000);
+  ok(regF && regF.salio === false && regF.sinConexion > 0, 'a los 30 s todavía se le espera (la gracia es de un minuto)');
+  await avanzarAsync(31000);
+  ok(S.battleMatches.size === 0 && S.battleAdmissions.size === 0, 'si no vuelve en 60 s, se cierra su diaria y se suelta todo');
+  ok(DB.daily['Fede|ventana'] && DB.daily['Fede|ventana'].done === 1, 'y la diaria abandonada cuenta como jugada');
 
   // ═════════════════════════════════════════════════════════════════════════
   console.log('\n=== 5b. SE CORTA LA RED Y VUELVE ===');
@@ -520,9 +585,16 @@ async function main() {
   const snapsAntes = hugo2.cuantos('brawl:snap');
   await avanzarAsync(500);
   ok(hugo2.cuantos('brawl:snap') > snapsAntes, 'le vuelven a llegar las instantáneas');
+  // Pedirlo otra vez enseguida no hace nada (un cliente trucado lo pedía en
+  // bucle para que le mandaran dónde está cada uno).
+  for (let i = 0; i < 30; i++) hugo2.mandar('brawl:volver', { matchId: mH.id });
+  await avanzarAsync(50);
+  ok(hugo2.cuantos('brawl:inicio') === 1, '30 peticiones de "volver" seguidas: ni un reenvío más', hugo2.cuantos('brawl:inicio'));
+  await avanzarAsync(1600);
   hugo2.mandar('brawl:volver', { matchId: mH.id }); await avanzarAsync(50);
   ok(hugo2.cuantos('brawl:inicio') === 2 && !hugo2.ultimo('brawl:volverError'),
-    'un socket conectado puede recuperar instantáneas sin ser expulsado');
+    'pasado un segundo y medio, un socket conectado puede recuperar el estado sin ser expulsado');
+  await avanzarAsync(1600);
   hugo2.mandar('brawl:volver', { matchId: 'otra-partida' }); await avanzarAsync(50);
   ok(hugo2.ultimo('brawl:volverError') && S.socketMatch.get(hugo2.id) === mH.id,
     'resincronizar otro id no altera la partida auténtica');
@@ -532,6 +604,104 @@ async function main() {
   hooks.cadaPaso = null;
   ok(!!hugo2.ultimo('brawl:fin'), 'y la partida acaba con normalidad en el socket nuevo');
   ok(S.battleMatches.size === 0 && S.socketMatch.size === 0 && S.battleAdmissions.size === 0, 'todo suelto al acabar');
+
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n=== 5c. LAS CINCO DIARIAS SON CADA 24 H DESDE LA PRIMERA ("siempre vuelve a 5") ===');
+  {
+    const t0 = RELOJ;
+    let est = await S.estadoBatallasDiarias('Nico');
+    ok(est.done === 0 && est.remaining === 5 && est.resetsInMs === 0, 'sin haber jugado: 5 de 5 y sin cuenta atrás', est);
+    for (let i = 0; i < 5; i++) { await S.contarBatallaDiaria('Nico', i % 2 === 0); RELOJ += 60 * 1000; }
+    est = await S.estadoBatallasDiarias('Nico');
+    ok(est.done === 5 && est.remaining === 0 && est.wins === 3 && est.nextRound === 5, 'jugadas las cinco: 0 de 5', est);
+    // Cambia el DÍA UTC (antes, aquí volvían a ser cinco): sigue sin quedar ninguna.
+    RELOJ = t0 + 9 * 60 * 60 * 1000;
+    est = await S.estadoBatallasDiarias('Nico');
+    ok(est.remaining === 0 && Math.abs(est.resetsInMs - 15 * 60 * 60 * 1000) < 2000, 'nueve horas después (y otro día UTC) sigue en 0, y dice que faltan 15 h', [est.remaining, Math.round(est.resetsInMs / 3600000)]);
+    const nico = jugador('Nico', 2000);
+    nico.mandar('brawl:bot'); await avanzarAsync(100);
+    ok(nico.ultimo('brawl:error') && nico.ultimo('brawl:error').error === 'daily_limit' && !nico.ultimo('brawl:inicio') && !S.battleAdmissions.size,
+       'pedir la sexta responde "daily_limit" y no deja nada cogido', nico.ultimo('brawl:error'));
+    nico.mandar('battle:dailyStatus'); await avanzarAsync(100);
+    ok(nico.ultimo('battle:daily') && nico.ultimo('battle:daily').remaining === 0 && nico.ultimo('battle:daily').resetsInMs > 0, 'y el panel recibe lo mismo', nico.ultimo('battle:daily'));
+    // 24 h después de la PRIMERA: vuelven las cinco, y la que se juegue abre otra ventana.
+    RELOJ = t0 + S.BATTLE_DAILY_VENTANA_MS + 1000;
+    est = await S.estadoBatallasDiarias('Nico');
+    ok(est.done === 0 && est.remaining === 5 && est.nextRound === 1, 'a las 24 h de la primera vuelven las cinco', est);
+    const d = await S.contarBatallaDiaria('Nico', true);
+    est = S.estadoDeDiaria(d, RELOJ);
+    ok(est.done === 1 && est.wins === 1 && Math.abs(est.resetsInMs - S.BATTLE_DAILY_VENTANA_MS) < 2000, 'y la primera de la tanda nueva abre su propia ventana de 24 h', est);
+    // Dos finales a la vez no abren dos ventanas ni pierden una cuenta.
+    DB.daily = {};
+    await Promise.all([S.contarBatallaDiaria('Par', true), S.contarBatallaDiaria('Par', false)]);
+    est = await S.estadoBatallasDiarias('Par');
+    ok(est.done === 2 && est.wins === 1, 'dos batallas que acaban a la vez cuentan dos', est);
+  }
+
+  console.log('\n=== 5d. "NO SÉ QUIÉN ERES" NO ES "TE QUEDAN CINCO" ===');
+  {
+    const anon = socketFalso(null, null);
+    anon.mandar('battle:dailyStatus'); await avanzarAsync(100);
+    const r = anon.ultimo('battle:daily');
+    ok(r && r.unknown === true && r.remaining === undefined && r.done === undefined, 'sin identidad, se contesta "unknown" y ningún contador', r);
+    // Mongo falla al buscar el nombre: tampoco se inventa nada ni se apunta la dirección como nombre.
+    const roto = socketFalso(null, '0xabc'.padEnd(42, '0'));
+    const authDeVerdad = PlayerAuth.findOne, gpDeVerdad = GamePlayer.findOne;
+    PlayerAuth.findOne = () => ({ select() { return this; }, lean: () => Promise.reject(new Error('mongo caído')) });
+    GamePlayer.findOne = () => ({ select() { return this; }, lean: () => Promise.reject(new Error('mongo caído')), exec: () => Promise.reject(new Error('mongo caído')) });
+    const nombre = await S.resolveBattlePlayerName(roto);
+    roto.mandar('battle:dailyStatus'); await avanzarAsync(100);
+    PlayerAuth.findOne = authDeVerdad; GamePlayer.findOne = gpDeVerdad;
+    ok(nombre === null && roto.authenticatedPlayer === null, 'si la base de datos falla, el nombre queda SIN resolver (antes se quedaba la dirección para toda la sesión)', [nombre, roto.authenticatedPlayer]);
+    ok(roto.ultimo('battle:daily') && roto.ultimo('battle:daily').unknown === true, 'y el panel recibe "unknown", no "5 de 5"', roto.ultimo('battle:daily'));
+    errores.length = 0;                 // (el fallo provocado deja su aviso en el registro)
+  }
+
+  console.log('\n=== 5e. LA HABILIDAD DEL JUGADOR Y LO LISTOS QUE SON SUS RIVALES ===');
+  {
+    ok(S.brawlHabilidadDe({}) === S.BRAWL_HABILIDAD_INICIAL && S.brawlHabilidadDe({ arenaSkill: 0.7 }) === 0.7 && S.brawlHabilidadDe({ arenaSkill: 9 }) === 0.95 && S.brawlHabilidadDe({ arenaSkill: 'x' }) === S.BRAWL_HABILIDAD_INICIAL,
+       'la habilidad sale de GamePlayer.arenaSkill, acotada; quien no ha jugado empieza en ' + S.BRAWL_HABILIDAD_INICIAL);
+    const escalera = (h) => [1, 2, 3, 4, 5].map((r) => S.crearBotDeRonda(r, 5, { habilidad: h, azar: () => 0.5 }).astucia);
+    const novato = escalera(0.2), veterano = escalera(0.8);
+    ok(novato.every((a, i) => i === 0 || a > novato[i - 1]) && veterano.every((a, i) => i === 0 || a > veterano[i - 1]), 'las cinco rondas suben de dificultad', [novato, veterano]);
+    ok(novato[0] < 0.2 && novato[4] < 0.4 && veterano[0] > 0.6 && veterano[4] > 0.9, 'y la escalera entera está a la altura de cada uno (novato ' + novato.map((x) => x.toFixed(2)).join('-') + ' · veterano ' + veterano.map((x) => x.toFixed(2)).join('-') + ')');
+    ok(S.crearBotDeRonda(3, 5, { azar: () => 0.5 }).astucia === 0.4, 'sin el dato, la escalera fija de siempre');
+    // Tras la partida: quien gana a rivales de su nivel sube; quien pierde, baja.
+    const partidaFalsa = (modo, filas, jugadores) => ({ modo, porClave: new Map(jugadores.map((j) => [j.clave, { player: j }])) });
+    DB.players.Sube = { _id: 'p_s', playerName: 'Sube', arenaSkill: 0.5, arenaGames: 20 };
+    DB.players.Baja = { _id: 'p_b', playerName: 'Baja', arenaSkill: 0.5, arenaGames: 20 };
+    DB.players.Nuevo = { _id: 'p_n', playerName: 'Nuevo' };
+    const js = { clave: 'a', playerName: 'Sube', skill: 0.5, arenaGames: 20 }, jb = { clave: 'b', playerName: 'Baja', skill: 0.5, arenaGames: 20 };
+    await S.brawlActualizarHabilidades(partidaFalsa('pvp', null, [js, jb]), { puestos: [
+      { clave: 'a', humano: true, puesto: 1, dano: 1400, recibido: 300 }, { clave: 'b', humano: true, puesto: 2, dano: 300, recibido: 1400 }] });
+    ok(DB.players.Sube.arenaSkill > 0.5 && DB.players.Baja.arenaSkill < 0.5 && DB.players.Sube.arenaGames === 21, 'el que gana sube y el que pierde baja', [DB.players.Sube.arenaSkill, DB.players.Baja.arenaSkill]);
+    ok(Math.abs(DB.players.Sube.arenaSkill - 0.5) <= 0.03, 'poco a poco (una partida no decide nada)', DB.players.Sube.arenaSkill);
+    const jn = { clave: 'n', playerName: 'Nuevo', skill: S.BRAWL_HABILIDAD_INICIAL, arenaGames: 0 };
+    await S.brawlActualizarHabilidades(partidaFalsa('bot', null, [jn]), { puestos: [
+      { clave: 'n', humano: true, puesto: 1, dano: 1400, recibido: 0 }, { clave: 'bot1', humano: false, puesto: 2, astucia: 0.6, dano: 0, recibido: 1400 }] });
+    ok(DB.players.Nuevo.arenaSkill > S.BRAWL_HABILIDAD_INICIAL + 0.05, 'al que empieza y barre a un rival difícil se le coloca rápido', DB.players.Nuevo.arenaSkill);
+    const antesP = DB.players.Sube.arenaSkill;
+    await S.brawlActualizarHabilidades(partidaFalsa('practica', null, [Object.assign({}, js, { skill: antesP })]), { puestos: [
+      { clave: 'a', humano: true, puesto: 1, dano: 900, recibido: 100 }, { clave: 'bot1', humano: false, puesto: 2, astucia: 0.5, dano: 100, recibido: 900 }] });
+    ok(DB.players.Sube.arenaSkill > antesP && DB.players.Sube.arenaSkill - antesP < 0.02, 'la práctica también cuenta, la mitad');
+    const antesF = DB.players.Baja.arenaSkill;
+    await S.brawlActualizarHabilidades(partidaFalsa('pvp', null, [jb, js]), { puestos: [
+      { clave: 'a', humano: true, puesto: 1, dano: 0, recibido: 0 }, { clave: 'b', humano: true, puesto: 2, dano: 0, recibido: 0, fuera: true }] });
+    ok(DB.players.Baja.arenaSkill === antesF, 'quien se va sin haber llegado a pelear no cambia');
+    // La vida con la que entra la mascota es la de AHORA (con lo recuperado sola).
+    const hace = (min) => new Date(RELOJ - min * 60 * 1000);
+    ok(S.petSaludCalculada({ petHealth: 50, petRegenAt: hace(10) }, RELOJ).salud === 70, 'la mascota recupera 1 punto cada ' + S.PET_REGEN_CADA_MS / 1000 + ' s: de 50, a los 10 min, 70');
+    ok(S.petSaludCalculada({ petHealth: 50, petRegenAt: hace(600) }, RELOJ).salud === 100 && S.petSaludCalculada({ petHealth: 50, petRegenAt: hace(600) }, RELOJ).regenAt === null, 'hasta 100 y no más');
+    ok(S.petSaludCalculada({ petHealth: 0, petRegenAt: hace(600) }, RELOJ).salud === 0, 'muerta no se cura sola (hace falta el elixir)');
+    ok(S.petSaludCalculada({ petHealth: 50 }, RELOJ).salud === 50 && S.petSaludCalculada({ petHealth: 50 }, RELOJ).cambia === true, 'sin reloj apuntado, empieza a contar desde ahora');
+    DB.players.Medio = { _id: 'p_m', playerName: 'Medio', petName: 'M', nivel_exp: 2000, petLevel: 1, petHealth: 50, petRegenAt: hace(10) };
+    const medio = socketFalso('Medio', '0xmedio'.padEnd(42, '0'));
+    medio.mandar('brawl:practica'); await avanzarAsync(100);
+    const iniM = medio.ultimo('brawl:inicio');
+    const yoM = iniM && iniM.luchadores.find((l) => l.id === iniM.yo);
+    ok(yoM && Math.abs(yoM.hp / yoM.maxHp - 0.7) < 0.01, 'y entra a la arena con ESA vida (70 %), la misma que se ve en el mapa', yoM && [yoM.hp, yoM.maxHp]);
+    medio.mandar('brawl:salir'); await avanzarAsync(250000);
+  }
 
   // ═════════════════════════════════════════════════════════════════════════
   console.log('\n=== 6. LA PURGA ===');

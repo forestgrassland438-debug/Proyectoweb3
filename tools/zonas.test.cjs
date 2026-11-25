@@ -73,9 +73,14 @@ test('las salidas: el salvaje lleva a los tres y cada uno vuelve; nadie llega en
   const rects = { salvaje: capa(sv, 'salidas').objects };
   for (const n of Object.keys(MAPAS)) rects[n] = capa(mapa(n), 'salidas').objects;
   const pisa = (p, r) => p.x - 15 < r.x + r.width && p.x + 15 > r.x && p.y + 25 < r.y + r.height && p.y + 51 > r.y;
+  // (2026-11-21) gf-zonas.js también lleva a los siete reinos del este: sus
+  // llegadas se miran con la MISMA regla, leyendo las salidas de su mapa. El
+  // pueblo (el ferri del puerto vuelve a GameScene) no tiene mapa de Tiled ni
+  // capa `salidas`: su llegada la mira tools/reinos.test.cjs.
+  const salidasDe = (n) => rects[n] || (rects[n] = fs.existsSync(path.join(BIN, 'Maps', n + '.json')) ? capa(mapa(n), 'salidas').objects : []);
   for (const [clave, z] of Object.entries(Z.ZONAS)) {
     const destino = clave.split('_desde_')[0];
-    for (const r of rects[destino]) {
+    for (const r of salidasDe(destino)) {
       assert.ok(!pisa(z.llegada, r), clave + ': se llega encima de la salida ' + r.name);
       // Lo que separa los pies (el rectángulo con el que se choca) de la
       // salida: un empujón de un monstruo no debe bastar para salir.

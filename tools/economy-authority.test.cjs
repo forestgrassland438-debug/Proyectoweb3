@@ -31,3 +31,40 @@ test('el relay tampoco puede acuñar ni borrar las tablas de monedas del jugador
     await assert.rejects(() => check(contract, 'deleteInvoice', [1]), /server_table_blocked/);
   }
 });
+test('(2026-11-19) las tablas de la cuenta (cta_*) tampoco: ni crear, ni subir, ni bajar, ni pasar', async () => {
+  const klass = ast.body.find(n => n.type === 'ClassDeclaration' && n.id.name === 'RelayManager');
+  const method = klass.body.body.find(n => n.key.name === 'blockClientServerTables');
+  // Solo las de monedas en la lista: las cta_ se cierran por su prefijo.
+  const context = vm.createContext({ TABLAS_SOLO_SERVIDOR: new Set(['oro']), TABLAS_SOLO_ACUNA_SERVIDOR: new Set() });
+  const check = vm.runInContext('({' + source.slice(method.start, method.end) + '}).blockClientServerTables', context);
+  for (const tipo of ['cta_tutorial', 'cta_habilidades', 'cta_amigos', 'cta_invitados', 'cta_lands', 'cta_respaldo', 'cta_lo_que_venga']) {
+    const contract = { getInvoice: async () => ({ tipo }) };
+    await assert.rejects(() => check(contract, 'createInvoice', ['0xabc', tipo, 22, 'tu:0xabc']), /server_table_blocked/, tipo);
+    await assert.rejects(() => check(contract, 'increaseInvoiceQuantity', [1, 99]), /server_table_blocked/, tipo);
+    await assert.rejects(() => check(contract, 'decreaseInvoiceQuantity', [1, 1]), /server_table_blocked/, tipo);
+    await assert.rejects(() => check(contract, 'transferQuantityBetweenInvoices', [1, 2, 1]), /server_table_blocked/, tipo);
+  }
+  // Un objeto normal sigue pasando.
+  await check({ getInvoice: async () => ({ tipo: 'bolsa zanahorias' }) }, 'decreaseInvoiceQuantity', [1, 1]);
+});
+test('(2026-11-19) GET /api/missions/:jugador existe y solo devuelve las misiones de su dueño', async () => {
+  const route = ast.body.find(n => n.expression?.callee?.object?.name === 'app' && n.expression.callee.property?.name === 'get' &&
+    n.expression.arguments?.[0]?.value === '/api/missions/:playerName');
+  assert.ok(route, 'la tienda y el mapa la piden en cada carga; sin ella el centro de control se llena de 404');
+  const fn = route.expression.arguments.at(-1);
+  const docs = { Ana: { playerName: 'Ana', misionesCompletadas: 7, misiones_granjero: 5, misiones_guardian: 2, estadomision: 1, misionesEnProgreso: 0, misionesFallidas: 0, estadomision1: 0 } };
+  const context = vm.createContext({ console,
+    resolvePlayerName: async (n) => n,
+    requireOwner: async (req, res, n) => { if (req.user.playerName === n) return true; res.status(403).json({ error: 'Forbidden' }); return false; },
+    MissionsPlayer: { findOne: (q) => ({ lean: async () => docs[q.playerName] || null }) } });
+  const handler = vm.runInContext('(' + source.slice(fn.start, fn.end) + ')', context);
+  const llamar = async (quien, de) => { let st = 200, out = null;
+    await handler({ params: { playerName: de }, user: { playerName: quien } }, { status(c) { st = c; return this; }, json(o) { out = o; return this; } });
+    return { st, out }; };
+  const mia = await llamar('Ana', 'Ana');
+  assert.equal(mia.st, 200);
+  assert.deepEqual([mia.out.misionesCompletadas, mia.out.misiones_granjero, mia.out.misiones_guardian, mia.out.estadomision], [7, 5, 2, 1]);
+  assert.equal((await llamar('Bea', 'Ana')).st, 403, 'nadie lee las misiones de otro');
+  const nueva = await llamar('Bea', 'Bea');
+  assert.equal(nueva.st, 200); assert.equal(nueva.out.misionesCompletadas, 0, 'una cuenta sin misiones recibe ceros, no un 404');
+});

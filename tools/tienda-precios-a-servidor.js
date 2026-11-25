@@ -36,7 +36,7 @@ function catalogo(raiz) {
     else if (c === '}') { d--; if (!d) break; }
   }
   // eslint-disable-next-line no-new-func
-  return new Function('return ' + src.slice(i, j + 1))();
+  return require('node:vm').runInNewContext('('+src.slice(i,j+1)+')',{window:{GFPlantCatalog:require('../gf-crop-catalog')}});
 }
 
 function tabla(raiz) {
@@ -44,7 +44,7 @@ function tabla(raiz) {
   for (const lista of Object.values(catalogo(raiz))) {
     for (const it of lista) {
       if (!it || !it.id) continue;
-      out[it.id] = [Number(it.buyPrice) || 0, Number(it.sellPrice) || 0, it.currency === 'silver' ? 'p' : 'o'];
+      out[it.id] = [Number(it.buyPrice) || 0, Number(it.sellPrice) || 0, it.currency === 'silver' ? 'p' : it.currency === 'bronze' ? 'b' : 'o'];
     }
   }
   return out;
@@ -59,11 +59,12 @@ function leerDelServidor(ruta) {
   const m = s.match(/\/\/ <TIENDA_PRECIOS>\r?\n([\s\S]*?)\r?\n\/\/ <\/TIENDA_PRECIOS>/);
   if (!m) return null;
   const t = m[1].trim().replace(/^const TIENDA_PRECIOS = /, '').replace(/;$/, '');
-  return JSON.parse(t);
+  return require('node:vm').runInNewContext('('+t+')',{GF_CROP_CATALOG:require('../gf-crop-catalog')});
 }
 
 function escribir(ruta) {
   const original = fs.readFileSync(ruta, 'utf8');
+  if(original.includes('...GF_CROP_CATALOG.shopPrices'))throw new Error('El catálogo compartido está activo. Cambia valores explícitos o usa el panel; este script no sustituye la tabla manual.');
   const crlf = original.includes('\r\n');
   const fin = crlf ? '\r\n' : '\n';
   const re = /\/\/ <TIENDA_PRECIOS>\r?\n[\s\S]*?\r?\n\/\/ <\/TIENDA_PRECIOS>/;
@@ -83,7 +84,7 @@ if (require.main === module) {
     const ruta = args[1];
     const servidor = ruta ? leerDelServidor(ruta) : null;
     const local = tabla();
-    const igual = servidor && JSON.stringify(servidor) === JSON.stringify(local);
+    const igual = servidor && JSON.stringify(Object.entries(servidor).sort(([a],[b])=>a.localeCompare(b))) === JSON.stringify(Object.entries(local).sort(([a],[b])=>a.localeCompare(b)));
     console.log(igual ? 'OK: la tabla del servidor es la del catálogo.' : 'DISTINTA: ejecuta  node tools/tienda-precios-a-servidor.js ' + (ruta || '<server2.js>'));
     process.exit(igual ? 0 : 1);
   } else if (args[0]) {

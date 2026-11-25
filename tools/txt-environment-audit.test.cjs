@@ -93,7 +93,10 @@ test('TXT 2-4: water stops counter and target tweens, destroys airborne fish and
 test('TXT 3: distinct water scenes get distinct atlases and release only their own frames', () => {
   const f = fixture('gf-agua.js'), tm = f.textures(), a = f.scene(tm), b = f.scene(tm); f.water(a); f.water(b);
   const api = f.ctx.GFAgua, sa = api.montar(a.sc, { capa: 'base', textura: 'water' }), sb = api.montar(b.sc, { capa: 'base', textura: 'water' });
-  assert.notEqual(sa.claves[0], sb.claves[0]); api.desmontar(a.sc);
+  assert.notEqual(sa.claves[0], sb.claves[0]);
+  assert.equal(sa.claves.filter(k=>tm.exists(k)).length,1,'only frame zero blocks mounting');
+  for(let frame=1;frame<8;frame++){a.tick(frame*16);b.tick(frame*16);}
+  assert.equal(sa.buildFrame,null);assert.equal(sb.buildFrame,null);api.desmontar(a.sc);
   assert.ok(sa.claves.every(k => !tm.exists(k))); assert.ok(sb.claves.every(k => tm.exists(k)));
   api.desmontar(b.sc); assert.equal(tm.map.size, 1);
 });

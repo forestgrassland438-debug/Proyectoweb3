@@ -120,6 +120,12 @@ async function jugarPartida(modo, rendirse) {
   await ev(`game.scene.getScene('GameScene').openBattleHub(), true`);
   await dormir(400);
   const idBoton = { practica: '#battleHubPracticeBtn', bot: '#battleHubAdventureBtn', pvp: '#battleHubPvpBtn' }[modo];
+  // (2026-11-17) Que no haya nada ENCIMA del botón: la pantalla de carga del
+  // mapa ("Preparing the map… 100%", z 10000) se queda unos segundos después
+  // de que el mapa esté listo y se llevaba el clic.
+  await hasta(`(function(){ var e = document.querySelector(${JSON.stringify(idBoton)}); if (!e) return false;
+    var r = e.getBoundingClientRect(); var t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !!t && e.contains(t); })()`, 'el botón del menú se puede pulsar (nada encima)', 30000);
   const b = await centroDe(idBoton);
   ok(!!b && b.w > 0, 'el botón del menú se ve: ' + idBoton);
   if (MODO === 'movil') { await toque([{ x: b.x, y: b.y }], 'touchStart'); await dormir(60); await toque([], 'touchEnd'); }

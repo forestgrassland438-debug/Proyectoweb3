@@ -105,6 +105,24 @@ test('una lectura de cadena anterior a la compra no entrega, borra ni confirma o
   assert.equal(f.context.facturas.length, 1);
 });
 
+/* (2026-11-25) Tras VENDER todas las unidades de un objeto no queda ninguna factura de
+   su tipo. La conciliación exigía al menos una ("purchase_not_visible_on_chain", 503) y
+   el objeto vendido seguía pintado en el inventario hasta recargar el mapa. */
+test('tras vender todas las unidades de un objeto, la conciliación lo quita de las casillas', async () => {
+  const f = backend({ inventory: [slot(0, 1, 2), slot(1, 4, 1, 'axe')] });
+  f.context.facturas = [invoice(4, 1, 'axe')];          // la de las semillas se vendió entera
+  let result, status;
+  await f.routes.get('/api/inventory/reconcile')({ user: { address: '0xaaa' }, body: { itemId: 'seed', op: 'venta' } },
+    { status(n) { status = n; return this; }, json(data) { result = data; } });
+  assert.equal(status, 200); assert.equal(result.success, true);
+  assert.deepEqual(Array.from(f.state.inventory, s => s.IDX), [4]);
+  // Una COMPRA sin ninguna factura visible sigue esperando a la cadena: no confirma lo que no ve.
+  const g = backend({ inventory: [slot(0, 1, 2)] });
+  await g.routes.get('/api/inventory/reconcile')({ user: { address: '0xaaa' }, body: { itemId: 'seed' } },
+    { status(n) { status = n; return this; }, json(data) { result = data; } });
+  assert.equal(status, 503); assert.equal(g.writes.length, 0);
+});
+
 test('la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena', async () => {
   const f = backend({ inventory: [slot(0, 1, 1)] });
   f.context.facturas = [invoice(1, 1), invoice(2, 3), invoice(3, 1, 'axe')];
@@ -164,6 +182,51 @@ test('comprar y salir antes de confirmar entrega y guarda sin retener la escena 
   assert.equal(confirmed, 1);
   assert.equal(f.tienda.scene, null);
   assert.equal(global.GFTxGate.pending(), 0);
+});
+
+/* (2026-11-25) "Cuando compro algunas cosas en la tienda mi inventario no se actualiza."
+   La tienda PAUSA su escena (TiendaSistema.open). En Phaser isActive() solo es RUNNING,
+   así que con la tienda abierta la compra confirmada cambiaba STATE pero no repintaba
+   las casillas, y al cerrar la tienda nadie las repintaba. */
+test('con la tienda abierta (escena en pausa) la compra confirmada se pinta en el inventario', async t => {
+  const f = bank.montar(root);
+  const antes = global.window.activeScene;
+  t.after(() => { f.relay.cleanup(); global.window.activeScene = antes; });
+  // Ni siquiera hace falta que activeScene apunte a ella: la escena en pausa de la tienda es la del jugador.
+  global.window.activeScene = null;
+  let pintadas = 0;
+  f.escena.activa = false;                               // en pausa: isActive() da false…
+  f.escena.sys.isPaused = () => true;                    // …e isPaused() true
+  f.escena.renderAllSlots = () => { pintadas++; };
+  f.servidor.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: true,
+    inventory: [{ id: 0, IDX: 21, Manualid: 'veintiuno', objeto: 'Semillax', cantidad: 4 }],
+    chest: [], inventoryLoadedAt: '2026-11-25T10:00:00.000Z' }) });
+  await f.tienda._persistConfirmedPurchase('Semillax');
+  assert.equal(f.escena.STATE.slots[0] && f.escena.STATE.slots[0].count, 4);
+  assert.equal(pintadas, 1, 'las casillas se repintan aunque la escena esté en pausa');
+});
+
+test('la conciliación espera a las facturas que acuñó el servidor y sabe cuándo viene de una venta', async t => {
+  const f = bank.montar(root);
+  t.after(() => f.relay.cleanup());
+  f.tienda.playerMonedaPlata = 1000;
+  global.GFBronce.adoptarStats = stats => global.GFBronce.pintar(stats.bronce);
+  global.GFMascota = { api: async (url, body) => ({ ok: true, status: 200, datos: { ok: true, confirmadas: body.cantidad, fee: 0,
+    // Una referencia a medias (sin manualId) no puede viajar: la conciliación rechazaría la petición entera.
+    facturas: body.op === 'compra' ? [{ id: 31, manualId: 'gseed31', cantidad: 3 }, { id: 32 }] : undefined,
+    stats: { oro: 0, plata: 900, bronce: 0 } } }) };
+  const pedidos = [];
+  f.servidor.fetch = async (url, options) => {
+    pedidos.push(JSON.parse(options.body));
+    return { ok: true, status: 200, json: async () => ({ success: true, inventory: [], chest: [], inventoryLoadedAt: new Date().toISOString() }) };
+  };
+  const item = bank.itemTienda(f.tienda, 'Semillax');
+  await f.tienda.processPurchase(item, 3); await f.tienda._colaTienda;
+  assert.deepEqual(pedidos[0].expectedInvoices, [{ id: 31, manualId: 'gseed31', cantidad: 3 }]);
+  assert.notEqual(pedidos[0].op, 'venta');
+  await f.tienda._operacionEconomicaTienda('venta', item, 3, 'refventa00001');
+  assert.equal(pedidos[1].op, 'venta');
+  assert.deepEqual(pedidos[1].expectedInvoices, []);
 });
 
 test('el inventario local nunca agrega unidades de una factura a otra del mismo objeto', t => {

@@ -29,7 +29,9 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(AQUI)
 MAPAS = ['salvaje', 'cementerio', 'desierto', 'tundra',
          # (2026-10-25) Los de nivel 8, 9 y 10.
-         'glaciar', 'caverna', 'pradera']
+         'glaciar', 'caverna', 'pradera',
+         # (2026-11-21) Los siete reinos del este (tools/generar-reinos.py), del 11 al 17.
+         'puerto', 'pantano', 'aldor', 'colinas', 'selva', 'volcan', 'hongos']
 
 
 def es_azul(r, g, b, a):
