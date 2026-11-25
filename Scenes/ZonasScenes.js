@@ -187,7 +187,9 @@ class ZonaScene extends GameScene {
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     // El agua que se mueve (gf-agua) y el suelo pintado (gf-suelo).
     if (c.sinHojas) this._sinHojas = true;   // un lago helado no tiene hojas flotando
-    if (window.GFAgua) window.GFAgua.montar(this, { capa: 'suelo', textura: c.tileset, vida: c.vidaAgua || null });
+    if (window.GFAgua) window.GFAgua.montar(this, { capa: 'suelo', textura: c.tileset, vida: c.vidaAgua || null,
+      // (2026-11-24) En el puerto, nada fijo donde amarra y zarpa el ferri (gf-ferri.js).
+      excluir: (window.GFFerri && window.GFFerri.excluir) ? window.GFFerri.excluir(this) : [] });
     this._montarSueloPintado('recortadas_' + c.zona, c.zona, [this.backgroundLayer]);
 
     // ── Colisiones y salidas ───────────────────────────────────────────────
@@ -297,6 +299,8 @@ class ZonaScene extends GameScene {
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🧭 antorchas:', e); }
     // (2026-10-21) El bote en el agua del mapa (gf-botes.js).
     try { if (window.GFBotes) window.GFBotes.montar(this); } catch (e) { console.warn('🧭 bote:', e); }
+    // (2026-11-24) El ferri de vuelta al pueblo, en el puerto (gf-ferri.js; las demás zonas no tienen).
+    try { if (window.GFFerri) window.GFFerri.montar(this); } catch (e) { console.warn('🧭 ferri:', e); }
     // (2026-10-19) Los NPC de cada mapa (gf-npcs.js): el sepulturero, los
     // guardias del desierto, el trampero y la pescadora.
     try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🧭 NPC:', e); }

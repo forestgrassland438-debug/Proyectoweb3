@@ -2372,7 +2372,9 @@ showNotification(message, type = 'info') {
     
     //this.load.image('mapa_img', './Game/MAPAS/mapa_principal.png');
 
-    this.load.tilemapTiledJSON('tilemap', './Maps/mapa_principal.json');
+    // (2026-11-24) Con versión: el canal y el muelle del ferri cambiaron casillas y choques
+    // (tools/canal-del-pueblo.py); sin ella, la caché daba el mapa viejo.
+    this.load.tilemapTiledJSON('tilemap', './Maps/mapa_principal.json?v=20261124b');
 
     // casa
 
@@ -3360,7 +3362,7 @@ this.player.on('pointerdown', (pointer) => {
       carpeta: 'recortadas',
       // Con versión: el manifiesto también se guardaba en caché (ver la
       // versión del recorte en lib/tileManager.js, resolveTileURL).
-      json: 'recortadas/mapa.json?v=20261007b',
+      json: 'recortadas/mapa.json?v=20261124a',
       targetProp: 'tileManagerMapa'
     }
   };
@@ -29137,6 +29139,12 @@ getPlayerIntentDirection() {
       if (window.GFBotes && window.GFBotes.montar) {
         window.GFBotes.montar(this);
       }
+      /* EL FERRI (2026-11-24): el muelle de la orilla oeste, el barco amarrado
+         en la boca del canal y su barquero, que lleva al puerto del este por el
+         precio del mapa del mundo (gf-ferri.js). */
+      if (window.GFFerri && window.GFFerri.montar) {
+        try { window.GFFerri.montar(this); } catch (e) { console.warn('ferri:', e); }
+      }
       /* Los espantapájaros que tenga puestos (gf-espantapajaros.js). */
       if (window.GFEspantapajaros && window.GFEspantapajaros.montar) {
         window.GFEspantapajaros.montar(this);
@@ -29150,7 +29158,9 @@ getPlayerIntentDirection() {
          pintado, con la técnica de la mina, y su vida (peces, hojas,
          piedras, nenúfares, juncos). Lee los datos de la capa del mapa. */
       if (window.GFAgua && window.GFAgua.montar) {
-        window.GFAgua.montar(this, { capa: 'mapa_principal', textura: 'tiles', vida: 'rio' });
+        window.GFAgua.montar(this, { capa: 'mapa_principal', textura: 'tiles', vida: 'rio',
+          // (2026-11-24) Nada fijo debajo del muelle del ferri ni en su ruta por el canal.
+          excluir: (window.GFFerri && window.GFFerri.excluir) ? window.GFFerri.excluir(this) : [] });
       }
       /* LAS PUERTAS DE LAS CASAS (gf-casas.js): el cartel "Enter" y la
          entrada a InteriorScene. Solo en el pueblo: la mina y la isla no
