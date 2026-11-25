@@ -829,11 +829,14 @@
 
   // ─────────────────────────────────────────────────────── LUCES DE NOCHE
   var LUCES = {
-    farola: [-88, 300, 1], cripta: [-70, 260, 0.75], hoguera: [-16, 340, 1],
+    // (2026-11-25) Los faroles 2D del cementerio, la pradera, el pantano y Glowcap (tools/gf_motor_casas.py
+    // FAROLES, a la altura del poste de GameScene): la luz sale de SU farol, medida en el dibujo; el 4.º
+    // valor es cuánto cuelga a la derecha del pie (el del cayado y el del brazo de deriva).
+    farola: [-154, 300, 1, 37], cripta: [-70, 260, 0.75], hoguera: [-16, 340, 1],
     cristal_grande: [-60, 230, 0.7], cristal_hielo: [-30, 130, 0.45],
     // (2026-10-25) Las de los mapas nuevos: en la caverna alumbran siempre
     // (allí la noche no se va del todo, gf-ciclo-dia `_oscuridadMinima`).
-    poste_runas: [-50, 170, 0.6], farol_jardin: [-64, 220, 0.9], brasero: [-40, 300, 1],
+    poste_runas: [-50, 170, 0.6], farol_jardin: [-186, 220, 0.9], brasero: [-40, 300, 1],
     cristal_cueva: [-26, 150, 0.6], cristal_cueva_t: [-26, 150, 0.6], cristal_grande_cueva: [-50, 260, 0.85],
     seta_brillante: [-12, 90, 0.5], salida_cueva: [-60, 320, 0.9], casa_bruja: [-70, 260, 0.8],
     // (2026-11-21) Los siete del este (tools/gf_reinos_arte.py LUCES: la misma tabla).
@@ -843,12 +846,12 @@
     // (2026-11-24) Las casas 2D del puerto (tools/gf_motor_casas.py): el farol de la puerta.
     casa_azul: [-106, 170, 0.55], casa_coral: [-106, 170, 0.55], casa_ocre: [-106, 170, 0.55], casa_menta: [-106, 170, 0.55],
     casa_pizarra: [-106, 170, 0.55], casa_terracota: [-106, 170, 0.55], casa_lila: [-106, 170, 0.55], casa_marfil: [-106, 170, 0.55],
-    farol_fatuo: [-68, 220, 0.7], caldero_pantano: [-32, 220, 0.7], choza_zancos: [-158, 210, 0.6],
+    farol_fatuo: [-158, 220, 0.7, 49], caldero_pantano: [-32, 220, 0.7], choza_zancos: [-158, 210, 0.6],
     brasero_dorado: [-54, 300, 1], altar_solar: [-49, 240, 0.7], obelisco_sol: [-81, 200, 0.6], cabana_cazador: [-106, 250, 0.7],
     templo_selva: [-147, 300, 0.6], cabana_selva: [-134, 190, 0.55], totem_selva: [-38, 150, 0.5],
     forja: [-56, 340, 1], brasero_volcan: [-59, 300, 1], fumarola: [-22, 200, 0.7], cristal_fuego: [-32, 170, 0.6],
     obelisco_obsidiana: [-68, 190, 0.6], roca_lava: [-14, 150, 0.5], roca_volcanica: [-19, 130, 0.4],
-    cristal_luz: [-32, 180, 0.7], farol_luciernaga: [-62, 210, 0.8], casa_seta: [-96, 270, 0.8],
+    cristal_luz: [-32, 180, 0.7], farol_luciernaga: [-180, 210, 0.8, 2], casa_seta: [-96, 270, 0.8],
     piedra_runa: [-40, 160, 0.6], seta_pequena: [-14, 110, 0.5], raiz_brillante: [-22, 140, 0.5], tocon_musgo: [-16, 100, 0.4]
   };
   function montarLuces(st) {
@@ -867,12 +870,12 @@
         st.luces.push({ x: o.x, y: o.y + Math.round((f.llama.arriba + f.llama.abajo) / 2), r: l[1], a: l[2] });
         return;
       }
-      st.luces.push({ x: o.x, y: o.y + l[0], r: l[1], a: l[2] });
+      st.luces.push({ x: o.x + (l[3] || 0), y: o.y + l[0], r: l[1], a: l[2] });
     });
     // Y lo que la escena pone a mano (la casa de la bruja).
     ((scene.cfg && scene.cfg.extras) || []).forEach(function (e) {
       var l = Object.prototype.hasOwnProperty.call(LUCES, e.fotograma) ? LUCES[e.fotograma] : null;
-      if (l) st.luces.push({ x: e.x, y: e.y + l[0], r: l[1], a: l[2] });
+      if (l) st.luces.push({ x: e.x + (l[3] || 0), y: e.y + l[0], r: l[1], a: l[2] });
     });
     if (!st.luces.length) return;
     st.alumbrar = function (luz) { for (var i = 0; i < st.luces.length; i++) { var q = st.luces[i]; luz(q.x, q.y, q.r, q.a); } };

@@ -343,13 +343,21 @@ html body .gf-espada-menu {
 /* (2026-11-02) "El panel de misiones está delante del HUD." Iba en z-index 1001 con el HUD en
    1000 y tapaba monedas y botones redondos. Ahora va por debajo del HUD (y de los avisos, que van
    en 10000) y deja libres la franja de arriba y la columna de botones: el HUD no le pisa el texto. */
+/* (2026-11-25) "Los paneles están detrás del HUD; deberían ir delante" (capturas de Martha the
+   Baker, la basura y Farmer Joe con los botones redondos pintados encima). Con sitio, el panel
+   sigue dejando libres la franja de arriba y la columna (el tamaño de arriba); cuando no lo hay
+   (pantallas estrechas), el PANEL gana, como la tienda (1001/1002). El velo oscuro se queda en
+   990: el HUD sigue a la vista y se puede pulsar donde el panel no llega. */
 html body #missions-overlay { z-index: 990 !important; }
 html body #missions-panel {
-  z-index: 995 !important;
+  z-index: 1001 !important;
   top: calc(50% + 26px) !important;
   max-height: calc(100vh - 150px) !important;
   max-width: min(800px, calc(100vw - 2 * (var(--gfh-rb, 50px) + 26px))) !important;
 }
+html body #gfnt { z-index: 1001 !important; }            /* tiendas de los NPC (gf-npc-tiendas.js); su velo #gfnt-fondo, 990 */
+html body #trash-hub { z-index: 1001 !important; }       /* index.html le pone 1000 en línea */
+html body #trash-quantity-selector { z-index: 1002 !important; }
 
 /* Las cabeceras: un filo de oro abajo y la luz que lo recorre al abrir. */
 html body #inventory-panel .inv-drag-handle,

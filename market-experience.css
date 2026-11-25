@@ -32,10 +32,177 @@ button:disabled { cursor: wait; }
 .market-network[data-error="true"] { color: #ffb8a8; }
 @media(max-width:650px) { .market-intro { grid-template-columns: 1fr; padding: 22px 18px; gap: 18px; } .market-intro-meta { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: space-between; } .grid { gap: 12px; } .topbar-inner { gap: 14px; } }
 @media(max-width:390px) { .grid { grid-template-columns: 1fr; } .wallet-strip .chip { font-size: 12px; } }
-@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+/* Calma: la elige quien mira con el botón ✦, o la pide el sistema si no eligió nada
+   (el <script> del <head> de market.html pone data-motion). Sin ese atributo
+   (JavaScript apagado) se sigue al sistema, como antes. */
+html[data-motion=calm] *, html[data-motion=calm] *::before, html[data-motion=calm] *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+@media(prefers-reduced-motion:reduce) { html:not([data-motion]) *, html:not([data-motion]) *::before, html:not([data-motion]) *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
 
 /* Forest exchange · illustration, copper accents and clear action hierarchy. */
 :root{--bg-deep:#091b1d;--bg-panel:#10282b;--bg-panel-2:#153236;--line:rgba(176,218,197,.12);--line-strong:rgba(176,218,197,.25);--paper:#153135;--paper-2:#10272b;--ink:#e3ece1;--text:#e6eee4;--text-muted:#a1b9b2;--text-faint:#8ba79c;--accent:#acd4ad;--accent-ink:#122c25;--accent-2:#dcbd83;--radius:15px}
 body{background:radial-gradient(ellipse at 10% 0,#25433b66,transparent 55%),#091b1d}.topbar{background:#0a2023f2;border-bottom-color:#46605855;backdrop-filter:blur(16px)}.topbar-inner{max-width:1460px}.brand-badge{background:#223f36;border:1px solid #c8b17855;border-radius:13px;box-shadow:none}.brand-text b{font-family:var(--font-body);font-size:20px;letter-spacing:-.04em;color:#f0e4c4}.brand-text span{letter-spacing:.13em;font-size:9px}.tabs{max-width:1420px;gap:5px}.tab-btn{border-radius:9px 9px 0 0;color:#a2b7b0;min-height:48px}.tab-btn.active{background:#19362f;color:#e1d3aa;border-bottom-color:#d5b87f}main{max-width:1460px}.chip{background:#17302f;border-color:#48615655}.market-intro{min-height:270px;margin:12px 0 0;padding:36px;background:linear-gradient(90deg,#071c23d9 0%,#071c23b3 42%,#071c2320 75%),url('./assets/market/forest-outpost-20261028.png') center/cover;border:1px solid #b8a47444;border-radius:22px;align-items:end;gap:20px}.market-intro::after{display:none}.market-intro>div:first-child{position:relative;z-index:1}.market-intro h1{max-width:600px;font-family:var(--font-body);font-size:clamp(30px,3.8vw,48px);font-weight:750;letter-spacing:-.05em;line-height:1.05;color:#f2ecd9;margin:12px 0 16px}.market-intro p{max-width:520px;font-size:14px;color:#c2d3ce;text-shadow:0 1px 4px #0009}.market-intro small{color:#dfc995}.market-intro-meta{align-self:end;gap:12px}.market-intro-meta span{background:#10251dd9;color:#f1dcae;border-color:#bb9e6266;font-weight:650}.market-intro-meta button{background:#dfc590;color:#172b24;border-radius:10px;box-shadow:0 4px 15px #0003}.market-quick-actions{display:flex;gap:10px;padding:16px 2px;flex-wrap:wrap}.market-quick-actions button,.market-filter-row button,.market-pagination button,.market-pending-panel button{min-height:44px;padding:10px 16px;border:1px solid var(--line-strong);border-radius:10px;background:#183431;color:var(--text);cursor:pointer;font-weight:650}.market-quick-actions button:first-child{background:#afd4ae;color:#142d23;border-color:#afd4ae}.market-quick-actions span{margin-left:6px;font-variant-numeric:tabular-nums;color:#dfc590}.market-network{margin:0 0 14px;min-height:16px}.toolbar{margin-top:22px;gap:14px}.search-box{border-radius:12px;border-color:#acc9b544;background:#102a2c}.search-box input{min-height:48px}.sortsel{min-height:48px;border-radius:12px;background:#143033;color:var(--text)}.market-filter-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px}.market-filter-row label{display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:12px}.market-filter-row select{min-height:44px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:9px;background:#153033;color:var(--text);font:inherit}.market-view-toggle{display:flex;margin-left:auto;gap:3px}.market-view-toggle button{font-size:23px;padding:2px 13px;min-width:44px}.market-view-toggle [aria-pressed=true]{color:#132c22;background:#c6d4b5;border-color:#c6d4b5}.chips-row{gap:8px;margin-bottom:20px}.cat-chip,.chip-btn{background:#142e2b;border-color:#9aba9a33;color:#aec3b8;border-radius:30px;min-height:40px}.cat-chip.active{background:#293e2b;color:#f3dfac;border-color:#c8ad6f88}.market-results{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:18px 0 14px;font-size:12px;color:#a5b8ad}.market-results span:last-child{color:#c3b48d}.grid{grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:18px}.ticket{padding:20px;border:1px solid #9abbad29;background:linear-gradient(150deg,#1c3a39,#10272d);box-shadow:0 6px 22px #0002;border-radius:17px;color:#e0e8dc;clip-path:none;min-width:0}.ticket::before,.ticket::after{display:none}.ticket:hover{border-color:#bda56d88;transform:translateY(-2px);box-shadow:0 12px 35px #0005}.ticket .stamp{background:#102727;color:#bcd2bc;border:1px solid #91ac8e44;border-radius:30px;align-self:flex-start;padding:5px 9px;font-size:9px;letter-spacing:.04em;transform:none;position:static}.ticket .icon-wrap{margin:17px auto 14px;width:92px;height:92px;border:1px solid #d5c59022;border-radius:22px;background:radial-gradient(ellipse at center,#8b9d5a2b,#071b2000 75%);box-shadow:inset 0 0 24px #0002}.ticket .icon-wrap img{width:64px;height:64px;image-rendering:pixelated;object-fit:contain;filter:drop-shadow(0 6px 6px #0005)}.ticket h3{font:700 15px/1.4 var(--font-body);letter-spacing:-.02em;color:#edf0df;min-height:2.8em;text-align:left;margin:0 0 7px}.ticket .qty-line{font-family:var(--font-body);font-size:12px;color:#aebfae;text-align:left;margin-bottom:5px}.ticket .seller-line{font-size:11px;color:#89a79c;text-align:left;margin-bottom:18px}.ticket .seller-link{color:#c7cdb3;font:inherit}.ticket .price-row{border-top:1px solid #adbf9b22;padding-top:14px;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center;margin-top:auto}.ticket .price{font:750 23px/1.2 var(--font-body);color:#efdfb4;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;max-width:100%}.ticket .buy-group{display:grid;grid-template-columns:44px 1fr;gap:8px;width:100%;margin:0;align-items:center}.ticket .stats-btn{border:1px solid #a5bcac55;background:#0e272a;color:#bdd8c4;min-width:44px;border-radius:9px;display:grid;place-items:center}.ticket .stats-btn svg{width:21px;height:21px}.ticket .buy-btn{background:#bdd9b5;color:#152d23;border:1px solid #bdd9b5;border-radius:9px;min-height:44px;font:750 13px var(--font-body);width:100%;padding:8px}.ticket .offer-link-btn{background:transparent;color:#cfba91;border-color:#c1a66c44;margin-top:10px!important;min-height:40px;font-size:12px}.ticket .mine-badge{color:#c8c8a9;border-radius:8px;border:1px solid #aaa77d55;padding:9px;text-align:center}.market-custody-note{font-size:11px;line-height:1.5;margin-top:12px;color:#e2c190}.market-awaiting .buy-btn{opacity:.4;cursor:not-allowed}.market-pagination{display:flex;gap:18px;justify-content:center;align-items:center;margin:28px 0 12px;font-size:13px}.market-pagination button:disabled{opacity:.35;cursor:default}.inv-card{background:#143033;border-color:#9abbad33;color:#e0e8dc;border-radius:17px}.inv-card h3{font-family:var(--font-body);font-size:15px}.inv-card .sell-btn{min-height:44px;background:#d7bd86;color:#183128;border-radius:9px}.modal{background:#10272b;border-color:#859d7b66;border-radius:20px}.modal h2{font-family:var(--font-body);font-size:24px;letter-spacing:-.03em}.modal .sub{color:#adc0b3}.mylist-row,.hist-row,.offer-row{background:#102a2c;border-color:#88a68b33;border-radius:13px}.modal .btn-confirm{background:#bdd9b5;color:#122c21;border-color:#bdd9b5}.modal input{background:#092023;color:#edf1e6;border-color:#96b19544}.market-resource-brief{border:1px solid #8fa89033;background:#10282a;border-radius:12px;margin:0 0 12px;padding:12px 16px}.market-resource-brief summary{cursor:pointer;font-size:12px;color:#c5cfab;font-weight:650;min-height:24px;line-height:24px}#market-resource-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}#market-resource-rows>div{background:#092022;padding:12px;border:1px solid #72908322;border-radius:9px}#market-resource-rows strong{font-size:12px}#market-resource-rows small{display:block;color:#a5bca9;font-size:11px;line-height:1.6;margin-top:4px}.market-pending-panel{border:1px solid #c2a66a55;background:#172d29;border-radius:15px;padding:18px;margin:5px 0 18px}.market-section-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.market-section-head h2{font-size:18px;margin:0}.market-pending-panel p{font-size:12px;color:#c4c7ae}.market-pending-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 0;border-top:1px solid #94a87a33}.market-pending-row small{grid-column:1;overflow-wrap:anywhere;font:10px/1.5 monospace;color:#a6b9a7}.market-pending-row button{grid-column:2;grid-row:1/3}.grid.market-list-view{grid-template-columns:1fr}.market-list-view .ticket{display:grid;grid-template-columns:80px minmax(0,1fr) 210px;grid-template-areas:'icon title price' 'icon qty price' 'icon seller offer';column-gap:24px;row-gap:4px;align-items:center}.market-list-view .stamp{display:none}.market-list-view .icon-wrap{grid-area:icon;margin:0;width:80px;height:80px}.market-list-view h3{grid-area:title;min-height:0;margin:0}.market-list-view .qty-line{grid-area:qty;margin:0}.market-list-view .seller-line{grid-area:seller;margin:0}.market-list-view .price-row{grid-area:price;border:0;margin:0;padding:0}.market-list-view .offer-link-btn{grid-area:offer;margin:4px 0 0!important}.market-list-view .market-custody-note{grid-column:2/4;margin:0}.mobile-tabbar{background:#0b2225f5;border-color:#73887555;backdrop-filter:blur(12px)}.mobile-tabbar button{color:#a5b8aa}.mobile-tabbar button.active{color:#e3d2a2}.mobile-tabbar .ico{font-size:19px}
 @media(max-width:760px){.market-intro{min-height:260px;padding:26px 22px;background-position:62% center;grid-template-columns:1fr;gap:16px}.market-intro h1{font-size:35px;max-width:400px}.market-intro p{font-size:12px;max-width:360px}.market-intro-meta{flex-direction:row;align-items:center;justify-content:space-between;width:100%}.market-intro-meta span{font-size:10px}.market-intro-meta button{font-size:11px;padding:8px 12px}.market-quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.market-quick-actions button{font-size:11px;padding:9px 11px}.market-quick-actions button:last-child{grid-column:1/-1}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ticket{padding:14px 12px}.ticket h3{font-size:13px}.ticket .stamp{font-size:8px;padding:4px 7px}.ticket .price{font-size:21px}.ticket .icon-wrap{width:76px;height:76px}.ticket .icon-wrap img{width:55px;height:55px}.ticket .buy-btn{font-size:12px;padding:8px 5px}.market-filter-row{gap:8px}.market-filter-row button{padding:8px 10px;font-size:11px}.market-filter-row label{font-size:11px}.market-list-view .ticket{grid-template-columns:64px minmax(0,1fr);grid-template-areas:'icon title' 'icon qty' 'seller seller' 'price price' 'offer offer';gap:8px}.market-list-view .icon-wrap{width:64px;height:64px}.market-list-view .price-row{display:grid;grid-template-columns:1fr 160px}.market-list-view .buy-group{width:160px}.market-list-view .market-custody-note{grid-column:1/-1}.market-pending-row{grid-template-columns:1fr}.market-pending-row button{grid-column:1;grid-row:auto}.topbar-inner{padding:12px 16px}.brand-text b{font-size:18px}.brand-badge{width:40px;height:40px}.wallet-strip{gap:6px}.wallet-strip .chip{font-size:11px;padding:6px 8px}.wallet-strip .chip.addr{max-width:145px}.market-results{font-size:10px}}
 @media(max-width:390px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.market-intro h1{font-size:30px}.ticket{padding:12px 10px}.ticket .buy-group{gap:6px;grid-template-columns:40px 1fr}.ticket .stats-btn{min-width:40px}.ticket .price{font-size:19px}.market-list-view .price-row{grid-template-columns:1fr 140px}.market-list-view .buy-group{width:140px}.market-filter-row .market-view-toggle{margin-left:0}.market-results{gap:6px}.mobile-tabbar button{font-size:9px}.market-quick-actions button{font-size:10px}}
+
+/* ══ 2026-11-25 · Bronce, iconos de trazo y movimiento ════════════════════
+   Los iconos son un solo juego de trazos (el sprite al principio de
+   market.html) que hereda el color del texto; las monedas son las del juego
+   (Game/Source) en vez de letras. Todo lo que se mueve cuelga de
+   html[data-motion=full]; la regla de "calma" de arriba apaga el resto. */
+.gf-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.brand-badge{color:#f0e4c4;position:relative;overflow:hidden}
+.brand-badge .i{width:22px;height:22px}
+.chip.addr .i{width:16px;height:16px}
+.tab-btn .i{width:17px;height:17px;opacity:.8}
+.tab-btn.active .i{opacity:1}
+.mobile-tabbar .ico{display:grid;place-items:center;height:22px}
+.mobile-tabbar .ico .i{width:21px;height:21px}
+.market-view-toggle button{display:grid;place-items:center}
+.market-view-toggle .i{width:19px;height:19px}
+.market-intro-meta button{display:inline-flex;align-items:center;gap:8px}
+.market-intro-meta button .i{width:17px;height:17px}
+.btn-primary .i{width:18px;height:18px}
+.prof-avatar .i{width:26px;height:26px;color:#e6eee4}
+.empty .glyph{opacity:.8;color:#cdb98a;display:flex;justify-content:center}
+.empty .glyph .i{width:50px;height:50px;stroke-width:1.35}
+.ticket .stats-btn .i{width:21px;height:21px}
+
+/* Las tres monedas. (Toda la parte de fondo va en .oro/.plata/.bronce porque la
+   regla vieja `.coin-icon.oro{background:...}` reinicia tamaño y posición.) */
+.coin-icon{display:inline-block;vertical-align:-4px;width:20px;height:20px;filter:drop-shadow(0 1px 1px #0007)}
+.coin-icon.oro,.coin-icon.plata,.coin-icon.bronce{background-color:transparent;background-position:center;background-size:contain;background-repeat:no-repeat;font-size:0;color:transparent}
+.coin-icon.oro{background-image:url('./Game/Source/moneda%20de%20oro.png')}
+.coin-icon.plata{background-image:url('./Game/Source/moneda%20de%20plata.png')}
+.coin-icon.bronce{background-image:url('./Game/Source/moneda%20de%20bronce.png')}
+.coin-icon.sm{width:15px;height:15px;vertical-align:-3px}
+.ticket .price .coin-icon{width:24px;height:24px}
+.coin-chip{position:relative;font-variant-numeric:tabular-nums}
+.coin-chip .coin-icon{width:22px;height:22px}
+.currency-toggle button{min-width:0}
+
+/* Con qué monedas se paga y qué vuelve de cambio. */
+.pay-preview{display:grid;gap:7px;margin:0 0 14px;padding:11px 13px;border:1px solid #9abbad2e;border-radius:12px;background:#0b2326;font-size:12.5px}
+.pay-preview[hidden]{display:none}
+.pay-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pay-k{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted)}
+.pay-k .i{width:15px;height:15px}
+.pay-v{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;font-weight:750;font-variant-numeric:tabular-nums}
+.pay-amt{display:inline-flex;align-items:center;gap:5px}
+.pay-line.muted .pay-v{font-weight:600;color:var(--text-muted)}
+.pay-note{margin:1px 0 0;font-size:11px;line-height:1.5;color:var(--text-faint)}
+.pay-preview.short{border-color:#ff8a7a66;background:#2b1918;color:#ffcfc6}
+.pay-preview.short .pay-line{justify-content:flex-start}
+.pay-preview.short .i{width:16px;height:16px;color:#ff9a8a}
+.modal .btn-confirm.is-short{opacity:.62}
+
+/* Avisos: icono, texto y una barra que se vacía. El de error era texto claro
+   sobre rosa claro (no se leía): ahora es oscuro. */
+.toast{position:relative;overflow:hidden;border:1px solid #9abbad33;padding:12px 14px 14px;animation:gfToastIn .42s cubic-bezier(.2,.9,.3,1.15) backwards}
+.toast .i{width:18px;height:18px;color:#9fe0b4}
+.toast.err{background:#3a1d1c;color:#ffd9d2;border-color:#ff8a7a55}
+.toast.err .i{color:#ff9a8a}
+.toast-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:currentColor;opacity:.35;transform-origin:left;animation:gfToastBar 2.6s linear forwards}
+.toast.out{opacity:0;transform:translateX(18px);transition:opacity .25s ease,transform .25s ease}
+@keyframes gfToastIn{from{opacity:0;transform:translateY(14px) scale(.96)}}
+@keyframes gfToastBar{to{transform:scaleX(0)}}
+
+/* "Tuya" / "Agotado": la regla de arriba aclaró el texto pero dejó el fondo
+   verde claro de la página, y no se leía. */
+.ticket .mine-badge{background:#12302d;color:#e3d2a2;border-color:#c8ad6f55;font-size:12px;letter-spacing:.02em}
+
+/* La línea dorada que se desliza bajo la pestaña activa. */
+.tabs{position:relative}
+.tab-ink{position:absolute;left:0;bottom:0;width:0;height:3px;border-radius:3px 3px 0 0;background:linear-gradient(90deg,#d5b87f,#f2dca4);box-shadow:0 0 12px #e8c87a66;opacity:0;pointer-events:none;transition:transform .38s cubic-bezier(.3,.8,.2,1),width .38s cubic-bezier(.3,.8,.2,1)}
+.tabs.has-ink .tab-ink{opacity:1}
+.tabs.has-ink .tab-btn.active{border-bottom-color:transparent}
+.tab-btn .count{display:inline-block}
+
+/* Ondas al pulsar. */
+.buy-btn,.btn-confirm,.sell-btn,.btn-primary,.cat-chip,.chip-btn,.tab-btn,.mobile-tabbar button,.currency-toggle button,.market-quick-actions button,.market-intro-meta button,.btn-accept,.btn-reject,.cancel-btn,.market-filter-row button,.market-pagination button{position:relative;overflow:hidden}
+.gf-ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.25;transform:scale(0);pointer-events:none;animation:gfRipple .6s ease-out forwards}
+@keyframes gfRipple{to{transform:scale(1);opacity:0}}
+
+/* Lo que vuela: el objeto comprado hacia "Mi inventario", las monedas a la cartera. */
+.gf-fly{position:fixed;z-index:90;pointer-events:none;object-fit:contain;filter:drop-shadow(0 6px 8px #0007)}
+.gf-catch{animation:gfCatch .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes gfCatch{40%{transform:scale(1.14)}}
+
+/* La cartera: el número cuenta y la moneda que cambia suelta "+925" / "−1". */
+.coin-chip.gf-up{animation:gfChipUp .7s ease}
+.coin-chip.gf-down{animation:gfChipDown .7s ease}
+.gf-delta{position:absolute;right:8px;top:-6px;font-size:11px;font-weight:800;white-space:nowrap;pointer-events:none;animation:gfDelta 1.25s ease-out forwards}
+.gf-delta.up{color:#8fe3b0}
+.gf-delta.down{color:#ffa596}
+@keyframes gfDelta{from{opacity:0;transform:translateY(8px)}15%{opacity:1}to{opacity:0;transform:translateY(-22px)}}
+@keyframes gfChipUp{30%{border-color:#8fe3b0;box-shadow:0 0 0 3px #8fe3b044}}
+@keyframes gfChipDown{30%{border-color:#ffa596;box-shadow:0 0 0 3px #ffa59644}}
+.count.gf-bump{animation:gfBump .5s cubic-bezier(.3,1.7,.5,1)}
+@keyframes gfBump{35%{transform:scale(1.45)}}
+
+#market-grid{transition:opacity .2s ease,filter .2s ease}
+#market-grid.is-loading{opacity:.45;filter:saturate(.6)}
+.modal-backdrop{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.ticket .icon-wrap img,.inv-card .icon-wrap img{transition:transform .35s cubic-bezier(.3,1.4,.5,1)}
+.ticket:hover .icon-wrap img,.inv-card:hover .icon-wrap img{transform:translateY(-4px) scale(1.07)}
+.inv-card{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.inv-card:hover{transform:translateY(-3px);border-color:#bda56d77;box-shadow:0 12px 28px #0004}
+.cat-chip,.chip-btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .15s ease}
+.cat-chip:active,.chip-btn:active{transform:scale(.96)}
+.mobile-tabbar button .ico{transition:transform .3s cubic-bezier(.3,1.5,.5,1)}
+.mobile-tabbar button.active .ico{transform:translateY(-2px) scale(1.1)}
+.gf-fireflies{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+
+/* El botón ✦ junto a ES | EN: encendido brilla en dorado. */
+.motion-btn{display:inline-grid;place-items:center;width:36px;height:36px;padding:0;border-radius:999px;border:1px solid #48615655;background:#17302f;color:#8fa79c;cursor:pointer;transition:color .2s ease,background-color .2s ease,border-color .2s ease,box-shadow .2s ease}
+.motion-btn .i{width:17px;height:17px}
+.motion-btn:hover{border-color:#c8ad6f88;color:#d9c99c}
+.motion-btn[aria-pressed=true]{color:#f1dcae;border-color:#c8ad6f88;background:#223f36;box-shadow:0 0 12px #e8c87a33}
+.motion-btn:focus-visible{outline:2px solid #e8c87a;outline-offset:2px}
+@media(max-width:760px){.motion-btn{width:32px;height:32px}.motion-btn .i{width:15px;height:15px}}
+
+/* Las tarjetas y filas entran escalonadas; la sección nueva aparece al cambiar de pestaña. */
+html[data-motion=full] .gf-in{animation:gfRise .55s cubic-bezier(.2,.75,.25,1) backwards;animation-delay:calc(var(--i,0) * 38ms)}
+html[data-motion=full] .gf-enter{animation:gfFadeUp .32s ease backwards}
+/* Ventanas: hoja que sube en el móvil, aparición suave en escritorio. */
+html[data-motion=full] .modal-backdrop.show{animation:gfFade .22s ease backwards}
+html[data-motion=full] .modal-backdrop.show>.modal{animation:gfSheet .4s cubic-bezier(.2,.9,.25,1) backwards}
+/* La ilustración respira despacio (la imagen pasa a una capa propia para poder moverla). */
+html[data-motion=full] .market-intro{background:#071c23}
+html[data-motion=full] .market-intro::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(90deg,#071c23d9 0%,#071c23b3 42%,#071c2320 75%),url('./assets/market/forest-outpost-20261028.png') center/cover;transform-origin:72% 38%;animation:gfKen 28s ease-in-out infinite alternate}
+html[data-motion=full] .gf-fireflies i{position:absolute;left:var(--x);top:var(--y);width:var(--s,4px);height:var(--s,4px);border-radius:50%;background:#fff1b8;box-shadow:0 0 6px 2px #ffd76a99,0 0 16px 4px #ffd76a33;opacity:0;animation:gfFirefly var(--d,9s) ease-in-out var(--delay,0s) infinite}
+html[data-motion=full] .brand-badge::after{content:'';position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 40%,#fff4 50%,transparent 60%);transform:translateX(-120%);animation:gfSheen 6s ease-in-out 1.2s infinite}
+html[data-motion=full] .coin-chip:hover .coin-icon{animation:gfSpin .9s ease}
+html[data-motion=full] .empty .glyph{animation:gfFloat 3.4s ease-in-out infinite}
+html[data-motion=full] .motion-btn[aria-pressed=true] .i{animation:gfTwinkle 2.8s ease-in-out infinite}
+/* Lotes limitados: la barra crece y sus rayas avanzan; con menos de una hora, el reloj late. */
+html[data-motion=full] .limited-bar>span{background-image:linear-gradient(45deg,#fff3 25%,transparent 25%,transparent 50%,#fff3 50%,#fff3 75%,transparent 75%,transparent),linear-gradient(90deg,#c9a84c,#e8c87a);background-size:16px 16px,100% 100%;transform-origin:left;animation:gfStripes .9s linear infinite,gfGrowX 1s cubic-bezier(.2,.8,.2,1) backwards}
+html[data-motion=full] .limited-timer.soon{font-weight:800;animation:gfPulse 1.3s ease-in-out infinite}
+@media (min-width:640px){
+  html[data-motion=full] .modal-backdrop.show>.modal{animation-name:gfPop}
+}
+@media (max-width:760px){
+  html[data-motion=full] .market-intro::before{background-position:center,62% center}
+}
+/* Con ratón: la tarjeta se inclina hacia el puntero y un brillo lo sigue. */
+@media (hover:hover) and (pointer:fine){
+  html[data-motion=full] .ticket.gf-tilt:hover{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(-4px);transition:transform .12s ease-out,box-shadow .18s ease}
+  html[data-motion=full] .ticket.gf-tilt::after{content:'';display:block;position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(240px circle at var(--mx,50%) var(--my,0%),#ffecbe24,transparent 62%);opacity:0;transition:opacity .25s ease}
+  html[data-motion=full] .ticket.gf-tilt:hover::after{opacity:1}
+  html[data-motion=full] .market-list-view .ticket.gf-tilt:hover{transform:translateY(-2px)}
+}
+@keyframes gfRise{from{opacity:0;transform:translateY(16px) scale(.97)}}
+@keyframes gfFadeUp{from{opacity:0;transform:translateY(8px)}}
+@keyframes gfFade{from{opacity:0}}
+@keyframes gfSheet{from{opacity:.4;transform:translateY(48px)}}
+@keyframes gfPop{from{opacity:0;transform:translateY(14px) scale(.95)}}
+@keyframes gfKen{to{transform:scale(1.09) translate(-1.4%,-1%)}}
+@keyframes gfFirefly{0%{opacity:0;transform:translate(0,0)}25%{opacity:.95}50%{opacity:.3;transform:translate(var(--dx,16px),var(--dy,-22px))}75%{opacity:.85}100%{opacity:0;transform:translate(calc(var(--dx,16px) * -.5),calc(var(--dy,-22px) * 1.5))}}
+@keyframes gfSheen{0%,70%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+@keyframes gfSpin{to{transform:rotateY(360deg)}}
+@keyframes gfFloat{50%{transform:translateY(-6px)}}
+@keyframes gfStripes{from{background-position:16px 0,0 0}to{background-position:0 0,0 0}}
+@keyframes gfGrowX{from{transform:scaleX(0)}}
+@keyframes gfPulse{50%{opacity:.55;text-shadow:0 0 12px #e8c87aaa}}
+@keyframes gfTwinkle{50%{transform:scale(.84) rotate(14deg);opacity:.7}}

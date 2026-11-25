@@ -13,6 +13,8 @@
   'use strict';
   const q = new URLSearchParams(location.search);
   const vacio = q.get('vacio') === '1', viejo = q.get('viejo') === '1';
+  // ?pobre=1 → el tesoro del juego con 4 de oro: por debajo de su reserva protegida (5 de oro).
+  const pobre = q.get('pobre') === '1';
   // Números repetibles de una prueba a otra.
   let semilla = 20261026;
   const azar = () => { semilla = (semilla + 0x6D2B79F5) | 0; let t = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -80,6 +82,12 @@
              tesoros: { circular: estado.circular.saldo, juego: estado.juego.saldo }, serie: JSON.parse(JSON.stringify(serieEco)) };
   }
 
+  /* (2026-11-25) Lo que se puede quemar, como ecoSaldoDisponible() en server2.js: el saldo menos el
+     piso de cada tesoro (ECO_SUPERVISOR_BASE) y, en el del juego, lo retenido para servicios. */
+  const PISO = { juego: 5000000, circular: 100000 };
+  if (pobre) estado.juego.saldo = 4000000;
+  estado.juego.retenidoServicios = vacio ? 0 : 120000;
+  const disponible = k => Math.max(0, Math.floor(estado[k].saldo) - PISO[k] - (k === 'juego' ? estado.juego.retenidoServicios : 0));
   /* (2026-10-28) LA ECONOMÍA, 2.ª PARTE: fondo de reserva, quemas, índice e inflaciones, y los precios. */
   estado.reserva = { saldo: vacio ? 0 : 960000, retirado: 0, quemado: 0, ingresado: { muerte: vacio ? 0 : 900000, admin: vacio ? 0 : 60000 }, ingresos: { muerte: 30, admin: 1 } };
   estado.cfg2 = { indiceActivo: true, sensibilidad: 0.6, pasoMax: 0.03, demanda: 0.1, pesoObjetos: 1, muerteBase: 30, muerteMultiplicador: 2, muerteTope: 480,
@@ -96,8 +104,9 @@
     const u = sc[sc.length - 1] || {};
     const precioM = (n) => Math.max(1, Math.round(Math.min(estado.cfg2.muerteBase * 1.031 * Math.pow(estado.cfg2.muerteMultiplicador, n), estado.cfg2.muerteTope * 1.031)));
     return { ok: true, ahora: Date.now(), config: Object.assign({}, estado.cfg2), base: {},
-      tesoros: { circular: { saldo: estado.circular.saldo, reservado: estado.circular.reservado, quemado: estado.circular.quemado || 0 },
-                 juego: { saldo: estado.juego.saldo, quemado: estado.juego.quemado || 0 }, reserva: JSON.parse(JSON.stringify(estado.reserva)) },
+      tesoros: { circular: { saldo: estado.circular.saldo, disponible: disponible('circular'), reservado: estado.circular.reservado, quemado: estado.circular.quemado || 0 },
+                 juego: { saldo: estado.juego.saldo, quemado: estado.juego.quemado || 0, retenido: estado.juego.retenidoServicios, disponible: disponible('juego') },
+                 reserva: JSON.parse(JSON.stringify(estado.reserva)) },
       indice: 1.031, indiceAyer: 1.03,
       hoy: { dia: u.dia, masa: u.masa, masaActiva: u.masaActiva, masaTotal: u.masaTotal, inflacionActiva7: u.inflacionActiva7, inflacionTotal7: u.inflacionTotal7,
              inflacionNeta7: u.inflacionNeta7, quemadoObjetos7: 220000, precioOro: u.precio, precioGwei: Math.round((u.precio || 0.001) * 1e9), salud: 'caliente' },
@@ -190,7 +199,9 @@
       if (!['circular', 'juego', 'reserva'].includes(t2) || !POR[cuerpo.moneda]) throw error(400, 'datos_invalidos');
       if (String(cuerpo.motivo || '').trim().length < 3) throw error(400, 'motivo_requerido');
       const br = cant * POR[cuerpo.moneda], tes = t2 === 'circular' ? estado.circular : t2 === 'juego' ? estado.juego : estado.reserva;
-      if (!(cant >= 1) || tes.saldo < br) throw error(409, 'saldo_insuficiente');
+      if (!(cant >= 1)) throw error(400, 'cantidad_invalida');
+      if (PISO[t2] && br > disponible(t2)) throw error(409, 'reserva_protegida');
+      if (tes.saldo < br) throw error(409, 'saldo_insuficiente');
       tes.saldo -= br; tes.quemado = (tes.quemado || 0) + br;
       estado.quemas.unshift({ t: new Date().toISOString(), tipo: 'monedas', origen: 'admin', tesoro: t2, moneda: cuerpo.moneda, cantidad: cant, bronce: br, detalle: cuerpo.motivo });
       return { ok: true, tesoro: t2, bronce: br, saldo: tes.saldo };

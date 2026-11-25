@@ -757,6 +757,8 @@ class CraftingSystem {
   // FIX 7: anti-double-craft con try/finally
   async _craftItemInterno(context) {
     if(this._destroyed || !this.scene)return false;
+    // (2026-11-25) Lo que esperaba en la cola tampoco sale si entretanto murió (ver GFMuerte.bloquear).
+    if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
     const source=this.scene,run=source._sceneRunId,recipe=context.recipe,quantity=context.quantity,optional=context.optional;
     if(!recipe)return false;
     this._crafting=true;this._setCraftButtonBusy(true);
@@ -782,6 +784,8 @@ class CraftingSystem {
         this.showFeedback('Crafting '+quantity+' '+recipe.name+' — materials and payment are verified by the server.','info');
         data=await call('/api/craft/execute',{recipeId:recipe.id,quantity,option:optional,ref:this._craftResume.ref});
       }
+      // (2026-11-25) Lo que queda del regalo del tutorial pudo cambiar: se vuelve a preguntar.
+      window.GFServicios?.olvidarTutorial?.();
       if(!data.ok){if(data.status==='cancelled'){this._craftResume=null;this.showFeedback('The unstarted craft was cancelled and its fee returned. You can request it again.','warning');}else this.showFeedback('Craft saved for reconciliation ('+data.operationId+'). Recheck this craft; do not submit a new reference.','warning');return false;}
       this._craftResume=null;
       if(this._destroyed || this.scene!==source || source._sceneRunId!==run || source.sys?.isActive?.()===false)return true;
@@ -1349,15 +1353,32 @@ class CraftingSystem {
     this.disablePhaserInput();
   }
 
+  /** (2026-11-25) Cuántas piezas más deja craftear el tutorial sin comisión (0 si no está en él).
+      El servidor es quien no la cobra (crafting-authority.js, tutorialCrafts); esto solo lo enseña. */
+  _regaloCrafteo(){
+    const S=window.GFServicios;
+    if(!S||typeof S.tutorial!=='function'||!S.tutorialPosible?.(this.scene))return Promise.resolve(0);
+    return S.tutorial().then(t=>(t&&t.activo?t.crafteos:0)).catch(()=>0);
+  }
+
+  _textoRegaloCrafteo(n){
+    return `🎁 Tutorial gift: no crafting fee for your next ${n} item${n===1?'':'s'}`;
+  }
+
   /** (2026-10-28) Lo que cuesta craftear hoy (lo pone el servidor y sigue la economía). */
   _pintarTarifaCrafteo(recipe){
     const caja=document.getElementById('overlay-craft-fee');
     if(!caja||!recipe||!window.GFServicios) return;
-    window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1).then(b=>{
+    Promise.all([this._regaloCrafteo(),window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1)]).then(([gratis,b])=>{
       if(!caja.isConnected) return;
-      caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
       // (2026-11-02) "En el botón Craft no dice el monto a cobrar."
       const boton=document.getElementById('overlay-craft-button');
+      if(gratis>0){
+        caja.textContent=this._textoRegaloCrafteo(gratis);
+        if(boton&&!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft · Free`;
+        return;
+      }
+      caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
       if(boton&&b!=null&&!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft · Fee ${Number(b).toLocaleString('en-US')} BR`;
     }).catch(()=>{});
   }
@@ -1366,13 +1387,19 @@ class CraftingSystem {
   _pintarComisionBoton(recipe){
     const caja=document.getElementById('craft-fee'),boton=document.getElementById('craft-button');
     if(!caja||!boton) return;
-    const poner=(b)=>{
+    const poner=(b,gratis)=>{
+      if(gratis>0){
+        caja.textContent=this._textoRegaloCrafteo(gratis);
+        if(!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft · Free`;
+        return;
+      }
       caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
       if(!boton.classList.contains('craft-queued'))boton.innerHTML=`<span class="craft-icon" aria-hidden="true">⚒️</span> Craft${b==null?'':` · Fee ${Number(b).toLocaleString('en-US')} BR`}`;
     };
-    if(!recipe||!window.GFServicios){poner(null);return;}
+    if(!recipe||!window.GFServicios){poner(null,0);return;}
     const clave=recipe.id;this._comisionClave=clave;
-    window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1).then(b=>{if(this._comisionClave===clave)poner(b);}).catch(()=>{});
+    Promise.all([this._regaloCrafteo(),window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1)])
+      .then(([gratis,b])=>{if(this._comisionClave===clave)poner(b,gratis);}).catch(()=>{});
   }
 
   _setupOverlayEvents(content,recipe) {

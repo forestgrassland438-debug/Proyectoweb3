@@ -2176,6 +2176,14 @@ Write a whole amount of at least 1.|Escribe una cantidad entera de al menos 1.
 That amount is too large.|Esa cantidad es demasiado grande.
 Write a reason of at least 3 characters.|Escribe un motivo de al menos 3 caracteres.
 The treasury does not have that much.|El tesoro no tiene tanto.
+Use all that can be burned|Usar todo lo que se puede quemar
+protected:|protegido:
+can burn now:|se puede quemar ahora:
+Nothing can be burned: the whole balance is the protected reserve (and payments held for services).|No se puede quemar nada: todo el saldo es la reserva protegida (y los pagos retenidos para servicios).
+Less than one coin of this kind is above the protected reserve: choose Silver or Bronze.|Por encima de la reserva protegida no llega a una moneda de esta clase: elige Plata o Bronce.
+At most|Como mucho
+Game treasury funds are already out of circulation: burning them lowers the total supply, not the money players hold.|Lo del tesoro del juego ya está fuera de circulación: quemarlo baja la oferta total, no el dinero de los jugadores.
+can be burned: the protected reserve stays.|se pueden quemar: la reserva protegida se queda.
 Adjustment saved.|Ajuste guardado.
 Defaults loaded. Save to apply them.|Valores por defecto cargados. Guarda para aplicarlos.
 `;

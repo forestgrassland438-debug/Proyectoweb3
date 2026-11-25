@@ -24,7 +24,7 @@
   var st = null;
   var CSS =
     '#gfnt-fondo{position:fixed;inset:0;z-index:990;background:rgba(0,0,0,.42)}' +
-    '#gfnt{position:fixed;left:50%;top:calc(50% + 26px);transform:translate(-50%,-50%);z-index:995;width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 150px);max-height:calc(100dvh - 150px);display:flex;flex-direction:column;gap:8px;padding:0 14px 12px;box-sizing:border-box;' +
+    '#gfnt{position:fixed;left:50%;top:calc(50% + 26px);transform:translate(-50%,-50%);z-index:1001;width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 150px);max-height:calc(100dvh - 150px);display:flex;flex-direction:column;gap:8px;padding:0 14px 12px;box-sizing:border-box;' +
       'background:linear-gradient(165deg,rgba(42,34,66,.98),rgba(24,20,40,.98) 52%,rgba(14,12,26,.98));border:1.5px solid rgba(242,195,92,.58);border-radius:16px;box-shadow:0 18px 44px rgba(0,0,0,.62);color:#fff4dd;font:500 13px "Segoe UI",Tahoma,Geneva,Verdana,sans-serif}' +
     '#gfnt *{box-sizing:border-box}' +
     '.gfnt-cab{display:flex;align-items:center;gap:10px;padding:10px 0 6px;border-bottom:1px solid rgba(242,195,92,.25)}' +
@@ -242,9 +242,13 @@
     if (st.feeClave === clave || !window.GFServicios) return;
     st.feeClave = clave;
     st.feeTexto = '';
-    window.GFServicios.precio('craftear', r.itemId, r.quantity * st.cantidad).then(function (b) {
+    // (2026-11-25) Durante el tutorial el servidor no cobra la comisión (crafting-authority, tutorialCrafts).
+    var S = window.GFServicios;
+    var regalo = S.tutorialPosible && S.tutorialPosible(st.scene) ? S.tutorial().catch(function () { return null; }) : Promise.resolve(null);
+    Promise.all([regalo, S.precio('craftear', r.itemId, r.quantity * st.cantidad)]).then(function (res) {
+      var t = res[0], b = res[1];
       if (!st || st.feeClave !== clave) return;
-      st.feeTexto = b != null ? Number(b).toLocaleString('en-US') + ' BR' : '';
+      st.feeTexto = t && t.activo && t.crafteos > 0 ? 'free (tutorial gift)' : b != null ? Number(b).toLocaleString('en-US') + ' BR' : '';
       pintarPie(tienda());
     }).catch(function () {});
   }
@@ -307,6 +311,7 @@
         if (!previa.ok) { aviso('Your previous operation is still being confirmed. Try again in a moment.', 'warning'); return; }
       }
       data = await llamar('/api/craft/execute', { recipeId: r.id, quantity: yo.cantidad, ref: yo.ticket.ref });
+      if (window.GFServicios && window.GFServicios.olvidarTutorial) { window.GFServicios.olvidarTutorial(); if (st) st.feeClave = null; }
       if (window.GFNativeCrops) window.GFNativeCrops.adopt(scene, data, run);
       if (!data.ok) {
         if (data.status === 'cancelled') { yo.ticket = null; aviso('It could not be started: nothing was charged. Check your ingredients.', 'warning'); }

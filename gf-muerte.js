@@ -160,13 +160,21 @@
         scene.vidaPorcentaje = st.vida;
         if (window.playerStats) window.playerStats.vida = st.vida;
       }
-      if (typeof st.plata === 'number') {
+      /* (2026-11-25) "Cuando me muero y pago la resurrección me cobra pero mis monedas
+         no se actualizan." Aquí solo se copiaba la plata a la escena: nadie repintaba el
+         HUD (#info-text-right) y, encima, statsSync.set() se la reenviaba al servidor
+         por /stats/update como si la hubiera cambiado el cliente. El saldo lo puso el
+         servidor: se adopta como canónico (descarta escrituras de monedas viejas en
+         cola) y GFBronce pinta oro, plata y bronce en el HUD y en los paneles. */
+      if (scene.statsSync && typeof scene.statsSync.adoptCanonical === 'function') {
+        scene.statsSync.adoptCanonical(st);
+      } else if (window.GFBronce && typeof window.GFBronce.adoptarStats === 'function') {
+        window.GFBronce.adoptarStats(st);
+      } else if (typeof st.plata === 'number') {
         scene.moneda_plata = st.plata;
         if (window.playerStats) window.playerStats.plata = st.plata;
-        // statsSync es quien pinta las monedas del HUD en el resto del juego.
-        if (scene.statsSync && scene.statsSync.set) {
-          scene.statsSync.set('plata', st.plata, true);
-        }
+        var der = document.getElementById('info-text-right');
+        if (der) der.textContent = String(st.plata);
       }
       if (typeof scene.actualizarBarras === 'function') scene.actualizarBarras();
     } catch (e) { log('no se pudo refrescar el HUD:', e && e.message); }

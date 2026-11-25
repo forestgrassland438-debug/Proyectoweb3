@@ -156,6 +156,12 @@
     cuerpo.replaceChildren();
     // Las series de la tienda, en la moneda de HOY (si el panel la cambió, lo de antes se convierte).
     var hist = (d.historial || []).map(function (h) { return { t: G ? G.aMs(h.t) : Date.parse(h.t), compra: enMoneda(h.compra, h.moneda, moneda), venta: enMoneda(h.venta, h.moneda, moneda), indice: h.indice }; });
+    // (2026-11-25) El precio de AHORA cierra la serie: el historial guarda un punto al día y la
+    // tienda puede cambiar entre medias (recursos, el panel); sin él el gráfico se quedaba atrás.
+    var ultimo = hist[hist.length - 1];
+    if (a && (a.compra > 0 || a.venta > 0) && (!ultimo || ultimo.compra !== a.compra || ultimo.venta !== a.venta) && (!ultimo || ultimo.t < ahora)) {
+      hist.push({ t: ahora, compra: a.compra, venta: a.venta, indice: d.indice });
+    }
     var compra = hist.filter(function (h) { return h.compra > 0; }).map(function (h) { return [h.t, h.compra]; });
     var venta = hist.filter(function (h) { return h.venta > 0; }).map(function (h) { return [h.t, h.venta]; });
     var principal = compra.length ? compra : venta;

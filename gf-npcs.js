@@ -119,7 +119,7 @@
         frases: ['The Salty Anchor never closes. Sailors never sleep.',
                  'A giant crab guards the smugglers\' cove. Its shell turns swords.',
                  'They say the lighthouse beam keeps the drowned ones away.'] },
-      { id: 'pike', arte: 'pescadero', nombre: 'Pike the Fishmonger', x: 690, y: 2920, accion: 'quieto', mira: 'derecha',
+      { id: 'pike', arte: 'pescadero', nombre: 'Pike the Fishmonger', x: 724, y: 2920, accion: 'quieto', mira: 'abajo',   // (2026-11-25) detrás del mostrador de su puesto (tools/generar-reinos.py)
         frases: ['Fresh fish! Well... fresh this morning.',
                  'The harbor water is deep. Bring a boat and fish far from the pier.',
                  'Sell your catch at the shop. I only buy what I can smell.'] },

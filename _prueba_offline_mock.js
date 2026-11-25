@@ -403,6 +403,32 @@
       return { success: true, missionId: bMision.missionId, completedCount: estado.misiones.hechas.length, stats: estado.stats,
                rewards: { exp: 40, silver: 5, silverPrometido: 5, gold: 0, goldPrometido: 0, bronze: 0, bronzePrometido: 0, item: null } };
     }
+    // (2026-11-25) El regalo del tutorial, con la regla de server2.js (TUTORIAL_SEMILLAS_GRATIS):
+    // 4 bolsas de zanahoria y 10 piezas de crafteo sin comisión mientras el paso sea 0..7, 20 o 21.
+    if (ruta === '/api/tutorial/gratis') {
+      var pasoT = Number(TUTORIAL), activoT = Number.isInteger(pasoT) && pasoT >= 0 && pasoT <= 21 && !(pasoT >= 8 && pasoT < 20);
+      var usadasT = (estado.comprasNpc || []).filter(function (c) { return c.op === 'compra' && c.itemId === 'Semillax'; })
+        .reduce(function (s, c) { return s + (Number(c.cantidad) || 0); }, 0);
+      var hechosT = (estado.recetasPedidas || []).reduce(function (s, c) { return s + (Number(c.quantity) || 0); }, 0);
+      return { ok: true, activo: activoT, semillas: { Semillax: activoT ? Math.max(0, 4 - usadasT) : 0 }, crafteos: activoT ? Math.max(0, 10 - hechosT) : 0 };
+    }
+    // (2026-11-25) El hambre y la sed, con la regla de server2.js (gfMetabolismo): cada minuto
+    // jugado la comida baja 2 o 3 y el agua 1 o 2; más de 3 minutos sin leer = no estaba.
+    // ?minuto=ms acorta el minuto para verlo en la prueba.
+    if (ruta === '/api/player/vitals') {
+      var minutoV = Math.max(1000, Number((/[?&]minuto=(\d+)/.exec(location.search) || [])[1]) || 60000), ahoraV = Date.now();
+      var hV = estado.hambre || (estado.hambre = { desde: ahoraV });
+      if (ahoraV - hV.desde > 3 * minutoV) hV.desde = ahoraV;
+      var mV = Math.floor((ahoraV - hV.desde) / minutoV);
+      if (mV > 0) {
+        hV.desde += mV * minutoV;
+        for (var iV = 0; iV < mV; iV++) {
+          estado.stats.comida = Math.max(0, estado.stats.comida - (2 + Math.floor(Math.random() * 2)));
+          estado.stats.agua = Math.max(0, estado.stats.agua - (1 + Math.floor(Math.random() * 2)));
+        }
+      }
+      return { ok: true, stats: { vida: estado.stats.vida, agua: estado.stats.agua, comida: estado.stats.comida }, poisoned: false };
+    }
     // (2026-11-02) Tienda, crafteo y vaca, para probar los paneles de Martha y de Tobias.
     if (ruta === '/api/economia/tienda' && metodo === 'POST') {
       var bT = cuerpo(init);

@@ -81,6 +81,12 @@ class TiendaSistema {
         catch (_) { return false; }
     }
 
+    /** ¿Está en pausa? Es lo normal con la tienda abierta: open() pausa su escena. */
+    _escenaEnPausa(e = this._escena()) {
+        try { return !!(e && e.STATE && e.sys && typeof e.sys.isPaused === 'function' && e.sys.isPaused()); }
+        catch (_) { return false; }
+    }
+
     /* Un StatsSync que no depende de ninguna escena: lo usa el cobro o el
        reembolso de un trabajo cuya tienda ya se cerró. StatsSync escribe en
        window.playerStats y en el servidor, nada de la escena es necesario. */
@@ -1774,9 +1780,11 @@ class TiendaSistema {
 
         // (2026-10-21) Al comprar, en la moneda elegida (puede ser bronce).
         const currency = this.transactionType === 'compra' ? this._monedaDePago(item) : this.getItemCurrency(item);
+        // (2026-11-25) Las bolsas que regala el tutorial no se pagan (ni su comisión).
+        const pagadas = this.transactionType === 'compra' ? this._cantidadAPagar(item, quantity) : quantity;
         let total;
         if (this.transactionType === 'compra') {
-            total = this._precioCompra(item, currency) * quantity;
+            total = this._precioCompra(item, currency) * pagadas;
         } else {
             total = item.sellPrice * quantity;
         }
@@ -1784,7 +1792,8 @@ class TiendaSistema {
         const totalEl = document.getElementById('pc-action-total');
         if (totalEl) {
             totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}` +
-                this._textoComision(item, quantity, this.transactionType === 'compra' ? 'compra' : 'venta');
+                this._textoRegaloTutorial(item, quantity) +
+                this._textoComision(item, pagadas, this.transactionType === 'compra' ? 'compra' : 'venta');
             this._selectorPago(totalEl);
         }
     }
@@ -1802,15 +1811,16 @@ class TiendaSistema {
         let enabled = true;
         let text = '';
         let icon = '💰';
-        
+
         if (this.transactionType === 'compra') {
             text = 'Buy';
             const monedaPago = this._monedaDePago(item);
-            const totalCost = this._precioCompra(item, monedaPago) * quantity;
+            const pagadas = this._cantidadAPagar(item, quantity);
+            const totalCost = this._precioCompra(item, monedaPago) * pagadas;
             if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
-            } else if (!this._alcanzaCompra(item, quantity, monedaPago)) {
+            } else if (!this._alcanzaCompra(item, pagadas, monedaPago)) {
                 // (2026-10-22) Llega para el precio pero no para la comisión del tesoro.
                 enabled = false;
                 text = 'Not enough for the fee';
@@ -2120,6 +2130,8 @@ class TiendaSistema {
         // cuando llegue la respuesta.
         this._comprobarConstruccion();
         this._pintarApartados();
+        // (2026-11-25) El regalo del tutorial (las 4 bolsas que pide): se repinta al llegar.
+        this._cargarRegaloTutorial();
         
         document.getElementById('tienda-hub')?.classList.remove('tienda-hub-hidden');
         document.getElementById('tienda-overlay')?.classList.remove('tienda-overlay-hidden');
@@ -2190,6 +2202,12 @@ class TiendaSistema {
                 if (this.scene.input && this.scene.input.keyboard) {
                     this.scene.input.keyboard.enabled = true;
                 }
+            } catch (err) { /* ignorar */ }
+
+            // (2026-11-25) Lo comprado o vendido con la tienda abierta ya está en STATE:
+            // red de seguridad para que el inventario se vea al día al volver al mapa.
+            try {
+                if (this.scene.STATE && !this.scene.STATE.selectedItem) this.scene.renderAllSlots?.();
             } catch (err) { /* ignorar */ }
         }
         
@@ -2572,7 +2590,20 @@ class TiendaSistema {
             limit.textContent = `${purchasedToday}/${item.limiteDiario} per day`;
             card.appendChild(limit);
         }
-        
+
+        // (2026-11-25) Las bolsas que regala el tutorial (ver _cargarRegaloTutorial).
+        const regalo = this._unidadesRegaladas(item, Infinity);
+        if (regalo) {
+            card.classList.add('tutorial-gift');
+            card.style.position = 'relative';
+            const gift = document.createElement('div');
+            gift.className = 'item-gift-badge';
+            gift.textContent = `🎁 ${regalo} free`;
+            gift.title = 'Tutorial gift: these bags cost nothing';
+            gift.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(18,64,24,0.9);color:#b9f59d;font-size:11px;font-weight:bold;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:2';
+            card.appendChild(gift);
+        }
+
         card.appendChild(img);
         card.appendChild(name);
         card.appendChild(price);
@@ -2688,7 +2719,9 @@ class TiendaSistema {
 
         // Fix: use innerHTML so the coin icon + label are always correct — no more double GL
         if (priceContainer) {
-            priceContainer.innerHTML = this.formatCurrencyAmount(priceAmount, currency);
+            priceContainer.innerHTML = this.formatCurrencyAmount(priceAmount, currency) +
+                // (2026-11-25) Las bolsas que regala el tutorial.
+                this._textoRegaloTutorial(item, Infinity);
         }
         
         if (interactBtn) interactBtn.disabled = false;
@@ -2776,9 +2809,11 @@ class TiendaSistema {
 
         // (2026-10-21) Al comprar, en la moneda elegida (puede ser bronce).
         const currency = this.transactionType === 'compra' ? this._monedaDePago(item) : this.getItemCurrency(item);
+        // (2026-11-25) Las bolsas que regala el tutorial no se pagan (ni su comisión).
+        const pagadas = this.transactionType === 'compra' ? this._cantidadAPagar(item, quantity) : quantity;
         let total;
         if (this.transactionType === 'compra') {
-            total = this._precioCompra(item, currency) * quantity;
+            total = this._precioCompra(item, currency) * pagadas;
         } else {
             total = item.sellPrice * quantity;
         }
@@ -2786,7 +2821,8 @@ class TiendaSistema {
         const totalEl = document.getElementById('mobile-action-total');
         if (totalEl) {
             totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}` +
-                this._textoComision(item, quantity, this.transactionType === 'compra' ? 'compra' : 'venta');
+                this._textoRegaloTutorial(item, quantity) +
+                this._textoComision(item, pagadas, this.transactionType === 'compra' ? 'compra' : 'venta');
             this._selectorPago(totalEl);
         }
     }
@@ -2807,16 +2843,17 @@ class TiendaSistema {
         if (this.transactionType === 'compra') {
             text = 'Buy';
             const monedaPago = this._monedaDePago(item);
-            const totalCost = this._precioCompra(item, monedaPago) * quantity;
+            const pagadas = this._cantidadAPagar(item, quantity);
+            const totalCost = this._precioCompra(item, monedaPago) * pagadas;
             if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
-            } else if (!this._alcanzaCompra(item, quantity, monedaPago)) {
+            } else if (!this._alcanzaCompra(item, pagadas, monedaPago)) {
                 // (2026-10-22) Llega para el precio pero no para la comisión del tesoro.
                 enabled = false;
                 text = 'Not enough for the fee';
             }
-            
+
             if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
                 enabled = false;
                 text = 'Limit exceeded';
@@ -3037,6 +3074,59 @@ class TiendaSistema {
     _monedaDePago(item) {
         if (this.transactionType === 'compra' && this.pagarConBronce && this._bronceDisponible()) return 'bronze';
         return this.getItemCurrency(item);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       EL REGALO DEL TUTORIAL (2026-11-25)
+       ───────────────────────────────────────────────────────────────────────
+       "Mientras el tutorial esté activo las 4 semillas que le piden que compre
+       deben salirle gratis, solo de las que le piden." El tutorial pide una
+       regadera, unas tijeras y 4 bolsas de semillas de zanahoria: el SERVIDOR
+       regala esas 4 bolsas (server2.js, TUTORIAL_SEMILLAS_GRATIS) y cobra lo
+       demás. Aquí solo se pregunta cuántas quedan (GFServicios.tutorial) para
+       enseñarlas y para no frenar la compra con "Insufficient funds".
+       `_regaloTutorial` = { itemId: bolsas que quedan } o null fuera del tutorial.
+       ═══════════════════════════════════════════════════════════════════════ */
+    _cargarRegaloTutorial() {
+        const S = window.GFServicios;
+        if (!S || typeof S.tutorial !== 'function' || !S.tutorialPosible?.(this._escena())) {
+            this._regaloTutorial = null;
+            return Promise.resolve(null);
+        }
+        return S.tutorial().then((t) => {
+            const antes = JSON.stringify(this._regaloTutorial || null);
+            this._regaloTutorial = t && t.activo && t.semillas ? { ...t.semillas } : null;
+            if (this.isOpen && JSON.stringify(this._regaloTutorial || null) !== antes) {
+                this.filterItems?.();
+                if (this.selectedItem) {
+                    this.updatePcSimpleDetail?.();
+                    this.updatePcModalTotalPrice?.(); this.updatePcModalActionButton?.();
+                    this.updateMobileTotalPrice?.(); this.updateMobileActionButton?.();
+                }
+            }
+            return this._regaloTutorial;
+        }).catch(() => null);
+    }
+
+    /** Cuántas de `cantidad` regala el tutorial al comprar este objeto (0 si ninguna). */
+    _unidadesRegaladas(item, cantidad, operacion = this.transactionType) {
+        if (operacion !== 'compra' || !item || !this._regaloTutorial) return 0;
+        const quedan = Math.max(0, Math.floor(Number(this._regaloTutorial[item.id]) || 0));
+        return Math.min(Math.max(0, Math.floor(Number(cantidad) || 0)), quedan);
+    }
+
+    /** Las que se pagan de una compra de `cantidad`. */
+    _cantidadAPagar(item, cantidad) {
+        const n = Math.max(0, Math.floor(Number(cantidad) || 0));
+        return n - this._unidadesRegaladas(item, n, 'compra');
+    }
+
+    /** La línea "🎁 N free" del total de compra (vacía si no hay regalo). */
+    _textoRegaloTutorial(item, cantidad) {
+        const n = this._unidadesRegaladas(item, cantidad);
+        if (!n) return '';
+        return ` <small class="gf-regalo-tutorial" style="display:block;color:#9be77a;font-weight:700;font-size:11px;margin-top:2px">` +
+               `🎁 ${n} free — tutorial gift</small>`;
     }
 
     _precioCompra(item, moneda) {
@@ -3264,7 +3354,10 @@ class TiendaSistema {
         // su precio unitario. El reembolso usa los mismos (transactionInfo).
         const currency = this._monedaDePago(item);
         const unitPrice = this._precioCompra(item, currency);
-        const totalCost = unitPrice * quantity;
+        // (2026-11-25) Las bolsas que regala el tutorial no se pagan: el servidor no las cobra.
+        const regaladas = this._unidadesRegaladas(item, quantity, 'compra');
+        const pagadas = quantity - regaladas;
+        const totalCost = unitPrice * pagadas;
         const balance = this.getBalanceByCurrency(currency);
 
         if (totalCost > balance) {
@@ -3273,8 +3366,8 @@ class TiendaSistema {
 
         // (2026-10-22) La comisión del tesoro (1,5 %, en bronce): se mira ANTES
         // de cobrar nada si también llega para ella.
-        const fee = servidorNuevo ? this._comisionBronce(item, quantity, 'compra') : 0;
-        const saldosConComision = fee > 0 ? this._planComision(fee, this._saldosTrasPrecio(item, quantity, currency)) : null;
+        const fee = servidorNuevo ? this._comisionBronce(item, pagadas, 'compra') : 0;
+        const saldosConComision = fee > 0 ? this._planComision(fee, this._saldosTrasPrecio(item, pagadas, currency)) : null;
         if (fee > 0 && !saldosConComision) {
             throw new Error(`Not enough coins for the 5% treasury fee (${fee.toLocaleString('en-US')} Bronze)`);
         }
@@ -3292,11 +3385,14 @@ class TiendaSistema {
         const ref = this._nuevaRef();
         const copy = { ...item };
         this._comprasEnCola.set(item.id, enCola + quantity);
+        // El regalo que usa esta compra ya no se ofrece a la siguiente (la cuenta de verdad la lleva el servidor).
+        if (regaladas && this._regaloTutorial) this._regaloTutorial[item.id] = Math.max(0, (Number(this._regaloTutorial[item.id]) || 0) - regaladas);
         this._encolarTrabajoTienda(`Shop purchase: ${quantity}x ${item.id}`, async () => {
             try { await this._operacionEconomicaTienda('compra', copy, quantity, ref); }
             finally {
                 const quedan = (this._comprasEnCola.get(copy.id) || 0) - quantity;
                 if (quedan > 0) this._comprasEnCola.set(copy.id, quedan); else this._comprasEnCola.delete(copy.id);
+                if (this._regaloTutorial) { window.GFServicios?.olvidarTutorial?.(); this._cargarRegaloTutorial(); }
             }
         });
         this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — payment and delivery are verified by the server.`, 'info');
@@ -3517,17 +3613,22 @@ class TiendaSistema {
         this.updateMonedaDisplay?.();
     }
 
-    async _persistConfirmedPurchase(itemId) {
+    async _persistConfirmedPurchase(itemId, op = 'compra') {
         const e = this._escena();
         const url = `${this._resolveApiBase()}/api/inventory/reconcile`;
         let lastError;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        /* (2026-11-25) Cinco intentos (≈ 8 s) en vez de tres (1,5 s): con las facturas
+           acuñadas como referencia, un 503 es la lectura de la cadena que aún no las ve. */
+        const esperas = [600, 1200, 2400, 3600];
+        for (let attempt = 0; attempt <= esperas.length; attempt++) {
             const controller = new AbortController();
             const deadline = setTimeout(() => controller.abort(), 20000);
             try {
+                // `op: 'venta'`: tras vender todo puede no quedar ninguna factura del tipo.
                 const options = { method: 'POST', credentials: 'include',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': e?.csrfToken || '' },
-                    body: JSON.stringify({ itemId, expectedInvoices: this._confirmedPurchaseInvoices || [] }), signal: controller.signal };
+                    body: JSON.stringify({ itemId, op: op === 'venta' ? 'venta' : 'compra',
+                        expectedInvoices: this._confirmedPurchaseInvoices || [] }), signal: controller.signal };
                 const resp = typeof e?.fetchWithTokenRetry === 'function'
                     ? await e.fetchWithTokenRetry(url, options, 2) : await fetch(url, options);
                 const data = await resp.json();
@@ -3535,7 +3636,10 @@ class TiendaSistema {
                 // Todas las escenas de mapas usan estos mismos arrays. También
                 // actualiza el mapa activo si la compra terminó tras salir.
                 const active = window.activeScene;
-                const target = this._escenaViva() ? e : active;
+                /* (2026-11-25) "Compro algunas cosas y mi inventario no se actualiza." Con la
+                   tienda abierta su escena está EN PAUSA y sigue siendo la del jugador; antes
+                   solo contaba la que corría, y en pausa no se repintaban las casillas. */
+                const target = (this._escenaViva() || this._escenaEnPausa(e)) ? e : active;
                 if (target?.STATE && target._inventarioCargado !== false && !target.STATE.selectedItem) {
                     const anteriores = new Map([...(target.STATE.slots || []), ...(target.STATE.quickSlots || [])]
                         .filter(s => s?.idx != null).map(s => [`${s.idx}:${s.idm}`, s]));
@@ -3552,12 +3656,13 @@ class TiendaSistema {
                     }
                     target._inventoryLoadedAt = data.inventoryLoadedAt;
                     target.rebuildPlayerInventoryFromState?.();
-                    if (target.sys?.isActive?.()) target.renderAllSlots?.();
+                    // Las casillas son DOM: se pintan igual con la escena en pausa.
+                    if (target.sys?.isActive?.() || target.sys?.isPaused?.()) target.renderAllSlots?.();
                 }
                 return data;
             } catch (err) { lastError = err; }
             finally { clearTimeout(deadline); }
-            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+            if (attempt < esperas.length) await new Promise(resolve => setTimeout(resolve, esperas[attempt]));
         }
         throw lastError;
     }
@@ -5748,8 +5853,16 @@ renderSlot(index) {
             this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + d.confirmadas;
             this.saveDailyLimits();
         }
-        this._confirmedPurchaseInvoices = [];
-        try { await this._persistConfirmedPurchase(item.id); }
+        /* (2026-11-25) Las facturas que acuñó el servidor (si las manda): la conciliación
+           espera a que la lectura de la cadena las vea. Solo referencias completas: una a
+           medias haría que el servidor rechazase la petición entera. */
+        this._confirmedPurchaseInvoices = op === 'compra' && Array.isArray(d.facturas)
+            ? d.facturas.filter(f => f && typeof f.manualId === 'string' && f.manualId && f.manualId.length <= 256 &&
+                    Number.isSafeInteger(f.cantidad) && f.cantidad > 0 && (f.id == null || (Number.isSafeInteger(f.id) && f.id > 0)))
+                .slice(0, 40)
+                .map(f => (f.id == null ? { manualId: f.manualId, cantidad: f.cantidad } : { id: f.id, manualId: f.manualId, cantidad: f.cantidad }))
+            : [];
+        try { await this._persistConfirmedPurchase(item.id, op); }
         catch (e) { this.showNotification?.('Your trade is confirmed on-chain. Inventory sync is pending; reopen the map to recover it.', 'info'); }
         this.addToHistorial(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, this.getItemCurrency(item));
         this.showTransactionAnimation(op, item, d.confirmadas, (op === 'compra' ? item.buyPrice : item.sellPrice) * d.confirmadas, d.fee || 0);

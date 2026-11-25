@@ -28,7 +28,7 @@
 
   const POR = { oro: 1000000, plata: 1000, bronce: 1 };
   const TESOROS = { circular: 'Circular-economy treasury', juego: 'Game treasury' };
-  let datos = null, cargando = false, ocupado = false, sucio = false, cerrado = false;
+  let datos = null, cargando = false, ocupado = false, sucio = false, cerrado = false, resultadoQuema = '';
   root.GFEconomia2 = Object.freeze({ status: () => (ocupado ? 'busy' : sucio ? 'dirty' : '') });
 
   const loc = () => (ui.language === 'es' ? 'es-EC' : 'en-US');
@@ -128,10 +128,21 @@
     const cantidad = Math.max(0, Math.floor(Number($('e2-q-cantidad').value) || 0));
     return { tesoro, moneda, cantidad, bronce: cantidad * (POR[moneda] || 0) };
   }
+  /* (2026-11-25) "Me dice que puedo quemar 4 de oro y no me deja poner ni 1." La línea de abajo
+     enseñaba el SALDO, y el servidor solo quema lo que pasa de la reserva protegida
+     (ecoSaldoDisponible: el piso de cada tesoro y, en el del juego, lo retenido para servicios).
+     Ahora enseña lo que SE PUEDE quemar, en la moneda elegida, y el campo no pasa de ahí. */
+  function quemable(q) {
+    const x = (datos.tesoros || {})[q.tesoro] || {};
+    const saldo = Math.max(0, Number(x.saldo) || 0);
+    const disponible = Number.isFinite(x.disponible) ? Math.max(0, Math.min(saldo, x.disponible)) : saldo;
+    return { saldo, disponible, protegido: saldo - disponible, unidades: Math.floor(disponible / (POR[q.moneda] || 1)) };
+  }
+  const nombreMoneda = m => t({ oro: 'Gold', plata: 'Silver', bronce: 'Bronze' }[m] || '');
   function proyectar() {
     if (!datos) return;
     const q = leerQuema(), h = datos.hoy || {}, tr = datos.tesoros;
-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
+    const qb = quemable(q), saldo = qb.saldo;
     const A = Number(h.masaActiva) || 0, S = Number(h.masaTotal) || 0;
     const a7 = h.inflacionActiva7, s7 = h.inflacionTotal7, n7 = h.inflacionNeta7;
     const A7 = a7 !== null && a7 !== undefined ? A / (1 + a7) : null;
@@ -144,8 +155,7 @@
     const oroHoy = Number(h.precioGwei) || 0;
     const oroA = precioOroGwei(cfgOro, oroHoy, n7), oroB = precioOroGwei(cfgOro, oroHoy, n7b);
     const idxA = indiceObjetivo(cfg, datos.indice, n7), idxB = indiceObjetivo(cfg, datos.indice, n7b);
-    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
-    const pasa = q.bronce > (Number.isFinite(disponible) ? disponible : saldo);
+    const pasa = q.bronce > qb.disponible;
     const fila = (k, antes, despues, nota) => {
       const r = el('div', 'e2-proy-fila');
       r.append(el('span', '', t(k)), el('b', '', antes), el('span', 'e2-flecha', '→'), el('b', '', despues));
@@ -163,19 +173,24 @@
       fila('Top-up Gold price, tomorrow (zkLTC)', zk(oroA.manana / 1e9), zk(oroB.manana / 1e9), t('target ') + zk(oroB.objetivo / 1e9) + ' zkLTC'),
       fila('Shop price index, tomorrow', '×' + fmt(idxA.manana, 4), '×' + fmt(idxB.manana, 4), t('target ×') + fmt(idxB.objetivo, 4))
     );
-    $('e2-q-saldo').textContent = t('Balance: ') + fmt(saldo) + ' ' + t('bronze') + ' (' + fmt(Math.floor(saldo / (POR[q.moneda] || 1))) + ' ' +
-      t({ oro: 'Gold', plata: 'Silver', bronce: 'Bronze' }[q.moneda]) + ')';
+    $('e2-q-saldo').textContent = t('Balance: ') + fmt(saldo) + ' ' + t('bronze') + ' · ' + t('protected: ') + fmt(qb.protegido) + ' ' + t('bronze') + ' · ' +
+      t('can burn now: ') + fmt(qb.unidades) + ' ' + nombreMoneda(q.moneda) + ' (' + fmt(qb.disponible) + ' ' + t('bronze') + ')';
+    $('e2-q-cantidad').max = String(qb.unidades);
+    $('e2-q-todo').disabled = qb.unidades < 1;
     $('e2-q-go').disabled = ocupado || !(q.cantidad >= 1) || pasa;
-    $('e2-q-estado').textContent = pasa ? t('The treasury does not have that much.') : '';
+    $('e2-q-estado').textContent = !pasa ? resultadoQuema
+      : qb.disponible < 1 ? t('Nothing can be burned: the whole balance is the protected reserve (and payments held for services).')
+      : qb.unidades < 1 ? t('Less than one coin of this kind is above the protected reserve: choose Silver or Bronze.')
+      : t('At most') + ' ' + fmt(qb.unidades) + ' ' + nombreMoneda(q.moneda) + ' ' + t('can be burned: the protected reserve stays.');
   }
-  ['e2-q-tesoro', 'e2-q-moneda', 'e2-q-cantidad'].forEach(id => { $(id).addEventListener('input', proyectar); $(id).addEventListener('change', proyectar); });
+  // resultadoQuema (arriba): lo que contestó el servidor a la última quema; se queda a la vista hasta
+  // que se vuelva a escribir (antes la recarga de después lo borraba al momento y no se veía el "Burned").
+  const alEditar = () => { resultadoQuema = ''; proyectar(); };
+  ['e2-q-tesoro', 'e2-q-moneda', 'e2-q-cantidad'].forEach(id => { $(id).addEventListener('input', alEditar); $(id).addEventListener('change', alEditar); });
   $('e2-q-todo').addEventListener('click', () => {
     if (!datos) return;
-    const q = leerQuema(), tr = datos.tesoros;
-    const saldo = q.tesoro === 'circular' ? tr.circular.saldo : tr.juego.saldo;
-    const disponible = tr[q.tesoro] && tr[q.tesoro].disponible;
-    $('e2-q-cantidad').value = String(Math.floor((Number.isFinite(disponible) ? disponible : saldo) / (POR[q.moneda] || 1)));
-    proyectar();
+    $('e2-q-cantidad').value = String(quemable(leerQuema()).unidades);
+    alEditar();
   });
   $('e2-quemar').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -189,11 +204,11 @@
     ocupado = true; estado.textContent = t('Burning…'); $('e2-q-go').disabled = true;
     try {
       const r = await session.request('/api/admin/economia/quemar', { method: 'POST', body: JSON.stringify({ tesoro: q.tesoro, moneda: q.moneda, cantidad: q.cantidad, motivo, ref: root.crypto.randomUUID() }) });
-      estado.textContent = t('Burned: ') + fmt(r.bronce) + ' ' + t('bronze') + '.';
+      resultadoQuema = t('Burned: ') + fmt(r.bronce) + ' ' + t('bronze') + '.';
       $('e2-q-cantidad').value = ''; $('e2-q-motivo').value = '';
       ocupado = false; await cargar();
     } catch (e) {
-      estado.textContent = e && e.code === 'reserva_protegida' ? t('The protected reserve cannot be burned. Use only the available surplus.') : e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
+      resultadoQuema = e && e.code === 'reserva_protegida' ? t('The protected reserve cannot be burned. Use only the available surplus.') : e && e.code === 'saldo_insuficiente' ? t('The treasury does not have that much.') : (e && (e.message || e.code)) || t('Could not burn.');
     } finally { ocupado = false; proyectar(); }
   });
 

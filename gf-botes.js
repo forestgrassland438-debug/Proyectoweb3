@@ -60,9 +60,18 @@
   var ESCALA = 2;                 // 72 px de largo × 2: el remero (102 px) cabe sentado
   var QUILLA = 40;                // los pies = p.y + 40 (lo mismo que la pesca y el servidor)
   var BAJO_QUILLA = 12;           // el borde de abajo del dibujo, bajo los pies
-  var ALCANCE = 220;              // de los pies al bote (el servidor admite 260)
+  // De los pies al bote, para ponerlo, subir y recogerlo con la pala. El servidor admite
+  // 260 (BOTE_ALCANCE): 20 px de margen por si su posición del jugador va un poco atrás.
+  var ALCANCE = 240;
   var REMO = 0.62;                // remando se va al 62 % de la velocidad a pie
-  var ORILLA_MAX = 260;           // hasta dónde se busca tierra al bajar
+  /* Hasta dónde se busca tierra al bajar. (2026-11-25) "Cuando pongo un barco en el agua
+     y quiero tomarlo con la pala me dice que debo acercarme más": era 260 con ALCANCE en
+     220, así que se bajaba a tierra a 230-260 px del bote, con agua por medio, y ni la
+     pala ni volver a subir llegaban. Ahora el sitio donde se baja queda siempre al alcance
+     (los radios que se prueban llegan a 216); más lejos se pide remar más cerca. En el
+     pueblo la tierra libre empieza unos 55 px detrás del agua (la orilla y sus choques):
+     se baja con la quilla hasta a ~170 px del borde del agua. */
+  var ORILLA_MAX = 225;
 
   function api(ruta, cuerpo) {
     if (window.GFMascota && window.GFMascota.api) return window.GFMascota.api(ruta, cuerpo);
@@ -433,6 +442,7 @@
     var scene = st.scene, p = scene.player, e = st.botes[st.aBordo];
     if (!st.aBordo) return;
     st.aBordo = null;
+    st.fantasmaAvisado = false;
     if (st.resolverPropio === undefined) delete scene._resolverChoqueJugador;
     else scene._resolverChoqueJugador = st.resolverPropio;
     st.resolverPropio = undefined;
@@ -478,13 +488,26 @@
   /* (2026-10-22) MORIR A BORDO: antes se llamaba a pedirBajar() en CADA
      fotograma; lejos de la orilla (o con la caña echada) eso no bajaba y
      sacaba un aviso por fotograma, sin fin. Ahora se baja una sola vez y sin
-     avisos: a la orilla más cercana si la hay, y si no, donde está. */
+     avisos: a la orilla más cercana si la hay.
+     (2026-11-25) Y si no la hay, ya no se baja "donde está": el fantasma quedaba en
+     medio del agua y el bote, varado donde ni la pala ni volver a subir llegan (y a los
+     30 minutos se hunde). Sigue a bordo, de fantasma, con UN aviso; rema hasta la orilla
+     y baja solo en cuanto la tiene al alcance (buscarla son unas 400 miradas a la
+     rejilla del agua: se puede hacer en cada fotograma). */
   function bajarPorFantasma(st) {
     var scene = st.scene, e = st.botes[st.aBordo];
     if (!st.aBordo) return;
+    var orilla = orillaCercana(st);
+    if (!orilla) {
+      if (!st.fantasmaAvisado) {
+        st.fantasmaAvisado = true;
+        aviso(scene, '👻 You are a ghost — row to the shore to land.', 'warning');
+      }
+      return;
+    }
     var s = socketDe(scene);
     if (s && s.connected && e) s.emit('bote:bajar', { id: e.id, x: Math.round(e.x), y: Math.round(e.y) });
-    bajarLocal(st, orillaCercana(st));
+    bajarLocal(st, orilla);
   }
 
   // ─────────────────────────────────────────────────────── EL BOTÓN "LAND"
@@ -580,7 +603,9 @@
       if (!st.vivo) return;
       if (!r.ok || !d.ok) {
         var textos = { sin_pala: 'You need the Construction Shovel to pick up the boat.', a_bordo: 'Get off the boat first.',
-          lejos: 'Walk closer to your boat.', no_es_tuyo: 'That boat is not yours.', cadena: 'The chain is busy. Try again.' };
+          lejos: 'Walk closer to your boat.', no_es_tuyo: 'That boat is not yours.', cadena: 'The chain is busy. Try again.',
+          // (2026-11-25) El servidor aún no te ve en este mapa (recién llegado o reconectando).
+          fuera_de_zona: 'Walk a little first, then try again.', fantasma: 'You are a ghost — revive first.' };
         aviso(scene, textos[d.error] || d.message || 'The boat could not be picked up.', 'warning');
         return;
       }
