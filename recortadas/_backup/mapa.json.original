@@ -1,0 +1,600 @@
+{
+  "source": "mapa_principal.png",
+  "width": 5008,
+  "height": 5008,
+  "tileSize": 2048,
+  "cols": 3,
+  "rows": 3,
+  "totalTiles": 9,
+  "lods": [
+    {
+      "name": "hd",
+      "scale": 1,
+      "width": 5008,
+      "height": 5008
+    },
+    {
+      "name": "md",
+      "scale": 0.5,
+      "width": 2504,
+      "height": 2504
+    },
+    {
+      "name": "low",
+      "scale": 0.25,
+      "width": 1252,
+      "height": 1252
+    },
+    {
+      "name": "zoom",
+      "scale": 2,
+      "width": 8192,
+      "height": 8192
+    }
+  ],
+  "tiles": [
+    {
+      "id": 1,
+      "row": 0,
+      "col": 0,
+      "x": 0,
+      "y": 0,
+      "width": 2048,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r0_c0_id1_hd.webp",
+          "fallback": "tile_r0_c0_id1_hd.png",
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r0_c0_id1_md.webp",
+          "fallback": "tile_r0_c0_id1_md.png",
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r0_c0_id1_low.webp",
+          "fallback": "tile_r0_c0_id1_low.png",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r0_c0_id1_zoom.webp",
+          "fallback": "tile_r0_c0_id1_zoom.png",
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "row": 0,
+      "col": 1,
+      "x": 2048,
+      "y": 0,
+      "width": 2048,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r0_c1_id2_hd.webp",
+          "fallback": "tile_r0_c1_id2_hd.png",
+          "x": 2048,
+          "y": 0,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r0_c1_id2_md.webp",
+          "fallback": "tile_r0_c1_id2_md.png",
+          "x": 1024,
+          "y": 0,
+          "width": 1024,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r0_c1_id2_low.webp",
+          "fallback": "tile_r0_c1_id2_low.png",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r0_c1_id2_zoom.webp",
+          "fallback": "tile_r0_c1_id2_zoom.png",
+          "x": 4096,
+          "y": 0,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "row": 0,
+      "col": 2,
+      "x": 4096,
+      "y": 0,
+      "width": 912,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r0_c2_id3_hd.webp",
+          "fallback": "tile_r0_c2_id3_hd.png",
+          "x": 4096,
+          "y": 0,
+          "width": 912,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r0_c2_id3_md.webp",
+          "fallback": "tile_r0_c2_id3_md.png",
+          "x": 2048,
+          "y": 0,
+          "width": 456,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r0_c2_id3_low.webp",
+          "fallback": "tile_r0_c2_id3_low.png",
+          "x": 1024,
+          "y": 0,
+          "width": 228,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r0_c2_id3_zoom.webp",
+          "fallback": "tile_r0_c2_id3_zoom.png",
+          "x": 8192,
+          "y": 0,
+          "width": 1824,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "row": 1,
+      "col": 0,
+      "x": 0,
+      "y": 2048,
+      "width": 2048,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r1_c0_id4_hd.webp",
+          "fallback": "tile_r1_c0_id4_hd.png",
+          "x": 0,
+          "y": 2048,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r1_c0_id4_md.webp",
+          "fallback": "tile_r1_c0_id4_md.png",
+          "x": 0,
+          "y": 1024,
+          "width": 1024,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r1_c0_id4_low.webp",
+          "fallback": "tile_r1_c0_id4_low.png",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r1_c0_id4_zoom.webp",
+          "fallback": "tile_r1_c0_id4_zoom.png",
+          "x": 0,
+          "y": 4096,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "row": 1,
+      "col": 1,
+      "x": 2048,
+      "y": 2048,
+      "width": 2048,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r1_c1_id5_hd.webp",
+          "fallback": "tile_r1_c1_id5_hd.png",
+          "x": 2048,
+          "y": 2048,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r1_c1_id5_md.webp",
+          "fallback": "tile_r1_c1_id5_md.png",
+          "x": 1024,
+          "y": 1024,
+          "width": 1024,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r1_c1_id5_low.webp",
+          "fallback": "tile_r1_c1_id5_low.png",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r1_c1_id5_zoom.webp",
+          "fallback": "tile_r1_c1_id5_zoom.png",
+          "x": 4096,
+          "y": 4096,
+          "width": 2048,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "row": 1,
+      "col": 2,
+      "x": 4096,
+      "y": 2048,
+      "width": 912,
+      "height": 2048,
+      "lods": {
+        "hd": {
+          "filename": "tile_r1_c2_id6_hd.webp",
+          "fallback": "tile_r1_c2_id6_hd.png",
+          "x": 4096,
+          "y": 2048,
+          "width": 912,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r1_c2_id6_md.webp",
+          "fallback": "tile_r1_c2_id6_md.png",
+          "x": 2048,
+          "y": 1024,
+          "width": 456,
+          "height": 1024,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r1_c2_id6_low.webp",
+          "fallback": "tile_r1_c2_id6_low.png",
+          "x": 1024,
+          "y": 512,
+          "width": 228,
+          "height": 512,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r1_c2_id6_zoom.webp",
+          "fallback": "tile_r1_c2_id6_zoom.png",
+          "x": 8192,
+          "y": 4096,
+          "width": 1824,
+          "height": 2048,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "row": 2,
+      "col": 0,
+      "x": 0,
+      "y": 4096,
+      "width": 2048,
+      "height": 912,
+      "lods": {
+        "hd": {
+          "filename": "tile_r2_c0_id7_hd.webp",
+          "fallback": "tile_r2_c0_id7_hd.png",
+          "x": 0,
+          "y": 4096,
+          "width": 2048,
+          "height": 912,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r2_c0_id7_md.webp",
+          "fallback": "tile_r2_c0_id7_md.png",
+          "x": 0,
+          "y": 2048,
+          "width": 1024,
+          "height": 456,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r2_c0_id7_low.webp",
+          "fallback": "tile_r2_c0_id7_low.png",
+          "x": 0,
+          "y": 1024,
+          "width": 512,
+          "height": 228,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r2_c0_id7_zoom.webp",
+          "fallback": "tile_r2_c0_id7_zoom.png",
+          "x": 0,
+          "y": 8192,
+          "width": 2048,
+          "height": 1824,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "row": 2,
+      "col": 1,
+      "x": 2048,
+      "y": 4096,
+      "width": 2048,
+      "height": 912,
+      "lods": {
+        "hd": {
+          "filename": "tile_r2_c1_id8_hd.webp",
+          "fallback": "tile_r2_c1_id8_hd.png",
+          "x": 2048,
+          "y": 4096,
+          "width": 2048,
+          "height": 912,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r2_c1_id8_md.webp",
+          "fallback": "tile_r2_c1_id8_md.png",
+          "x": 1024,
+          "y": 2048,
+          "width": 1024,
+          "height": 456,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r2_c1_id8_low.webp",
+          "fallback": "tile_r2_c1_id8_low.png",
+          "x": 512,
+          "y": 1024,
+          "width": 512,
+          "height": 228,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r2_c1_id8_zoom.webp",
+          "fallback": "tile_r2_c1_id8_zoom.png",
+          "x": 4096,
+          "y": 8192,
+          "width": 2048,
+          "height": 1824,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "row": 2,
+      "col": 2,
+      "x": 4096,
+      "y": 4096,
+      "width": 912,
+      "height": 912,
+      "lods": {
+        "hd": {
+          "filename": "tile_r2_c2_id9_hd.webp",
+          "fallback": "tile_r2_c2_id9_hd.png",
+          "x": 4096,
+          "y": 4096,
+          "width": 912,
+          "height": 912,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "md": {
+          "filename": "tile_r2_c2_id9_md.webp",
+          "fallback": "tile_r2_c2_id9_md.png",
+          "x": 2048,
+          "y": 2048,
+          "width": 456,
+          "height": 456,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "low": {
+          "filename": "tile_r2_c2_id9_low.webp",
+          "fallback": "tile_r2_c2_id9_low.png",
+          "x": 1024,
+          "y": 1024,
+          "width": 228,
+          "height": 228,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        },
+        "zoom": {
+          "filename": "tile_r2_c2_id9_zoom.webp",
+          "fallback": "tile_r2_c2_id9_zoom.png",
+          "x": 8192,
+          "y": 8192,
+          "width": 1824,
+          "height": 1824,
+          "paddedTo": 2048,
+          "upscaleMode": "upscale"
+        }
+      }
+    }
+  ],
+  "atlas": {
+    "atlasSize": 4096,
+    "perRow": 2,
+    "perCol": 2,
+    "perAtlas": 4,
+    "atlases": [
+      {
+        "name": "atlas_0.png",
+        "entries": [
+          {
+            "id": 1,
+            "filename": "tile_r0_c0_id1_hd.webp",
+            "atlas": "atlas_0.png",
+            "x": 0,
+            "y": 0,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 2,
+            "filename": "tile_r0_c1_id2_hd.webp",
+            "atlas": "atlas_0.png",
+            "x": 2048,
+            "y": 0,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 3,
+            "filename": "tile_r0_c2_id3_hd.webp",
+            "atlas": "atlas_0.png",
+            "x": 0,
+            "y": 2048,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 4,
+            "filename": "tile_r1_c0_id4_hd.webp",
+            "atlas": "atlas_0.png",
+            "x": 2048,
+            "y": 2048,
+            "width": 2048,
+            "height": 2048
+          }
+        ]
+      },
+      {
+        "name": "atlas_1.png",
+        "entries": [
+          {
+            "id": 5,
+            "filename": "tile_r1_c1_id5_hd.webp",
+            "atlas": "atlas_1.png",
+            "x": 0,
+            "y": 0,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 6,
+            "filename": "tile_r1_c2_id6_hd.webp",
+            "atlas": "atlas_1.png",
+            "x": 2048,
+            "y": 0,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 7,
+            "filename": "tile_r2_c0_id7_hd.webp",
+            "atlas": "atlas_1.png",
+            "x": 0,
+            "y": 2048,
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "id": 8,
+            "filename": "tile_r2_c1_id8_hd.webp",
+            "atlas": "atlas_1.png",
+            "x": 2048,
+            "y": 2048,
+            "width": 2048,
+            "height": 2048
+          }
+        ]
+      },
+      {
+        "name": "atlas_2.png",
+        "entries": [
+          {
+            "id": 9,
+            "filename": "tile_r2_c2_id9_hd.webp",
+            "atlas": "atlas_2.png",
+            "x": 0,
+            "y": 0,
+            "width": 2048,
+            "height": 2048
+          }
+        ]
+      }
+    ]
+  }
+}
