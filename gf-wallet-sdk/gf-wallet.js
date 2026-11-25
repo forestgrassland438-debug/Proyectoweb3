@@ -67,12 +67,13 @@
     // APP_NAME del backend o la firma no valida.
     appName: 'Grassland Forest',
 
-    // Red LitVM LiteForge.
+    // Red LitVM LiteForge. (2026-11-10) Pasó de Caldera a Zeeve, y la que manda es la que
+    // dice el servidor (GET /api/red, ver aplicarRed): esto es solo por si no contesta.
     chainId: 4441,
     chainIdHex: '0x1159',
     chainName: 'LitVM LiteForge',
-    rpcUrl: 'https://liteforge.rpc.caldera.xyz/http',
-    explorerUrl: 'https://liteforge.explorer.caldera.xyz',
+    rpcUrl: 'https://rpc.testnet.liteforge.zeeve.net',
+    explorerUrl: 'https://explorer.testnet.liteforge.zeeve.net',
     nativeCurrency: { name: 'zkLTC', symbol: 'zkLTC', decimals: 18 },
 
     // La clave descifrada se borra de memoria tras este tiempo sin actividad.
@@ -572,6 +573,37 @@
     return e;
   }
 
+  /* LAS TARIFAS DE LA RED (2026-10-27): "max fee per gas less than block base
+     fee". En LitVM la tarifa base sube a saltos cuando los bloques van llenos y
+     la estimación de ethers (2 × la base del último bloque) se quedaba corta
+     antes de entrar en un bloque. Se mira la base MÁS ALTA de los últimos 20
+     bloques y el gasPrice del nodo, y se deja margen: el tope solo evita el
+     rechazo, lo que se paga de verdad es la base del bloque. */
+  var TOPE_MINIMO_WEI = 50000000n;          // 0,05 gwei
+  async function tarifasSeguras(proveedor, factor) {
+    var base = 0n, gasPrice = 0n, propina = 0n;
+    try {
+      var h = await proveedor.send('eth_feeHistory', ['0x14', 'latest', []]);
+      ((h && h.baseFeePerGas) || []).forEach(function (v) { var b = BigInt(v); if (b > base) base = b; });
+    } catch (_) {}
+    try {
+      var bloque = await proveedor.getBlock('latest');
+      if (bloque && bloque.baseFeePerGas && bloque.baseFeePerGas > base) base = bloque.baseFeePerGas;
+    } catch (_) {}
+    try { gasPrice = BigInt(await proveedor.send('eth_gasPrice', [])); } catch (_) {}
+    try { propina = BigInt(await proveedor.send('eth_maxPriorityFeePerGas', [])); } catch (_) {}
+    var tope = base * 4n;
+    if (gasPrice * 3n > tope) tope = gasPrice * 3n;
+    if (tope < TOPE_MINIMO_WEI) tope = TOPE_MINIMO_WEI;
+    tope = tope * BigInt(Math.max(1, factor || 1)) + propina;
+    return { maxFeePerGas: tope, maxPriorityFeePerGas: propina };
+  }
+  /** ¿El nodo rechazó la transacción por tarifa corta? (se reintenta con más margen) */
+  function esTarifaCorta(e) {
+    var m = String((e && (e.shortMessage || e.message)) || '') + ' ' + String((e && e.info && e.info.error && e.info.error.message) || '');
+    return /base fee|fee too low|underpriced|max fee per gas/i.test(m);
+  }
+
   /**
    * Convierte 32 bytes en una cuenta EVM válida.
    * secp256k1 no admite 0 ni valores >= n; la probabilidad de caer ahí con
@@ -728,11 +760,37 @@
   // 8. CLASE PRINCIPAL
   // ==========================================================================
 
+  /* LA RED LA DICE EL SERVIDOR (2026-11-10): GET /api/red, la que elige el administrador en el
+     centro de control (y en el juego, window.GFRed, que ya la tiene). Un dato que no valga se
+     ignora entero: la cartera se queda con la que tenía. */
+  function aplicarRed(cfg, red) {
+    if (!red || typeof red !== 'object') return false;
+    var id = Number(red.chainId);
+    var rpc = Array.isArray(red.rpcUrls) ? red.rpcUrls[0] : null;
+    if (!(id >= 1 && id <= 4294967295 && Math.floor(id) === id) || !rpc || !red.explorerUrl) return false;
+    try {
+      var nuevoRpc = validateEndpoint(rpc), nuevoExplorador = validateEndpoint(red.explorerUrl);
+      var m = red.moneda && typeof red.moneda === 'object' ? red.moneda : null;
+      cfg.chainId = id;
+      cfg.chainIdHex = '0x' + id.toString(16);
+      if (typeof red.nombre === 'string' && red.nombre) cfg.chainName = red.nombre.replace(/[<>"`]/g, '').slice(0, 60);
+      cfg.rpcUrl = nuevoRpc;
+      cfg.explorerUrl = nuevoExplorador;
+      if (m && /^[A-Za-z0-9.$_-]{1,12}$/.test(String(m.simbolo || ''))) {
+        var dec = Number(m.decimales);
+        cfg.nativeCurrency = { name: String(m.nombre || m.simbolo).replace(/[<>"`]/g, '').slice(0, 40), symbol: String(m.simbolo),
+          decimals: dec >= 0 && dec <= 36 && Math.floor(dec) === dec ? dec : 18 };
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+
   function GFWalletInstance(config) {
     _cfg = Object.assign({}, DEFAULTS, config || {});
     _cfg.apiBase = validateEndpoint(_cfg.apiBase);
     _cfg.rpcUrl = validateEndpoint(_cfg.rpcUrl);
     _cfg.explorerUrl = validateEndpoint(_cfg.explorerUrl);
+    try { if (typeof window !== 'undefined' && window.GFRed && window.GFRed.actual) aplicarRed(_cfg, window.GFRed.actual()); } catch (e) {}
     this.config = _cfg;
 
     this._privKey   = null;   // Uint8Array(32) — SOLO en memoria, nunca se guarda
@@ -758,6 +816,10 @@
         log('no se pudo leer /api/wallet/config:', e.message);
         this._remoteCfg = { providers: {} };
       }
+      // La red: la del servidor (un servidor viejo sin /api/red deja la de siempre).
+      try {
+        if (aplicarRed(_cfg, await apiFetch('/api/red'))) log('red', _cfg.chainName, _cfg.chainId, _cfg.rpcUrl);
+      } catch (e) { log('no se pudo leer /api/red:', e.message); }
       if (!this._provider) this._provider = crearProveedor(this);
       return this;
     },
@@ -1445,7 +1507,15 @@
           throw err('No tienes saldo suficiente (recuerda dejar algo para el gas)', 'insufficient_funds');
         }
 
-        const tx = await firmante.sendTransaction({ to: destino, value: valor });
+        // (2026-10-27) Con tarifas que caben en el bloque; si el nodo dice que
+        // se quedaron cortas, otra vez con más margen (×2 y ×6).
+        let tx = null, ultimoError = null;
+        for (let intento = 0; intento < 3 && !tx; intento++) {
+          const tarifas = await tarifasSeguras(proveedor, [1, 2, 6][intento]);
+          try { tx = await firmante.sendTransaction({ to: destino, value: valor, maxFeePerGas: tarifas.maxFeePerGas, maxPriorityFeePerGas: tarifas.maxPriorityFeePerGas }); }
+          catch (e) { ultimoError = e; if (!esTarifaCorta(e)) throw e; }
+        }
+        if (!tx) throw ultimoError;
         return {
           hash: tx.hash,
           url: _cfg.explorerUrl.replace(/\/$/, '') + '/tx/' + tx.hash,
