@@ -24619,7 +24619,9 @@ _showTutorialBanner(text) {
     'position:fixed', 'left:50%', 'transform:translateX(-50%)',
     'width:min(92vw,760px)', 'box-sizing:border-box',
     'background:rgba(11,61,46,0.94)', 'border:3px solid #ffd23f', 'border-radius:14px',
-    'padding:14px 46px 14px 18px', 'z-index:99999', 'color:#fff',
+    // (2026-11-25) A la altura del HUD (1000), no en 99999: tapaba la tienda (1001/1002), el
+    // crafteo (9999) y los paneles de los NPC. Los paneles van delante; el cartel, sobre el juego.
+    'padding:14px 46px 14px 18px', 'z-index:1000', 'color:#fff',
     'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
     'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
     'max-height:40vh', 'overflow:auto', 'pointer-events:auto'

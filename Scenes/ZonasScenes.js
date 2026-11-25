@@ -38,7 +38,7 @@
 
 /* global GameScene, Phaser */
 
-const ZONAS_V = '20261025a';   // (2026-10-25) los mapas de nivel 8, 9 y 10 y los caminos nuevos (antes 20261020b)
+const ZONAS_V = '20261125a';   // (2026-11-25) los faroles 2D del cementerio y la pradera, y la caverna con las paredes de la mina (11-24), que seguía en caché con la de antes (antes 20261025a)
 
 // eslint-disable-next-line no-unused-vars
 class ZonaScene extends GameScene {
